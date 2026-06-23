@@ -5,7 +5,7 @@
   "icon": "resources/icon.png",
   "version": "0.1.0",
   "packageManager": "pnpm@11.7.0",
-  "publisher": "umbrella22",
+  "publisher": "ikaros",
   "license": "MIT",
   "repository": {
     "type": "git",

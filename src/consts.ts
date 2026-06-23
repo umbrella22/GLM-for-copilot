@@ -1,0 +1,139 @@
+import { DEFAULT_GLM_BASE_URL } from './endpoint';
+import { GLM_TOOLS_LIMIT } from './provider/tools/consts';
+import { DEFAULT_GLM_VISION_MODEL_ID } from './provider/vision/consts';
+import type { ModelDefinition } from './types';
+
+/**
+ * Compile-time constants shared across the extension.
+ *
+ * These do NOT depend on the VS Code runtime (no workspace configuration,
+ * no secrets API). For run-time settings reads see `config.ts`.
+ */
+
+/** VS Code configuration section prefix for all extension settings. */
+export const CONFIG_SECTION = 'glm-copilot';
+
+export const EXTERNAL_URLS = {
+	glm: {
+		apiKeys: 'https://www.bigmodel.cn/usercenter/proj-mgmt/apikeys',
+		usage: 'https://www.bigmodel.cn/usercenter/resourcepack',
+		status: 'https://docs.bigmodel.cn/cn/api/status-code/status-code-v4',
+	},
+} as const;
+
+export { DEFAULT_GLM_BASE_URL };
+
+/** URI path handled by this extension to reveal the output log. */
+export const SHOW_LOGS_URI_PATH = '/showLogs';
+
+/** URI path handled by this extension to open API key configuration. */
+export const CONFIGURE_API_KEY_URI_PATH = '/setApiKey';
+
+/** URI path handled by this extension to open vision model configuration. */
+export const SET_VISION_MODEL_URI_PATH = '/setVisionModel';
+
+// VS Code's internal LanguageModelChatMessageRole.System is not exposed in @types/vscode.
+export const LANGUAGE_MODEL_CHAT_SYSTEM_ROLE = 3;
+
+// ---- Secret keys ----
+
+/** SecretStorage key for the GLM API key. */
+export const API_KEY_SECRET = 'glm-copilot.apiKey';
+
+/** memento key tracking whether the welcome walkthrough has been shown. */
+export const WELCOME_SHOWN_KEY = 'glm-copilot.welcomeShown';
+
+// ---- Walkthrough ----
+
+/** Walkthrough contribution ID. */
+export const WALKTHROUGH_ID = 'umbrella22.glm-for-copilot#glmGettingStarted';
+
+// ---- Model registry ----
+
+/** Available GLM models exposed through the language model provider. */
+export const MODELS: ModelDefinition[] = [
+	{
+		id: 'glm-5.2',
+		name: 'GLM-5.2',
+		family: 'glm',
+		version: '5.2',
+		detail: 'Flagship coding and reasoning model',
+		maxInputTokens: 1_000_000,
+		maxOutputTokens: 131_072,
+		capabilities: {
+			toolCalling: GLM_TOOLS_LIMIT,
+			// The extension accepts images for this model through the transparent
+			// GLM-4.6V-Flash vision proxy before sending text to GLM-5.2.
+			imageInput: true,
+			thinking: true,
+		},
+		requiresThinkingParam: true,
+		supportsReasoningEffort: true,
+		pricing: {
+			CNY: { cacheHitInput: 2, cacheMissInput: 8, output: 28 },
+			USD: { cacheHitInput: 0.26, cacheMissInput: 1.4, output: 4.4 },
+		},
+		priceCategory: 'high',
+	},
+	{
+		id: DEFAULT_GLM_VISION_MODEL_ID,
+		name: 'GLM-4.6V-Flash',
+		family: 'glm',
+		version: '4.6v',
+		detail: 'Multimodal GLM model for image understanding',
+		maxInputTokens: 200_000,
+		maxOutputTokens: 131_072,
+		capabilities: {
+			toolCalling: GLM_TOOLS_LIMIT,
+			imageInput: true,
+			thinking: true,
+		},
+		requiresThinkingParam: true,
+		pricing: {
+			CNY: { cacheHitInput: 0, cacheMissInput: 0, output: 0 },
+			USD: { cacheHitInput: 0, cacheMissInput: 0, output: 0 },
+		},
+		priceCategory: 'low',
+	},
+	{
+		id: 'glm-5-turbo',
+		name: 'GLM-5-Turbo',
+		family: 'glm',
+		version: '5',
+		detail: 'Fast coding model for daily agent work',
+		maxInputTokens: 200_000,
+		maxOutputTokens: 131_072,
+		capabilities: {
+			toolCalling: GLM_TOOLS_LIMIT,
+			// Image input is handled by the transparent GLM-4.6V-Flash vision proxy.
+			imageInput: true,
+			thinking: true,
+		},
+		requiresThinkingParam: true,
+		pricing: {
+			CNY: {
+				cacheHitInput: 1.2,
+				cacheMissInput: 5,
+				output: 22,
+				tiers: [
+					{
+						label: 'prompt < 32K',
+						maxPromptTokens: 32_000,
+						cacheHitInput: 1.2,
+						cacheMissInput: 5,
+						output: 22,
+					},
+					{
+						label: 'prompt >= 32K',
+						minPromptTokens: 32_000,
+						cacheHitInput: 1.8,
+						cacheMissInput: 7,
+						output: 26,
+					},
+				],
+			},
+			USD: { cacheHitInput: 0.24, cacheMissInput: 1.2, output: 4 },
+		},
+		priceCategory: 'medium',
+	},
+];

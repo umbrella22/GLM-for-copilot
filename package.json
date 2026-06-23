@@ -1,0 +1,222 @@
+{
+  "name": "glm-for-copilot",
+  "displayName": "GLM for Copilot Chat",
+  "description": "Pick GLM-5.2, GLM-4.6V-Flash, and GLM-5-Turbo from the Copilot Chat model picker. Vision, thinking mode, agent tools — zero config, BYOK.",
+  "icon": "resources/icon.png",
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.7.0",
+  "publisher": "umbrella22",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/umbrella22/glm-for-copilot"
+  },
+  "engines": {
+    "vscode": "^1.116.0",
+    "node": ">=24.11.0"
+  },
+  "categories": [
+    "AI",
+    "Chat",
+    "Programming Languages"
+  ],
+  "keywords": [
+    "glm",
+    "glm 5",
+    "glm-5",
+    "glm coding plan",
+    "copilot",
+    "github copilot",
+    "copilot chat",
+    "vision",
+    "byok",
+    "language model",
+    "thinking",
+    "reasoning",
+    "ai",
+    "chat"
+  ],
+  "activationEvents": [
+    "onUri",
+    "onStartupFinished"
+  ],
+  "enabledApiProposals": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "glm",
+        "displayName": "GLM"
+      }
+    ],
+    "commands": [
+      {
+        "command": "glm-copilot.setApiKey",
+        "title": "%glm-copilot.command.setApiKey%"
+      },
+      {
+        "command": "glm-copilot.getApiKey",
+        "title": "%glm-copilot.command.getApiKey%"
+      },
+      {
+        "command": "glm-copilot.queryUsage",
+        "title": "%glm-copilot.command.queryUsage%"
+      },
+      {
+        "command": "glm-copilot.clearApiKey",
+        "title": "%glm-copilot.command.clearApiKey%"
+      },
+      {
+        "command": "glm-copilot.setVisionModel",
+        "title": "%glm-copilot.command.setVisionModel%"
+      },
+      {
+        "command": "glm-copilot.openSettings",
+        "title": "%glm-copilot.command.openSettings%"
+      },
+      {
+        "command": "glm-copilot.showLogs",
+        "title": "%glm-copilot.command.showLogs%"
+      },
+      {
+        "command": "glm-copilot.openRequestDumpsFolder",
+        "title": "%glm-copilot.command.openRequestDumpsFolder%"
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "glmGettingStarted",
+        "title": "%glm-copilot.walkthrough.title%",
+        "description": "%glm-copilot.walkthrough.description%",
+        "steps": [
+          {
+            "id": "setApiKey",
+            "title": "%glm-copilot.walkthrough.setApiKey.title%",
+            "description": "%glm-copilot.walkthrough.setApiKey.description%",
+            "media": {
+              "markdown": "resources/walkthrough/set-api-key.md"
+            },
+            "completionEvents": [
+              "onCommand:glm-copilot.setApiKey"
+            ]
+          },
+          {
+            "id": "showModels",
+            "title": "%glm-copilot.walkthrough.showModels.title%",
+            "description": "%glm-copilot.walkthrough.showModels.description%",
+            "media": {
+              "markdown": "resources/walkthrough/show-models.md"
+            }
+          },
+          {
+            "id": "advancedSettings",
+            "title": "%glm-copilot.walkthrough.advancedSettings.title%",
+            "description": "%glm-copilot.walkthrough.advancedSettings.description%",
+            "media": {
+              "markdown": "resources/walkthrough/advanced-settings.md"
+            }
+          }
+        ]
+      }
+    ],
+    "configuration": {
+      "title": "%glm-copilot.config.title%",
+      "properties": {
+        "glm-copilot.baseUrl": {
+          "type": "string",
+          "default": "https://open.bigmodel.cn/api/coding/paas/v4",
+          "markdownDescription": "%glm-copilot.config.baseUrl.description%"
+        },
+        "glm-copilot.maxTokens": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "%glm-copilot.config.maxTokens.description%"
+        },
+        "glm-copilot.experimental.stabilizeToolList": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%glm-copilot.config.experimental.stabilizeToolList.description%",
+          "tags": [
+            "experimental"
+          ]
+        },
+        "glm-copilot.modelIdOverrides": {
+          "type": "object",
+          "default": {
+            "glm-5.2": "glm-5.2",
+            "glm-4.6v-flash": "glm-4.6v-flash",
+            "glm-5-turbo": "glm-5-turbo"
+          },
+          "description": "%glm-copilot.config.modelIdOverrides.description%",
+          "additionalProperties": false,
+          "properties": {
+            "glm-5.2": {
+              "type": "string",
+              "description": "%glm-copilot.config.modelIdOverrides.glm-5.2.description%"
+            },
+            "glm-4.6v-flash": {
+              "type": "string",
+              "description": "%glm-copilot.config.modelIdOverrides.glm-4.6v-flash.description%"
+            },
+            "glm-5-turbo": {
+              "type": "string",
+              "description": "%glm-copilot.config.modelIdOverrides.glm-5-turbo.description%"
+            }
+          }
+        },
+        "glm-copilot.visionModel": {
+          "type": "string",
+          "default": "",
+          "tags": [
+            "advanced"
+          ],
+          "markdownDescription": "%glm-copilot.config.visionModel.description%"
+        },
+        "glm-copilot.visionPrompt": {
+          "type": "string",
+          "editPresentation": "multilineText",
+          "default": "Describe all image attachments in this message.\n\nIf there is one image, describe it directly.\nIf there are multiple images:\n1. Describe each image separately, preserving their order.\n2. Then provide a combined description explaining the overall context and relationships across the images.\n\nReturn one concise factual description suitable for inserting into a text-only chat prompt. Include visible text, objects, UI elements, people, and relevant context. Do not invent details.",
+          "markdownDescription": "%glm-copilot.config.visionPrompt.description%"
+        },
+        "glm-copilot.debugMode": {
+          "type": "string",
+          "default": "minimal",
+          "enum": [
+            "minimal",
+            "metadata",
+            "verbose"
+          ],
+          "enumItemLabels": [
+            "%glm-copilot.config.debugMode.minimal.label%",
+            "%glm-copilot.config.debugMode.metadata.label%",
+            "%glm-copilot.config.debugMode.verbose.label%"
+          ],
+          "markdownEnumDescriptions": [
+            "%glm-copilot.config.debugMode.minimal.description%",
+            "%glm-copilot.config.debugMode.metadata.description%",
+            "%glm-copilot.config.debugMode.verbose.description%"
+          ],
+          "markdownDescription": "%glm-copilot.config.debugMode.description%"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "vp pack",
+    "watch": "vp pack --watch",
+    "lint": "vp lint",
+    "format": "vp fmt --write src/ vite.config.mts",
+    "format:check": "vp fmt --check src/ vite.config.mts",
+    "package": "vp run vsix",
+    "login": "vsce login umbrella22"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/vscode": "^1.116.0",
+    "@vscode/vsce": "^3.9.1",
+    "ovsx": "1.0.1",
+    "typescript": "^6.0.3",
+    "vite-plus": "^0.2.1"
+  }
+}

@@ -4,19 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Existing release tag to publish, e.g. v0.3.0.'
+        description: "Existing release tag to publish, e.g. v0.3.0."
         required: true
         type: string
       publish_vscode_marketplace:
         description: Publish this tag to the VS Code Marketplace.
         required: false
         type: boolean
-        default: true
+        default: false
       publish_open_vsx:
         description: Publish this tag to Open VSX.
         required: false
         type: boolean
-        default: true
+        default: false
       attach_github_release:
         description: Attach the VSIX to the existing GitHub Release.
         required: false

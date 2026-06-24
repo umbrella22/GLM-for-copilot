@@ -1,0 +1,94 @@
+import * as vscode from 'vscode';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { listProviderModels } from '../../src/config';
+import { MODELS } from '../../src/consts';
+import { getConfiguredThinkingEffort, toChatInfo } from '../../src/provider/models';
+import { __clearConfigurationValues, __setConfigurationValue } from '../support/vscode.mock';
+
+describe('model metadata helpers', () => {
+	beforeEach(() => {
+		__clearConfigurationValues();
+	});
+
+	it('normalizes configured thinking effort aliases', () => {
+		expect(
+			getConfiguredThinkingEffort({
+				modelConfiguration: { reasoningEffort: 'disabled' },
+			}),
+		).toBe('none');
+		expect(
+			getConfiguredThinkingEffort({
+				configuration: { thinking_effort: 'balanced' },
+			}),
+		).toBe('high');
+		expect(
+			getConfiguredThinkingEffort({
+				modelConfiguration: { thinkingEffort: 'deep' },
+			}),
+		).toBe('max');
+	});
+
+	it('defaults thinking effort to max when no valid value is configured', () => {
+		expect(getConfiguredThinkingEffort({})).toBe('max');
+		expect(
+			getConfiguredThinkingEffort({
+				modelConfiguration: { reasoningEffort: 'surprise' },
+			}),
+		).toBe('max');
+	});
+
+	it('shows locked model metadata before an API key is configured', () => {
+		const info = toChatInfo(MODELS[0], false, 'CNY');
+
+		expect(info.statusIcon).toBeInstanceOf(vscode.ThemeIcon);
+		expect(info.statusIcon?.id).toBe('warning');
+		expect(info.detail).toBe('Please run GLM: Set API Key to configure.');
+		expect(info.tooltip).toBe('Please run GLM: Set API Key to configure.');
+		expect(info.isBYOK).toBe(true);
+		expect(info.isUserSelectable).toBe(true);
+	});
+
+	it('reports capabilities, thinking configuration, and price metadata when unlocked', () => {
+		const info = toChatInfo(MODELS[0], true, 'CNY');
+
+		expect(info.statusIcon).toBeUndefined();
+		expect(info.capabilities).toEqual({
+			toolCalling: MODELS[0].capabilities.toolCalling,
+			imageInput: true,
+		});
+		expect(info.configurationSchema?.properties.reasoningEffort.default).toBe('max');
+		expect(info.inputCost).toBe('¥8');
+		expect(info.outputCost).toBe('¥28');
+		expect(info.cacheCost).toBe('¥2');
+		expect(info.priceCategory).toBe('high');
+	});
+
+	it('includes custom models in picker metadata with Vision Proxy image support', () => {
+		__setConfigurationValue('glm-copilot.customModels', [
+			'team-coder',
+			{ id: 'no-thinking', thinking: false },
+		]);
+
+		const infos = listProviderModels().map((model) => toChatInfo(model, true, 'USD'));
+		const custom = infos.find((info) => info.id === 'team-coder');
+		const noThinking = infos.find((info) => info.id === 'no-thinking');
+
+		expect(infos.map((info) => info.id)).toEqual([
+			...MODELS.map((model) => model.id),
+			'team-coder',
+			'no-thinking',
+		]);
+		expect(custom).toMatchObject({
+			id: 'team-coder',
+			name: 'team-coder',
+			detail: 'Custom GLM-compatible model',
+			capabilities: {
+				toolCalling: true,
+				imageInput: true,
+			},
+		});
+		expect(custom?.configurationSchema?.properties.reasoningEffort.default).toBe('max');
+		expect(noThinking?.capabilities.imageInput).toBe(true);
+		expect(noThinking?.configurationSchema).toBeUndefined();
+	});
+});

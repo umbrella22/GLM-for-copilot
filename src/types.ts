@@ -93,6 +93,23 @@ export interface StreamCallbacks {
 	onUsage?: (usage: GLMUsage) => void;
 }
 
+// ---- Configuration types ----
+
+export type ApiMode = 'coding-plan' | 'standard';
+
+export type ApiRegion = 'china' | 'international';
+
+export type CustomModelConfigEntry = string | CustomModelConfig;
+
+export interface CustomModelConfig {
+	id?: string;
+	name?: string;
+	maxInputTokens?: number;
+	maxOutputTokens?: number;
+	toolCalling?: boolean;
+	thinking?: boolean;
+}
+
 // ---- Model definitions ----
 
 export type PricingCurrency = 'USD' | 'CNY';

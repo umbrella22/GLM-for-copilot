@@ -82,7 +82,7 @@ Pure VS Code API + Node.js built-ins. No Python, no Docker, no local proxy serve
 
 - VS Code 1.116 or later. This extension relies on non-public Copilot Chat APIs that may break on newer VS Code versions — [report an issue](https://github.com/umbrella22/glm-for-copilot/issues) if you hit one.
 - GitHub Copilot subscription (Free / Pro / Enterprise — the free tier works)
-- GLM API key from [www.bigmodel.cn/usercenter/proj-mgmt/apikeys](https://www.bigmodel.cn/usercenter/proj-mgmt/apikeys), or a compatible provider token when using a custom `glm-copilot.baseUrl`
+- GLM API key or Coding Plan token. Run **GLM: Get API Key** to open the page matching your `glm-copilot.apiMode` and `glm-copilot.region`, or use a compatible provider token when using a custom `glm-copilot.baseUrl`
 
 ### Installation
 
@@ -112,9 +112,12 @@ All three support optional thinking mode and tool calling. GLM-5.2 is the best f
 
 | Setting                                      | Default                                       | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | -------------------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `glm-copilot.baseUrl`                        | `https://open.bigmodel.cn/api/coding/paas/v4` | API endpoint. Domestic general API: `https://open.bigmodel.cn/api/paas/v4`; international Coding Plan: `https://api.z.ai/api/coding/paas/v4`; international general API: `https://api.z.ai/api/paas/v4`                                                                                                                                                                                                                                                                                                                       |
+| `glm-copilot.baseUrl`                        | empty                                         | Optional API endpoint override. Leave empty to use `apiMode` + `region`; any non-empty value has highest priority. The default resolved endpoint is domestic Coding Plan: `https://open.bigmodel.cn/api/coding/paas/v4`                                                                                                                                                                                                                                                                                                      |
+| `glm-copilot.region`                         | `china`                                       | Endpoint preset region when `baseUrl` is empty: `china` for BigModel or `international` for Z.ai                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `glm-copilot.apiMode`                        | `coding-plan`                                 | Endpoint preset mode when `baseUrl` is empty: `coding-plan` or `standard`                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `glm-copilot.maxTokens`                      | `0`                                           | Max output tokens (`0` = no limit). Useful for cost control                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `glm-copilot.modelIdOverrides`               | prefilled official ID map                     | API model IDs to send for GLM-5.2, GLM-4.6V-Flash, and GLM-5-Turbo. The GLM-4.6V-Flash override is also used by automatic vision proxy mode. Change only for compatible third-party APIs with different model names                                                                                                                                                                                                                                                                                                           |
+| `glm-copilot.modelIdOverrides`               | prefilled official ID map                     | API model IDs to send for built-in or custom models. The GLM-4.6V-Flash override is also used by automatic vision proxy mode. Change only for compatible endpoints with different model names                                                                                                                                                                                                                                                                                                                                 |
+| `glm-copilot.customModels`                   | `[]`                                          | Extra GLM-compatible models for the picker. Accepts string IDs or objects with `id`, optional `name`, token limits, `toolCalling`, and `thinking`. Custom IDs override built-ins. Images still go through the current Vision Proxy; custom models do not bypass it for native vision                                                                                                                                                                                                                                         |
 | `glm-copilot.debugMode`                      | `minimal`                                     | Diagnostic mode: `minimal` for token usage only, `metadata` for privacy-preserving logs, or `verbose` for full request dumps and pipeline snapshots under extension global storage. Full dumps may include sensitive prompt text, tool schemas, file snippets, and image descriptions. Use `GLM: Open Request Dumps Folder` to open the dump location                                                                                                                                                                         |
 | `glm-copilot.visionModel`                    | _(auto)_                                      | VS Code vision model used as fallback when automatic GLM-4.6V-Flash vision is unavailable. Configure from `GLM: Configure Vision Proxy`; new saves use `vendor/id`, while legacy bare model IDs are still read                                                                                                                                                                                                                                                                                                                |
 | `glm-copilot.visionPrompt`                   | _(built-in)_                                  | Prompt used to describe image attachments                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
@@ -126,10 +129,23 @@ Example `settings.json` override for compatible API proxies:
 
 ```json
 {
+  "glm-copilot.baseUrl": "https://proxy.example.com/v1",
+  "glm-copilot.customModels": [
+    "my-glm-model",
+    {
+      "id": "team-coder",
+      "name": "Team Coder",
+      "maxInputTokens": 200000,
+      "maxOutputTokens": 131072,
+      "toolCalling": true,
+      "thinking": true
+    }
+  ],
   "glm-copilot.modelIdOverrides": {
     "glm-5.2": "your-glm-5.2-model-id",
     "glm-4.6v-flash": "your-glm-4.6v-flash-model-id",
-    "glm-5-turbo": "your-glm-5-turbo-model-id"
+    "glm-5-turbo": "your-glm-5-turbo-model-id",
+    "team-coder": "provider-team-coder-id"
   }
 }
 ```
@@ -147,7 +163,7 @@ Example `settings.json` override for compatible API proxies:
 
 ## Acknowledgements
 
-This project references ideas and implementation patterns from [Vizards/deepseek-v4-for-copilot](https://github.com/Vizards/deepseek-v4-for-copilot). Thanks to the original authors. Where applicable, redistribution and derivative work should preserve the original MIT License notices.
+This project references ideas and implementation patterns from [Vizards/deepseek-v4-for-copilot](https://github.com/Vizards/deepseek-v4-for-copilot), [KiwiGaze/glm-for-copilot](https://github.com/KiwiGaze/glm-for-copilot), and [selfagency/z-models-vscode](https://github.com/selfagency/z-models-vscode). Thanks to the original authors. Where applicable, redistribution and derivative work should preserve the original MIT License notices.
 
 ## License
 

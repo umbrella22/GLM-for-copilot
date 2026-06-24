@@ -1,16 +1,48 @@
 import vscode from 'vscode';
-import { CONFIG_SECTION, DEFAULT_GLM_BASE_URL } from './consts';
-import { normalizeBaseUrl } from './endpoint';
+import { CONFIG_SECTION, MODELS } from './consts';
+import { normalizeBaseUrl, resolveApiKeyUrl, resolvePresetBaseUrl } from './endpoint';
+import type { ApiMode, ApiRegion, CustomModelConfig, ModelDefinition } from './types';
 
 export type DebugMode = 'minimal' | 'metadata' | 'verbose';
 
+const DEFAULT_API_MODE: ApiMode = 'coding-plan';
+const DEFAULT_API_REGION: ApiRegion = 'china';
+const CUSTOM_MODEL_DETAIL = 'Custom GLM-compatible model';
+const CUSTOM_MODEL_MAX_INPUT_TOKENS = 200_000;
+const CUSTOM_MODEL_MAX_OUTPUT_TOKENS = 131_072;
+
 /**
  * Get GLM API base URL from settings.
- * Falls back to the official endpoint when not configured.
+ * A non-empty `baseUrl` overrides the apiMode/region preset.
  */
 export function getBaseUrl(): string {
+	const override = getBaseUrlOverride();
+	if (override) {
+		return override;
+	}
+
+	return resolvePresetBaseUrl(getApiMode(), getRegion());
+}
+
+export function getBaseUrlOverride(): string | undefined {
 	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-	return normalizeBaseUrl(config.get<string>('baseUrl') || DEFAULT_GLM_BASE_URL);
+	const value = config.get<string>('baseUrl', '');
+	const normalized = normalizeBaseUrl(value ?? '');
+	return normalized || undefined;
+}
+
+export function getApiMode(): ApiMode {
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+	return normalizeApiMode(config.get<string>('apiMode'), DEFAULT_API_MODE);
+}
+
+export function getRegion(): ApiRegion {
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+	return normalizeApiRegion(config.get<string>('region'), DEFAULT_API_REGION);
+}
+
+export function getApiKeyUrl(): string {
+	return resolveApiKeyUrl(getApiMode(), getRegion());
 }
 
 /**
@@ -21,10 +53,51 @@ export function getBaseUrl(): string {
  * when no override is configured.
  */
 export function getApiModelId(vscodeModelId: string): string {
-	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-	const overrides = config.get<Record<string, string>>('modelIdOverrides');
-	const override = overrides?.[vscodeModelId]?.trim();
+	const override = getModelIdOverrides()[vscodeModelId]?.trim();
 	return override || vscodeModelId;
+}
+
+export function getModelIdOverrides(): Record<string, string> {
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+	const raw = config.get<Record<string, unknown>>('modelIdOverrides');
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+		return {};
+	}
+
+	return Object.fromEntries(
+		Object.entries(raw)
+			.map(([key, value]) => [key.trim(), typeof value === 'string' ? value.trim() : ''])
+			.filter(([key, value]) => key.length > 0 && value.length > 0),
+	);
+}
+
+export function getCustomModels(): ModelDefinition[] {
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+	const raw = config.get<unknown[]>('customModels', []);
+	if (!Array.isArray(raw)) {
+		return [];
+	}
+
+	const byId = new Map<string, ModelDefinition>();
+	for (const entry of raw) {
+		const model = normalizeCustomModel(entry);
+		if (model) {
+			byId.set(model.id, model);
+		}
+	}
+	return [...byId.values()];
+}
+
+export function listProviderModels(): ModelDefinition[] {
+	const byId = new Map(MODELS.map((model) => [model.id, model]));
+	for (const model of getCustomModels()) {
+		byId.set(model.id, model);
+	}
+	return [...byId.values()];
+}
+
+export function findModelDefinition(modelId: string): ModelDefinition | undefined {
+	return listProviderModels().find((model) => model.id === modelId);
 }
 
 /**
@@ -93,6 +166,66 @@ function normalizeDebugMode(value: unknown): DebugMode | undefined {
 		return value;
 	}
 	return undefined;
+}
+
+function normalizeApiMode(value: unknown, fallback: ApiMode): ApiMode {
+	return value === 'coding-plan' || value === 'standard' ? value : fallback;
+}
+
+function normalizeApiRegion(value: unknown, fallback: ApiRegion): ApiRegion {
+	return value === 'china' || value === 'international' ? value : fallback;
+}
+
+function normalizeCustomModel(entry: unknown): ModelDefinition | undefined {
+	const model = readCustomModelConfig(entry);
+	if (!model) {
+		return undefined;
+	}
+
+	const id = model.id?.trim();
+	if (!id) {
+		return undefined;
+	}
+
+	const thinking = model.thinking !== false;
+	return {
+		id,
+		name: getCustomModelName(model, id),
+		family: 'glm',
+		version: 'custom',
+		detail: CUSTOM_MODEL_DETAIL,
+		maxInputTokens: getPositiveInteger(model.maxInputTokens, CUSTOM_MODEL_MAX_INPUT_TOKENS),
+		maxOutputTokens: getPositiveInteger(model.maxOutputTokens, CUSTOM_MODEL_MAX_OUTPUT_TOKENS),
+		capabilities: {
+			toolCalling: model.toolCalling === false ? false : true,
+			imageInput: true,
+			thinking,
+		},
+		requiresThinkingParam: thinking,
+	};
+}
+
+function readCustomModelConfig(entry: unknown): CustomModelConfig | undefined {
+	if (typeof entry === 'string') {
+		return { id: entry };
+	}
+
+	if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+		return undefined;
+	}
+
+	return entry as CustomModelConfig;
+}
+
+function getCustomModelName(model: CustomModelConfig, id: string): string {
+	const name = model.name?.trim();
+	return name || id;
+}
+
+function getPositiveInteger(value: unknown, fallback: number): number {
+	return typeof value === 'number' && Number.isFinite(value) && value > 0
+		? Math.floor(value)
+		: fallback;
 }
 
 async function migrateLegacyDebugSettingAtScope(

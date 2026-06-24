@@ -1,5 +1,5 @@
 import vscode from 'vscode';
-import { EXTERNAL_URLS } from '../consts';
+import { getApiKeyUrl } from '../config';
 import { t } from '../i18n';
 import { logger } from '../logger';
 import { ensureRequestDumpRoot } from '../provider/debug';
@@ -11,7 +11,7 @@ export function registerCommands(context: vscode.ExtensionContext): void {
 			openRequestDumpsFolder(context),
 		),
 		vscode.commands.registerCommand('glm-copilot.getApiKey', () =>
-			vscode.env.openExternal(vscode.Uri.parse(EXTERNAL_URLS.glm.apiKeys)),
+			vscode.env.openExternal(vscode.Uri.parse(getApiKeyUrl())),
 		),
 		vscode.commands.registerCommand('glm-copilot.openSettings', () =>
 			vscode.commands.executeCommand('workbench.action.openSettings', 'glm-copilot'),

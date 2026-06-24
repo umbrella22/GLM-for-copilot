@@ -6,31 +6,52 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
+    name: Test and package
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 24.11.0
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
 
-      - run: corepack enable
+      - name: Enable Corepack
+        run: corepack enable
 
-      - run: pnpm install --frozen-lockfile
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-      - run: pnpm lint
+      - name: Lint
+        run: pnpm lint
 
-      - run: pnpm format:check
+      - name: Check formatting
+        run: pnpm format:check
 
-      - run: pnpm compile
+      - name: Test
+        run: pnpm test
 
-      - run: mkdir -p dist && pnpm package
+      - name: Compile
+        run: pnpm compile
 
-      - uses: actions/upload-artifact@v4
+      - name: Package extension
+        run: mkdir -p dist && pnpm package
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
         with:
           name: glm-for-copilot.vsix
           path: dist/*.vsix

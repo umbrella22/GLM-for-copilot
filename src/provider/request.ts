@@ -1,8 +1,7 @@
 import vscode from 'vscode';
 import { AuthManager } from '../auth';
 import { GLMClient } from '../client';
-import { getApiModelId, getBaseUrl, getMaxTokens } from '../config';
-import { MODELS } from '../consts';
+import { findModelDefinition, getApiModelId, getBaseUrl, getMaxTokens } from '../config';
 import { isOfficialGLMBaseUrl } from '../endpoint';
 import { t } from '../i18n';
 import type { GLMRequest, ModelDefinition, PricingCurrency } from '../types';
@@ -62,7 +61,7 @@ export async function prepareChatRequest({
 
 	const baseUrl = getBaseUrl();
 	const client = new GLMClient(baseUrl, apiKey);
-	const modelDef = MODELS.find((m) => m.id === modelInfo.id);
+	const modelDef = findModelDefinition(modelInfo.id);
 	const isThinkingModel = modelDef?.capabilities.thinking ?? false;
 	const maxTokens = getMaxTokens();
 	const apiModelId = getApiModelId(modelInfo.id);

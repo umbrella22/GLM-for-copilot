@@ -1,7 +1,7 @@
 import vscode from 'vscode';
 import { AuthManager } from '../auth';
-import { getBaseUrl, getStabilizeToolListEnabled } from '../config';
-import { API_KEY_SECRET, CONFIG_SECTION, MODELS } from '../consts';
+import { getBaseUrl, getStabilizeToolListEnabled, listProviderModels } from '../config';
+import { API_KEY_SECRET, CONFIG_SECTION } from '../consts';
 import { t } from '../i18n';
 import { logger } from '../logger';
 import { createCacheDiagnosticsRecorder, dumpProviderInput } from './debug';
@@ -58,7 +58,11 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 			vscode.workspace.onDidChangeConfiguration((e) => {
 				if (
 					e.affectsConfiguration(`${CONFIG_SECTION}.apiKey`) ||
-					e.affectsConfiguration(`${CONFIG_SECTION}.baseUrl`)
+					e.affectsConfiguration(`${CONFIG_SECTION}.baseUrl`) ||
+					e.affectsConfiguration(`${CONFIG_SECTION}.apiMode`) ||
+					e.affectsConfiguration(`${CONFIG_SECTION}.region`) ||
+					e.affectsConfiguration(`${CONFIG_SECTION}.customModels`) ||
+					e.affectsConfiguration(`${CONFIG_SECTION}.modelIdOverrides`)
 				) {
 					this.invalidateCurrencyAndRefreshModels();
 				}
@@ -166,7 +170,7 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 		if (hasKey) {
 			this.balanceCurrencyResolver.refreshInBackground();
 		}
-		return MODELS.map((model) => toChatInfo(model, hasKey, pricingCurrency));
+		return listProviderModels().map((model) => toChatInfo(model, hasKey, pricingCurrency));
 	}
 
 	async provideLanguageModelChatResponse(

@@ -2,6 +2,7 @@
 README.md
 README.zh-cn.md
 src/**
+test/**
 out/**/*.map
 out/**/*.d.ts
 out/**/*.d.ts.map

@@ -1,6 +1,17 @@
 import { defineConfig } from 'vite-plus';
+import { fileURLToPath } from 'node:url';
+
+const vscodeMockPath = fileURLToPath(new URL('./test/support/vscode.mock.ts', import.meta.url));
 
 export default defineConfig({
+	test: {
+		environment: 'node',
+		include: ['test/**/*.test.ts'],
+		globals: false,
+		alias: {
+			vscode: vscodeMockPath,
+		},
+	},
 	pack: {
 		entry: {
 			extension: 'src/extension.ts',

@@ -21,6 +21,7 @@
 - Added VitePlus/Vitest tests covering endpoint routing, pricing/currency, model metadata, request conversion, tool handling, routing, and Vision Proxy resolution.
 - Added GitHub Actions CI for test, lint, format check, compile, and VSIX packaging.
 - Updated CI and release workflows to use Node 24-runtime GitHub Actions and explicit Corepack pnpm activation.
+- Updated release workflow to package and upload the VSIX artifact before creating the GitHub Release, then reuse that artifact for marketplace publishing and release assets.
 - Added `glm-copilot.apiMode` and `glm-copilot.region` endpoint presets:
   - `coding-plan` or `standard`
   - `china` or `international`

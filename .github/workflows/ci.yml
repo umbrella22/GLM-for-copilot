@@ -52,7 +52,7 @@ jobs:
         run: mkdir -p dist && pnpm package
 
       - name: Upload VSIX artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: glm-for-copilot.vsix
           path: dist/*.vsix

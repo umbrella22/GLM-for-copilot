@@ -15,11 +15,11 @@ importers:
         specifier: ^1.116.0
         version: 1.125.0
       '@vscode/vsce':
-        specifier: ^3.9.1
+        specifier: ^3.9.2
         version: 3.9.2
       ovsx:
-        specifier: 1.0.1
-        version: 1.0.1
+        specifier: 1.0.2
+        version: 1.0.2
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -1670,8 +1670,8 @@ packages:
     resolution: {integrity: sha512-YgBpdJHPyQ2UE5x+hlSXcnejzAvD0b22U2OuAP+8OnlJT+PjWPxtgmGqKKc+RgTM63U9gN0YzrYc71R2WT/hTA==}
     engines: {node: '>=18'}
 
-  ovsx@1.0.1:
-    resolution: {integrity: sha512-dNIVv/33z/wURvH1wAw2PRicVM5CdQB3BRL3WhEeFEFMDUkKoujlBPpqMr/meIpf4xDYUEfRwFRBiDzs38vQvw==}
+  ovsx@1.0.2:
+    resolution: {integrity: sha512-N0gWlINGgoOA2Sn0AhrF9L3ap40a/QbsFUpMDKR+CKYyZGJeTFEoNGngplLHjAYtcjrrZv2jX2K7ktPzxWjPNg==}
     engines: {node: '>= 20'}
     hasBin: true
 
@@ -3664,7 +3664,7 @@ snapshots:
       is-inside-container: 1.0.0
       wsl-utils: 0.1.0
 
-  ovsx@1.0.1:
+  ovsx@1.0.2:
     dependencies:
       '@vscode/vsce': 3.9.2
       commander: 6.2.1

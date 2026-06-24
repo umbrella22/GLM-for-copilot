@@ -208,14 +208,13 @@
     "lint": "vp lint",
     "format": "vp fmt --write src/ vite.config.mts",
     "format:check": "vp fmt --check src/ vite.config.mts",
-    "package": "vp run vsix",
-    "login": "vsce login umbrella22"
+    "package": "vp run vsix"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
     "@types/vscode": "^1.116.0",
-    "@vscode/vsce": "^3.9.1",
-    "ovsx": "1.0.1",
+    "@vscode/vsce": "^3.9.2",
+    "ovsx": "1.0.2",
     "typescript": "^6.0.3",
     "vite-plus": "^0.2.1"
   }

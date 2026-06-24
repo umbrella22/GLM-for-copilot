@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.1.0...v0.2.0) (2026-06-24)
+
+
+### Features
+
+* add vision proxy panel styles and implement action URL handling ([0101028](https://github.com/umbrella22/GLM-for-copilot/commit/0101028586e9533742f2d21c499736bcab3024d7))
+* enhance configuration and command handling ([5b03555](https://github.com/umbrella22/GLM-for-copilot/commit/5b03555e11ddbfddd3582c16110f8ade892d4f15))
+
+
+### Bug Fixes
+
+* update devDependencies for @vscode/vsce and ovsx, and add minimumReleaseAgeExclude for ovsx ([096e96e](https://github.com/umbrella22/GLM-for-copilot/commit/096e96e92c09f80c7645ab56b9be3485858f2511))
+* update publisher name in package.json to 'ikaros' ([6967284](https://github.com/umbrella22/GLM-for-copilot/commit/69672845cacb75d1ed31e36411b2decb821bc8b1))
+
 ## 0.2.0 - 2026-06-24
 
 ### Added

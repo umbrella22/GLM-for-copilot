@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/umbrella22/GLM-for-copilot/compare/v0.2.0...v0.2.1) (2026-06-26)
+
+
+### Bug Fixes
+
+* enhance message conversion logic and refactor currency handling in GLMChatProvider ([0195560](https://github.com/umbrella22/GLM-for-copilot/commit/01955600685d51899e40825c64400732d59f1bbd))
+
 ## [0.2.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.1.0...v0.2.0) (2026-06-24)
 
 

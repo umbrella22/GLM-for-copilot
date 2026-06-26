@@ -3,7 +3,7 @@
   "displayName": "GLM for VsCode Copilot",
   "description": "Pick GLM-5.2, GLM-4.6V-Flash, and GLM-5-Turbo from the Copilot Chat model picker. Vision, thinking mode, agent tools — zero config, BYOK.",
   "icon": "resources/icon.png",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "packageManager": "pnpm@11.7.0",
   "publisher": "ikaros",
   "license": "MIT",

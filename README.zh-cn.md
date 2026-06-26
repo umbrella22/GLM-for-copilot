@@ -2,12 +2,11 @@
 
 <p align="center">
   <!-- marketplace-readme:remove-start -->
-  <a href="https://marketplace.visualstudio.com/items?itemName=umbrella22.glm-for-copilot"><img src="https://img.shields.io/badge/VS%20Code%20Marketplace-Install-007ACC?logo=visualstudiocode&logoColor=white&style=for-the-badge" alt="从 VS Code Marketplace 安装"></a>
-  <a href="https://open-vsx.org/extension/umbrella22/glm-for-copilot"><img src="https://img.shields.io/badge/Open%20VSX-Install-6A4FB6?style=for-the-badge" alt="从 Open VSX 安装"></a>
+  <a href="https://marketplace.visualstudio.com/items?itemName=ikaros.glm-for-vscode-copilot"><img src="https://img.shields.io/badge/VS%20Code%20Marketplace-Install-007ACC?logo=visualstudiocode&logoColor=white&style=for-the-badge" alt="从 VS Code Marketplace 安装"></a>
   <br/>
   <!-- marketplace-readme:remove-end -->
   <img src="https://img.shields.io/github/v/release/umbrella22/glm-for-copilot?style=for-the-badge&label=Version" alt="版本" />
-  <img src="https://vsmarketplacebadges.dev/installs-short/umbrella22.glm-for-copilot.svg?style=for-the-badge" alt="安装量" />
+  <img src="https://vsmarketplacebadges.dev/installs-short/ikaros.glm-for-vscode-copilot.svg?style=for-the-badge" alt="安装量" />
 </p>
 
 <p align="center">

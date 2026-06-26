@@ -6,7 +6,7 @@ import { t } from '../i18n';
 import { logger } from '../logger';
 import { createCacheDiagnosticsRecorder, dumpProviderInput } from './debug';
 import { toChatInfo } from './models';
-import { BalanceCurrencyResolver } from './pricing/currency';
+import { getPricingCurrencyForBaseUrl } from './pricing/currency';
 import { UsageCostStatus } from './pricing/status';
 import { prepareChatRequest } from './request';
 import { classifyProviderRequest } from './routing';
@@ -34,7 +34,6 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 
 	/** Vision proxy: internal bridge + VS Code LM fallback. */
 	private readonly vision: ReturnType<typeof createVisionService>;
-	private readonly balanceCurrencyResolver: BalanceCurrencyResolver;
 	private readonly usageCostStatus = new UsageCostStatus();
 
 	/**
@@ -47,9 +46,6 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 		this.authManager = new AuthManager(context);
 		this.globalStorageUri = context.globalStorageUri;
 		this.vision = createVisionService(context, this.authManager);
-		this.balanceCurrencyResolver = new BalanceCurrencyResolver(context, this.authManager, () =>
-			this.onDidChangeLanguageModelChatInformationEmitter.fire(),
-		);
 
 		context.subscriptions.push(
 			this.onDidChangeLanguageModelChatInformationEmitter,
@@ -64,7 +60,7 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 					e.affectsConfiguration(`${CONFIG_SECTION}.customModels`) ||
 					e.affectsConfiguration(`${CONFIG_SECTION}.modelIdOverrides`)
 				) {
-					this.invalidateCurrencyAndRefreshModels();
+					this.refreshModelPicker();
 				}
 			}),
 			// Multi-window: SecretStorage changes don't fire onDidChangeConfiguration.
@@ -72,7 +68,7 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 			// model picker so the warning state stays in sync.
 			context.secrets.onDidChange((e) => {
 				if (e.key === API_KEY_SECRET) {
-					this.invalidateCurrencyAndRefreshModels();
+					this.refreshModelPicker();
 				}
 			}),
 		);
@@ -83,13 +79,13 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 	async configureApiKey(): Promise<void> {
 		const saved = await this.authManager.promptForApiKey();
 		if (saved) {
-			this.invalidateCurrencyAndRefreshModels();
+			this.refreshModelPicker();
 		}
 	}
 
 	async clearApiKey(): Promise<void> {
 		await this.authManager.deleteApiKey();
-		this.invalidateCurrencyAndRefreshModels();
+		this.refreshModelPicker();
 		vscode.window.showInformationMessage(t('auth.removed'));
 	}
 
@@ -128,13 +124,6 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 		this.onDidChangeLanguageModelChatInformationEmitter.fire();
 	}
 
-	private invalidateCurrencyAndRefreshModels(): void {
-		void this.balanceCurrencyResolver
-			.invalidate()
-			.catch((error) => logger.warn('Failed to invalidate GLM pricing currency', error))
-			.finally(() => this.onDidChangeLanguageModelChatInformationEmitter.fire());
-	}
-
 	async prepareForDeactivate(): Promise<void> {
 		this.isActive = false;
 		this.onDidChangeLanguageModelChatInformationEmitter.fire();
@@ -166,10 +155,7 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 		}
 
 		const hasKey = await this.authManager.hasApiKey();
-		const pricingCurrency = this.balanceCurrencyResolver.getDisplayCurrency();
-		if (hasKey) {
-			this.balanceCurrencyResolver.refreshInBackground();
-		}
+		const pricingCurrency = getPricingCurrencyForBaseUrl(getBaseUrl());
 		return listProviderModels().map((model) => toChatInfo(model, hasKey, pricingCurrency));
 	}
 

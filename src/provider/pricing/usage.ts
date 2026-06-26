@@ -63,7 +63,7 @@ export function estimateUsageCost(
 			cacheHitInput: effectivePricing.cacheHitInput,
 			cacheMissInput: effectivePricing.cacheMissInput,
 			output: effectivePricing.output,
-			...(effectivePricing.label ? { tierLabel: effectivePricing.label } : {}),
+			...('label' in effectivePricing ? { tierLabel: effectivePricing.label } : {}),
 		},
 	};
 }
@@ -106,7 +106,11 @@ function selectPricingTier(
 }
 
 function getCacheHitTokens(usage: GLMUsage): number {
-	return usage.prompt_cache_hit_tokens ?? usage.prompt_tokens_details?.cached_tokens ?? 0;
+	const raw = usage.prompt_cache_hit_tokens ?? usage.prompt_tokens_details?.cached_tokens ?? 0;
+	// Clamp to [0, prompt_tokens]: a misbehaving endpoint can report more cached
+	// tokens than the prompt itself, which would otherwise inflate the billed
+	// input total above prompt_tokens and skew the cost estimate.
+	return Math.min(Math.max(raw, 0), Math.max(usage.prompt_tokens, 0));
 }
 
 function getCacheMissTokens(usage: GLMUsage, cacheHitTokens: number): number {

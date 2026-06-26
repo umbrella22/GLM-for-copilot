@@ -51,7 +51,7 @@ export function convertMessages(
 		}
 
 		if (role === 'assistant') {
-			if (content || toolCalls.length > 0) {
+			if (content || toolCalls.length > 0 || (isThinkingModel && thinkingContent)) {
 				const replayMarker = isThinkingModel ? parseFirstReplayMarker(message) : undefined;
 				const msg: GLMMessage = {
 					role: 'assistant' as const,

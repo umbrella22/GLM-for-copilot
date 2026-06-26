@@ -1,6 +1,3 @@
-import vscode from 'vscode';
-import { AuthManager } from '../../auth';
-import { getBaseUrl } from '../../config';
 import { identifyOfficialGLMPlatform, normalizeBaseUrl } from '../../endpoint';
 import type { PricingCurrency } from '../../types';
 
@@ -9,22 +6,6 @@ import type { PricingCurrency } from '../../types';
  * There is no stable balance endpoint in the OpenAI-compatible API path, so
  * model-picker pricing uses the endpoint host instead of probing account state.
  */
-export class BalanceCurrencyResolver {
-	constructor(
-		private readonly _context: vscode.ExtensionContext,
-		private readonly _authManager: AuthManager,
-		private readonly _onDidChangeCurrency: () => void,
-	) {}
-
-	getDisplayCurrency(): PricingCurrency | undefined {
-		return getPricingCurrencyForBaseUrl(getBaseUrl());
-	}
-
-	refreshInBackground(): void {}
-
-	async invalidate(): Promise<void> {}
-}
-
 export function getPricingCurrencyForBaseUrl(baseUrl: string): PricingCurrency | undefined {
 	const platform = identifyOfficialGLMPlatform(normalizeBaseUrl(baseUrl));
 	if (platform === 'zhipu') {

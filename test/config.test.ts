@@ -8,6 +8,7 @@ import {
 	getCustomModels,
 	getEndpoint,
 	listProviderModels,
+	migrateLegacyEndpointSettings,
 } from '../src/config';
 import { MODELS } from '../src/consts';
 import {
@@ -200,5 +201,68 @@ describe('endpoint preset selection', () => {
 		expect(getApiModelId('team-coder')).toBe('provider-team-coder');
 		expect(getApiModelId('empty')).toBe('empty');
 		expect(getApiModelId('unknown')).toBe('unknown');
+	});
+});
+
+describe('migrateLegacyEndpointSettings', () => {
+	beforeEach(() => {
+		__clearConfigurationValues();
+	});
+
+	it('writes the derived endpoint and clears the legacy keys', async () => {
+		__setConfigurationValue('glm-copilot.region', 'international');
+		__setConfigurationValue('glm-copilot.apiMode', 'standard');
+		__setConfigurationValue('glm-copilot.apiProtocol', 'openai');
+
+		await migrateLegacyEndpointSettings();
+
+		expect(getEndpoint()).toBe('international-standard');
+		expect(getBaseUrl()).toBe(GLM_INTERNATIONAL_GENERAL_BASE_URL);
+		expect(getApiKeyUrl()).toBe(GLM_INTERNATIONAL_GENERAL_API_KEY_URL);
+		expect(getApiProtocol()).toBe('openai');
+	});
+
+	it('maps legacy anthropic protocol to the international Anthropic endpoint (regression)', async () => {
+		__setConfigurationValue('glm-copilot.region', 'international');
+		__setConfigurationValue('glm-copilot.apiProtocol', 'anthropic');
+
+		await migrateLegacyEndpointSettings();
+
+		expect(getEndpoint()).toBe('international-anthropic');
+		expect(getBaseUrl()).toBe(GLM_INTERNATIONAL_ANTHROPIC_BASE_URL);
+		expect(getApiProtocol()).toBe('anthropic');
+	});
+
+	it('does nothing when no legacy keys are configured', async () => {
+		await migrateLegacyEndpointSettings();
+
+		// Default preset is still china-coding; no legacy keys were written.
+		expect(getEndpoint()).toBe('china-coding');
+	});
+
+	it('preserves an explicitly configured endpoint and leaves legacy keys untouched', async () => {
+		// If the user already picked a new endpoint, migration defers — the
+		// explicit value wins at runtime regardless of stale legacy keys.
+		__setConfigurationValue('glm-copilot.endpoint', 'china-anthropic');
+		__setConfigurationValue('glm-copilot.region', 'international');
+		__setConfigurationValue('glm-copilot.apiMode', 'standard');
+
+		await migrateLegacyEndpointSettings();
+
+		expect(getEndpoint()).toBe('china-anthropic');
+		expect(getBaseUrl()).toBe(GLM_CN_ANTHROPIC_BASE_URL);
+	});
+
+	it('is idempotent — running twice yields the same state', async () => {
+		__setConfigurationValue('glm-copilot.region', 'international');
+		__setConfigurationValue('glm-copilot.apiMode', 'standard');
+
+		await migrateLegacyEndpointSettings();
+		const afterFirstRun = getEndpoint();
+
+		await migrateLegacyEndpointSettings();
+
+		expect(getEndpoint()).toBe(afterFirstRun);
+		expect(getEndpoint()).toBe('international-standard');
 	});
 });

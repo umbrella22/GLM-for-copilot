@@ -1,5 +1,5 @@
 import vscode from 'vscode';
-import { getDebugMode, migrateLegacyDebugSetting } from '../config';
+import { getDebugMode, migrateLegacyDebugSetting, migrateLegacyEndpointSettings } from '../config';
 import { CONFIG_SECTION } from '../consts';
 import { logger } from '../logger';
 
@@ -8,6 +8,12 @@ export async function initializeDiagnostics(context: vscode.ExtensionContext): P
 		await migrateLegacyDebugSetting();
 	} catch (error) {
 		logger.warn('Failed to migrate legacy debug setting', error);
+	}
+
+	try {
+		await migrateLegacyEndpointSettings();
+	} catch (error) {
+		logger.warn('Failed to migrate legacy endpoint settings', error);
 	}
 
 	logger.info(

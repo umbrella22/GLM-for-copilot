@@ -158,69 +158,6 @@
           ],
           "markdownDescription": "%glm-copilot.config.endpoint.description%"
         },
-        "glm-copilot.region": {
-          "type": "string",
-          "default": "china",
-          "enum": [
-            "china",
-            "international"
-          ],
-          "enumItemLabels": [
-            "%glm-copilot.config.region.china.label%",
-            "%glm-copilot.config.region.international.label%"
-          ],
-          "markdownEnumDescriptions": [
-            "%glm-copilot.config.region.china.description%",
-            "%glm-copilot.config.region.international.description%"
-          ],
-          "markdownDescription": "%glm-copilot.config.region.description%",
-          "markdownDeprecationMessage": "%glm-copilot.config.region.deprecation%",
-          "tags": [
-            "deprecated"
-          ]
-        },
-        "glm-copilot.apiMode": {
-          "type": "string",
-          "default": "coding-plan",
-          "enum": [
-            "coding-plan",
-            "standard"
-          ],
-          "enumItemLabels": [
-            "%glm-copilot.config.apiMode.codingPlan.label%",
-            "%glm-copilot.config.apiMode.standard.label%"
-          ],
-          "markdownEnumDescriptions": [
-            "%glm-copilot.config.apiMode.codingPlan.description%",
-            "%glm-copilot.config.apiMode.standard.description%"
-          ],
-          "markdownDescription": "%glm-copilot.config.apiMode.description%",
-          "markdownDeprecationMessage": "%glm-copilot.config.apiMode.deprecation%",
-          "tags": [
-            "deprecated"
-          ]
-        },
-        "glm-copilot.apiProtocol": {
-          "type": "string",
-          "default": "openai",
-          "enum": [
-            "openai",
-            "anthropic"
-          ],
-          "enumItemLabels": [
-            "%glm-copilot.config.apiProtocol.openai.label%",
-            "%glm-copilot.config.apiProtocol.anthropic.label%"
-          ],
-          "markdownEnumDescriptions": [
-            "%glm-copilot.config.apiProtocol.openai.description%",
-            "%glm-copilot.config.apiProtocol.anthropic.description%"
-          ],
-          "markdownDescription": "%glm-copilot.config.apiProtocol.description%",
-          "markdownDeprecationMessage": "%glm-copilot.config.apiProtocol.deprecation%",
-          "tags": [
-            "deprecated"
-          ]
-        },
         "glm-copilot.maxTokens": {
           "type": "number",
           "default": 0,

@@ -108,24 +108,47 @@ export const env = {
 	},
 };
 
+/**
+ * Minimal subset of VS Code's ConfigurationTarget enum, used by migration
+ * helpers that walk configuration scopes. Values mirror the real enum so code
+ * that compares against `ConfigurationTarget.Global` etc. keeps working.
+ */
+export enum ConfigurationTarget {
+	Global = 1,
+	Workspace = 2,
+	WorkspaceFolder = 3,
+}
+
 export const workspace = {
-	getConfiguration(section?: string) {
+	getConfiguration(section?: string, _resource?: unknown) {
+		const scopedKey = (key: string) => (section ? `${section}.${key}` : key);
 		return {
 			get<T>(key: string, fallback?: T): T | undefined {
-				const scopedKey = section ? `${section}.${key}` : key;
-				if (configurationValues.has(scopedKey)) {
-					return configurationValues.get(scopedKey) as T;
+				const full = scopedKey(key);
+				if (configurationValues.has(full)) {
+					return configurationValues.get(full) as T;
 				}
 				if (configurationValues.has(key)) {
 					return configurationValues.get(key) as T;
 				}
 				return fallback;
 			},
-			inspect() {
+			inspect<T>(key: string): { globalValue?: T } | undefined {
+				const full = scopedKey(key);
+				// The mock stores every value as a "global" value, which is the
+				// only scope the migration helpers read at Global target.
+				if (configurationValues.has(full)) {
+					return { globalValue: configurationValues.get(full) as T };
+				}
 				return undefined;
 			},
-			async update() {
-				return undefined;
+			async update(key: string, value: unknown, _target?: unknown): Promise<void> {
+				const full = scopedKey(key);
+				if (value === undefined) {
+					configurationValues.delete(full);
+				} else {
+					configurationValues.set(full, value);
+				}
 			},
 		};
 	},
@@ -178,6 +201,7 @@ const vscode = {
 	window,
 	commands,
 	StatusBarAlignment,
+	ConfigurationTarget,
 	Uri,
 	EventEmitter,
 	LanguageModelChatMessageRole,

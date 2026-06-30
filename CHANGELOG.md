@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/umbrella22/GLM-for-copilot/compare/v0.2.1...v0.2.2) (2026-06-30)
+
+
+### Bug Fixes
+
+* Refactor stream handling and diagnostics migration ([f390e36](https://github.com/umbrella22/GLM-for-copilot/commit/f390e3693cffc723b356e7fccded59577cd0ef03))
+
 ## [0.2.1](https://github.com/umbrella22/GLM-for-copilot/compare/v0.2.0...v0.2.1) (2026-06-26)
 
 

@@ -25,6 +25,8 @@ interface ResponseStreamState {
 	emittedToolCallIds: string[];
 	initialResponseNoticeReported: boolean;
 	replayMarkerReported: boolean;
+	/** Whether any model-generated text or tool call has been reported to VS Code. */
+	hasModelOutput: boolean;
 }
 
 const COPILOT_USAGE_DATA_PART_MIME = 'usage';
@@ -53,6 +55,7 @@ export function streamChatCompletion({
 		emittedToolCallIds: [],
 		initialResponseNoticeReported: false,
 		replayMarkerReported: false,
+		hasModelOutput: false,
 	};
 	const cancelListener = observeCancellationToken(token, prepared.cacheDiagnostics);
 
@@ -61,6 +64,7 @@ export function streamChatCompletion({
 			prepared.request,
 			{
 				onContent: (content: string) => {
+					state.hasModelOutput = true;
 					reportInitialResponseNoticeOnce(progress, state, initialResponseNotice);
 					progress.report(new vscode.LanguageModelTextPart(content));
 				},
@@ -71,6 +75,7 @@ export function streamChatCompletion({
 				},
 
 				onToolCall: (toolCall: GLMToolCall) => {
+					state.hasModelOutput = true;
 					reportInitialResponseNoticeOnce(progress, state, initialResponseNotice);
 					handleToolCall(toolCall, state, progress);
 				},
@@ -80,6 +85,12 @@ export function streamChatCompletion({
 				},
 
 				onDone: () => {
+					if (!state.hasModelOutput) {
+						throw new Error(
+							'Model returned an empty response with no text or tool calls. ' +
+								'This may indicate an API issue or the model refused to answer.',
+						);
+					}
 					reportReplayMarkerOnce(prepared, progress, state, 'done');
 					finalizeReplayDiagnostics(
 						prepared.trailingToolResultIds,

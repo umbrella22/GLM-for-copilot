@@ -4,18 +4,18 @@ import { getDebugLoggingEnabled } from '../../config';
 import { LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../../consts';
 import { logger } from '../../logger';
 import type { GLMMessage, GLMRequest, GLMTool, GLMUsage } from '../../types';
+import { REPLAY_MARKER_MIME, parseFirstReplayMarker } from '../replay';
 import {
 	classifyGLMRequest,
 	formatModelFields,
 	formatRequestLogLine,
 	type RequestKind,
 } from '../routing';
-import { REPLAY_MARKER_MIME, parseFirstReplayMarker } from '../replay';
 import type { ConversationSegment } from '../segment';
 import { ACTIVATE_TOOL_PREFIX } from '../tools/consts';
 import type { ActivatePreflightInspection } from '../tools/preflight';
+import type { VisionResolutionStats as VisionPipelineStats, VisionProxySource } from '../vision';
 import { IMAGE_DESCRIPTION_UNAVAILABLE } from '../vision/consts';
-import type { VisionProxySource, VisionResolutionStats as VisionPipelineStats } from '../vision';
 
 const LARGE_MESSAGE_CHARS = 10_000;
 const HASH_WINDOW_CHARS = 2_048;
@@ -625,7 +625,7 @@ class ActiveCacheDiagnosticsRun implements CacheDiagnosticsRun {
 			logger.info(
 				formatRequestLogLine(
 					this.snapshot.requestKind,
-					`[cache-trace #${this.requestId}] result cacheRate=${hitRate}%` +
+					`[cache-trace #${this.requestId}] result cacheRate=${hitRate}` +
 						` ${this.prefixLabel}=${this.resultComparison.commonPrefixSummaryChars}` +
 						` chars (${this.resultComparison.commonPrefixSummaryPercent.toFixed(1)}%)`,
 				),
@@ -810,7 +810,7 @@ function logUsage(
 			`tokens${requestId ? ` #${requestId}` : ''}: ` +
 				formatModelFields(context.vscodeModelId, context.apiModelId) +
 				` prompt=${usage.prompt_tokens} completion=${usage.completion_tokens}` +
-				` | cache: hit=${cacheHit} miss=${cacheMiss} rate=${getCacheHitRate(usage)}%` +
+				` | cache: hit=${cacheHit} miss=${cacheMiss} rate=${getCacheHitRate(usage)}` +
 				` | chars/tok=${charsPerToken.toFixed(2)}`,
 		),
 	);
@@ -820,7 +820,7 @@ function getCacheHitRate(usage: GLMUsage): string {
 	const cacheHit = getCacheHitTokens(usage);
 	const cacheMiss = getCacheMissTokens(usage);
 	const cacheTotal = cacheHit + cacheMiss;
-	return cacheTotal > 0 ? ((cacheHit / cacheTotal) * 100).toFixed(0) : 'n/a';
+	return cacheTotal > 0 ? `${((cacheHit / cacheTotal) * 100).toFixed(0)}%` : 'n/a';
 }
 
 function getCacheHitTokens(usage: GLMUsage): number {
@@ -1146,7 +1146,10 @@ function isLanguageModelThinkingPart(part: unknown): part is vscode.LanguageMode
 	);
 }
 
-function normalizeThinkingPartValue(value: string | string[]): { text: string; type: string } {
+function normalizeThinkingPartValue(value: string | string[]): {
+	text: string;
+	type: string;
+} {
 	if (Array.isArray(value)) {
 		return { text: value.join(''), type: 'string[]' };
 	}

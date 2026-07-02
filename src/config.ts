@@ -300,23 +300,29 @@ export async function migrateLegacyEndpointSettings(): Promise<void> {
 	);
 
 	if (!effectiveEndpoint) {
-		// Determine the most specific scope that has any legacy key, and write
-		// the new endpoint there so VS Code's scope-precedence picks it up.
-		const target = resolveMostSpecificLegacyScope(
-			config,
-			effectiveRegion,
-			effectiveApiMode,
-			effectiveApiProtocol,
-		);
-		await config.update('endpoint', preset, target);
+		// Determine the most specific scope(s) that have any legacy key, and
+		// write the new endpoint there so VS Code's scope-precedence picks it
+		// up. WorkspaceFolder requires a resource-scoped config object — the
+		// section-scoped `config` above throws when ConfigurationTarget.
+		// WorkspaceFolder is passed without a resource URI (same root cause as
+		// the legacy-key cleanup below). Furthermore, in a multi-root workspace
+		// `config.inspect(...).workspaceFolderValue` is undefined (no specific
+		// resource is associated), so WorkspaceFolder legacy keys are only
+		// discoverable by inspecting each folder individually. Write the preset
+		// to every folder that carries a legacy key, plus the most specific of
+		// Workspace/Global when those scopes hold legacy keys.
+		await writeDerivedEndpointPreset(config, preset);
 	}
 
-	// Clear legacy keys at every scope.  Failures are non-fatal — the new
-	// endpoint preset takes precedence at runtime regardless.
+	// Clear legacy keys at Global and Workspace scopes.  WorkspaceFolder
+	// requires a resource-scoped config object (the section-scoped config
+	// used above throws when ConfigurationTarget.WorkspaceFolder is passed
+	// without a resource URI).  Iterate workspace folders separately below.
+	// Failures are non-fatal — the new endpoint preset takes precedence at
+	// runtime regardless.
 	for (const target of [
 		vscode.ConfigurationTarget.Global,
 		vscode.ConfigurationTarget.Workspace,
-		vscode.ConfigurationTarget.WorkspaceFolder,
 	] as const) {
 		try {
 			await config.update('region', undefined, target);
@@ -334,42 +340,93 @@ export async function migrateLegacyEndpointSettings(): Promise<void> {
 			/* non-fatal */
 		}
 	}
+	for (const folder of vscode.workspace.workspaceFolders ?? []) {
+		const folderConfig = vscode.workspace.getConfiguration(CONFIG_SECTION, folder.uri);
+		try {
+			await folderConfig.update('region', undefined, vscode.ConfigurationTarget.WorkspaceFolder);
+		} catch {
+			/* non-fatal */
+		}
+		try {
+			await folderConfig.update('apiMode', undefined, vscode.ConfigurationTarget.WorkspaceFolder);
+		} catch {
+			/* non-fatal */
+		}
+		try {
+			await folderConfig.update(
+				'apiProtocol',
+				undefined,
+				vscode.ConfigurationTarget.WorkspaceFolder,
+			);
+		} catch {
+			/* non-fatal */
+		}
+	}
 }
 
 /**
- * Find the most-specific configuration scope that has at least one legacy key
- * explicitly set, for writing the derived endpoint preset.
+ * Write the derived endpoint preset to the most-specific scope(s) that carry at
+ * least one legacy key.
+ *
+ * WorkspaceFolder keys require a resource-scoped config and are invisible to a
+ * section-scoped `inspect()` in multi-root workspaces, so each folder is
+ * inspected individually and the preset is written to every folder that has a
+ * legacy key. The single-section config handles Workspace/Global. Failures are
+ * non-fatal — the runtime endpoint resolver falls back to defaults.
  */
-function resolveMostSpecificLegacyScope(
+async function writeDerivedEndpointPreset(
 	config: vscode.WorkspaceConfiguration,
-	_regionValue: string | undefined,
-	_apiModeValue: string | undefined,
-	_apiProtocolValue: string | undefined,
-): vscode.ConfigurationTarget {
-	// Check in priority order: WorkspaceFolder → Workspace → Global
-	const regionInspect = config.inspect<string>('region');
-	const apiModeInspect = config.inspect<string>('apiMode');
-	const apiProtocolInspect = config.inspect<string>('apiProtocol');
-
-	// If any legacy key has a workspaceFolder value, use that scope
-	if (
-		regionInspect?.workspaceFolderValue !== undefined ||
-		apiModeInspect?.workspaceFolderValue !== undefined ||
-		apiProtocolInspect?.workspaceFolderValue !== undefined
-	) {
-		return vscode.ConfigurationTarget.WorkspaceFolder;
+	preset: string,
+): Promise<void> {
+	// WorkspaceFolder: per-folder resource-scoped writes.
+	for (const folder of vscode.workspace.workspaceFolders ?? []) {
+		const folderConfig = vscode.workspace.getConfiguration(CONFIG_SECTION, folder.uri);
+		const regionInspect = folderConfig.inspect<string>('region');
+		const apiModeInspect = folderConfig.inspect<string>('apiMode');
+		const apiProtocolInspect = folderConfig.inspect<string>('apiProtocol');
+		if (
+			regionInspect?.workspaceFolderValue !== undefined ||
+			apiModeInspect?.workspaceFolderValue !== undefined ||
+			apiProtocolInspect?.workspaceFolderValue !== undefined
+		) {
+			try {
+				await folderConfig.update('endpoint', preset, vscode.ConfigurationTarget.WorkspaceFolder);
+			} catch {
+				/* non-fatal */
+			}
+		}
 	}
 
-	// If any legacy key has a workspace value, use that scope
+	// Workspace scope.
+	const wsRegionInspect = config.inspect<string>('region');
+	const wsApiModeInspect = config.inspect<string>('apiMode');
+	const wsApiProtocolInspect = config.inspect<string>('apiProtocol');
 	if (
-		regionInspect?.workspaceValue !== undefined ||
-		apiModeInspect?.workspaceValue !== undefined ||
-		apiProtocolInspect?.workspaceValue !== undefined
+		wsRegionInspect?.workspaceValue !== undefined ||
+		wsApiModeInspect?.workspaceValue !== undefined ||
+		wsApiProtocolInspect?.workspaceValue !== undefined
 	) {
-		return vscode.ConfigurationTarget.Workspace;
+		try {
+			await config.update('endpoint', preset, vscode.ConfigurationTarget.Workspace);
+		} catch {
+			/* non-fatal */
+		}
+		return;
 	}
 
-	return vscode.ConfigurationTarget.Global;
+	// Global scope (only when no Workspace legacy key exists, to avoid a
+	// lower-precedence Global write shadowing behaviour unexpectedly).
+	if (
+		wsRegionInspect?.globalValue !== undefined ||
+		wsApiModeInspect?.globalValue !== undefined ||
+		wsApiProtocolInspect?.globalValue !== undefined
+	) {
+		try {
+			await config.update('endpoint', preset, vscode.ConfigurationTarget.Global);
+		} catch {
+			/* non-fatal */
+		}
+	}
 }
 
 function getConfiguredDebugMode(config: vscode.WorkspaceConfiguration): DebugMode | undefined {

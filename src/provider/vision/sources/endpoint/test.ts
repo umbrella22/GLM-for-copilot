@@ -38,7 +38,11 @@ export async function testVisionProxyConnection(
 			token: tokenSource.token,
 		});
 		logVisionProxyTestSucceeded(config, apiKey, description);
-		return { ok: true, imageDataUrl: TEST_IMAGE_DATA_URL, response: description };
+		return {
+			ok: true,
+			imageDataUrl: TEST_IMAGE_DATA_URL,
+			response: description,
+		};
 	} catch (error) {
 		logVisionProxyTestFailed(error);
 		if (isVisionProxyError(error)) {
@@ -54,6 +58,11 @@ export async function testVisionProxyConnection(
 			message: error instanceof Error ? error.message : t('vision.proxy.error.testFailed'),
 		};
 	} finally {
+		// Cancel the token so that any in-flight fetch listening on
+		// onCancellationRequested is aborted.  dispose() alone does NOT
+		// signal cancellation (VS Code API).  Calling cancel() after the
+		// fetch has already completed is harmless and idempotent.
+		tokenSource.cancel();
 		tokenSource.dispose();
 	}
 }

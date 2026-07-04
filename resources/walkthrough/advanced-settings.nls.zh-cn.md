@@ -1,3 +1,17 @@
+## 在 Agent 窗口中启用 GLM
+
+如果 GLM 在编辑器聊天中可选，但在新的 agent 窗口 / 后台 agent 中看不到，请在 `settings.json` 中将本扩展加入白名单：
+
+```json
+{
+  "extensions.supportAgentsWindow": {
+    "ikaros.glm-for-vscode-copilot": true
+  }
+}
+```
+
+如果 agent 仍报错 `No utility model is configured for 'copilot-utility-small' while the selected main model is BYOK`，这是 VS Code Copilot 端的已知回归（[microsoft/vscode#324007](https://github.com/microsoft/vscode/issues/324007)）——上游修复前编辑器聊天仍可正常使用。
+
 ## 稳定工具列表（实验性）
 
 先打开 VS Code 的 Tools 配置，查看当前聊天启用了多少个工具。

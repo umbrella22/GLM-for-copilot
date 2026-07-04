@@ -1,3 +1,17 @@
+## Enable GLM in the Agent window
+
+If GLM shows up in the editor chat but is missing from the new agent window / background agent, allowlist the extension in `settings.json`:
+
+```json
+{
+  "extensions.supportAgentsWindow": {
+    "ikaros.glm-for-vscode-copilot": true
+  }
+}
+```
+
+If the agent still fails with `No utility model is configured for 'copilot-utility-small' while the selected main model is BYOK`, that is a known VS Code Copilot regression ([microsoft/vscode#324007](https://github.com/microsoft/vscode/issues/324007)) — the editor chat keeps working while the upstream issue is open.
+
 ## Stabilize Tool List (Experimental)
 
 First, open VS Code's Tools configuration and check how many tools are enabled for chat.

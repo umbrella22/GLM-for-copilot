@@ -3,6 +3,8 @@ import type { GLMRequest } from '../types';
 export interface ErrorActionUrls {
 	configureApiKey?: string;
 	showLogs?: string;
+	topUp?: string;
+	renewCodingPlan?: string;
 }
 
 export interface RequestErrorContext {

@@ -194,11 +194,53 @@ const zh: Translations = {
 	'error.http.500': '[{0}] 服务器内部故障。请等待后重试。',
 	'error.http.503': '[{0}] 服务器负载过高。请稍后重试您的请求。',
 	'error.http.generic': '[{0}] 服务返回错误响应。',
+	'error.http.withServerMessage': '[{0}] 服务返回错误：{1}',
 	'error.action.setApiKey': '设置 API Key',
 	'error.action.createApiKey': '创建 API Key',
 	'error.action.viewUsage': '用量',
 	'error.action.checkGLMStatus': 'GLM 状态',
 	'error.action.viewDetails': '错误详情',
+	'error.action.topUp': '前往充值',
+	'error.action.renewCodingPlan': '续订套餐',
+	'error.action.fairUsePolicy': '申请解除限制',
+	// GLM 业务错误码（参考 https://docs.bigmodel.cn/cn/faq/api-code）
+	'error.glm.1000': 'API Key 错误，认证失败。请检查 API Key 是否正确。',
+	'error.glm.1001': '请求未携带 Authentication 参数，无法进行身份验证。请配置 API Key。',
+	'error.glm.1003': 'Authentication Token 已过期。请重新生成或获取 API Key。',
+	'error.glm.1005': '已开启二次认证保护，需要完成二次认证登录后才能使用。',
+	'error.glm.1113': '您的账户已欠费。请充值后重试。',
+	'error.glm.1200': 'API 调用失败。请稍后重试，或查看 GLM 服务状态。',
+	'error.glm.1210': 'API 调用参数有误。请根据错误信息提示检查请求参数。',
+	'error.glm.1211': '模型不存在。请检查模型 ID 是否正确。',
+	'error.glm.1212': '当前模型不支持该调用方式。',
+	'error.glm.1213': '未正常接收到必填参数。请检查请求体。',
+	'error.glm.1214': '参数非法。请根据错误信息提示检查请求参数。',
+	'error.glm.1221': '该 API 已下线。',
+	'error.glm.1222': '该 API 不存在。',
+	'error.glm.1230': 'API 调用流程出错。请稍后重试。',
+	'error.glm.1234': '服务端网络错误。请联系客服。',
+	'error.glm.1261': 'Prompt 超长。请缩短输入或清理上下文后重试。',
+	'error.glm.1301': '系统检测到输入或生成内容可能包含不安全或敏感内容。请调整提示语。',
+	'error.glm.1302': '您的账户已达到速率限制，请控制请求频率。',
+	'error.glm.1305': '该模型当前访问量过大，请稍后再试。',
+	'error.glm.1308': '已达到使用上限，将在 {0} 重置。',
+	'error.glm.1309': '您的 GLM Coding Plan 套餐已到期。请前往官网续订后恢复使用。',
+	'error.glm.1310': '您已达到使用上限，将在 {0} 重置。',
+	'error.glm.1311': '当前订阅套餐暂未开放该模型权限。请续订或更换套餐。',
+	'error.glm.1313':
+		'您的账户当前使用模式不符合公平使用策略，请求频率已受到限制。请前往个人中心申请解除限制。',
+	'error.glm.1314': '您的企业套餐已失效，请联系企业管理员。',
+	'error.glm.1315': '该 API Key 仅限企业编程套餐场景使用。请到官网更换对应产品类型的 API Key。',
+	'error.glm.1316': '已达到 5 小时使用上限，主账号余额不足，无法使用超额按量付费。将在 {0} 重置。',
+	'error.glm.1317': '已达到 7 天使用上限，主账号余额不足，无法使用超额按量付费。将在 {0} 重置。',
+	'error.glm.1318':
+		'已达到 5 小时使用上限，且已达子账号月消费上限。请联系管理员调整。将在 {0} 重置。',
+	'error.glm.1319':
+		'已达到 7 天使用上限，且已达子账号月消费上限。请联系管理员调整。将在 {0} 重置。',
+	'error.glm.1320':
+		'已达到 5 小时使用上限，且已达企业级月消费上限。请联系管理员调整。将在 {0} 重置。',
+	'error.glm.1321':
+		'已达到 7 天使用上限，且已达企业级月消费上限。请联系管理员调整。将在 {0} 重置。',
 	'error.network.dns': '[{0}] DNS 解析失败。请检查网络连接、防火墙或代理设置，以及自定义 baseUrl。',
 	'error.network.unreachable':
 		'[{0}] 目标不可达或拒绝连接。请检查自定义 baseUrl、代理服务、网络连接或防火墙设置。',
@@ -423,11 +465,65 @@ const en: Translations = {
 	'error.http.503':
 		'[{0}] The server is overloaded due to high traffic. Please retry your request after a brief wait.',
 	'error.http.generic': '[{0}] The service returned an error response.',
+	'error.http.withServerMessage': '[{0}] The service returned an error: {1}',
 	'error.action.setApiKey': 'Set API Key',
 	'error.action.createApiKey': 'Create API Key',
 	'error.action.viewUsage': 'Usage',
 	'error.action.checkGLMStatus': 'GLM Status',
 	'error.action.viewDetails': 'Error Details',
+	'error.action.topUp': 'Top up',
+	'error.action.renewCodingPlan': 'Renew Plan',
+	'error.action.fairUsePolicy': 'Request Lift',
+	// GLM business error codes (see https://docs.bigmodel.cn/cn/faq/api-code)
+	'error.glm.1000': 'Authentication failed due to an invalid API key. Please check your API key.',
+	'error.glm.1001':
+		'The Authentication header was missing. Please configure an API key before retrying.',
+	'error.glm.1003':
+		'The authentication token has expired. Please regenerate or obtain a new API key.',
+	'error.glm.1005': 'Two-factor authentication is enabled. Please complete 2FA login first.',
+	'error.glm.1113': 'Your account is in arrears. Please top up and try again.',
+	'error.glm.1200': 'API call failed. Please retry later or check the GLM service status.',
+	'error.glm.1210':
+		'The API call parameters are invalid. Please review the error hints and your request body.',
+	'error.glm.1211': 'The model does not exist. Please check the model ID.',
+	'error.glm.1212': 'This model does not support the requested invocation method.',
+	'error.glm.1213':
+		'A required parameter was not received correctly. Please check the request body.',
+	'error.glm.1214':
+		'A parameter is invalid. Please review the error hints and your request parameters.',
+	'error.glm.1221': 'This API has been retired.',
+	'error.glm.1222': 'This API does not exist.',
+	'error.glm.1230': 'The API call flow failed. Please retry later.',
+	'error.glm.1234': 'A server-side network error occurred. Please contact support.',
+	'error.glm.1261': 'The prompt is too long. Please shorten the input or clear context and retry.',
+	'error.glm.1301':
+		'The input or generated content may contain unsafe or sensitive material. Please rephrase your prompt.',
+	'error.glm.1302': 'Your account has hit the rate limit. Please slow down your request frequency.',
+	'error.glm.1305': 'This model is currently overloaded. Please retry shortly.',
+	'error.glm.1308': 'You have reached the usage limit. It will reset at {0}.',
+	'error.glm.1309':
+		'Your GLM Coding Plan subscription has expired. Please renew it on the official site to resume access.',
+	'error.glm.1310': 'You have reached the usage limit. It will reset at {0}.',
+	'error.glm.1311':
+		'The current subscription plan does not include this model. Please renew or switch plans.',
+	'error.glm.1313':
+		'Your account usage pattern does not comply with the fair-use policy and is being rate-limited. Request a lift from the personal center.',
+	'error.glm.1314':
+		'Your enterprise plan has expired. Please contact your enterprise administrator.',
+	'error.glm.1315':
+		'This API key is restricted to enterprise coding-plan scenarios. Please switch to a matching API key from the official site.',
+	'error.glm.1316':
+		'You have reached the 5-hour usage limit and the master account is out of balance for pay-as-you-go overage. It will reset at {0}.',
+	'error.glm.1317':
+		'You have reached the 7-day usage limit and the master account is out of balance for pay-as-you-go overage. It will reset at {0}.',
+	'error.glm.1318':
+		'You have reached the 5-hour usage limit and the sub-account monthly cap. Please contact your administrator. It will reset at {0}.',
+	'error.glm.1319':
+		'You have reached the 7-day usage limit and the sub-account monthly cap. Please contact your administrator. It will reset at {0}.',
+	'error.glm.1320':
+		'You have reached the 5-hour usage limit and the enterprise monthly cap. Please contact your administrator. It will reset at {0}.',
+	'error.glm.1321':
+		'You have reached the 7-day usage limit and the enterprise monthly cap. Please contact your administrator. It will reset at {0}.',
 	'error.network.dns':
 		'[{0}] DNS lookup failed. Check your network connection, firewall, or proxy settings, and your custom baseUrl.',
 	'error.network.unreachable':

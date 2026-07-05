@@ -1,10 +1,10 @@
+import { EXTERNAL_URLS } from '../consts';
 import type {
 	ApiProviderId,
 	HttpErrorLinkDefinition,
 	HttpErrorLinkStatusKey,
 	NetworkErrorCategory,
 } from './types';
-import { EXTERNAL_URLS } from '../consts';
 
 export const MAX_DIAGNOSTIC_FIELD_LENGTH = 300;
 
@@ -25,6 +25,132 @@ export const API_PROVIDER_HTTP_ERROR_LINKS: Readonly<
 	},
 	'5xx': {
 		glm: {
+			labelKey: 'error.action.checkGLMStatus',
+			url: EXTERNAL_URLS.glm.status,
+		},
+	},
+};
+
+/**
+ * GLM business error codes returned inside the response body.
+ *
+ * Source: https://docs.bigmodel.cn/cn/faq/api-code
+ *
+ * Each entry maps a numeric business code to:
+ *  - `messageKey`: i18n key of the precise user-facing description
+ *  - `action`: optional action link shown to the user
+ *
+ * When the server returns one of these codes, the dedicated message wins over
+ * the generic HTTP status text, so the user sees something actionable like
+ * "已达到 5 小时使用上限，将于 14:21:10 重置" instead of a vague "请求过快".
+ */
+export interface GlmBusinessErrorDefinition {
+	messageKey: string;
+	action?: { labelKey: string; url: string };
+}
+
+export const GLM_BUSINESS_ERROR_CODES: Readonly<Record<string, GlmBusinessErrorDefinition>> = {
+	// ---- 鉴权 / 身份验证 (401) ----
+	'1000': {
+		messageKey: 'error.glm.1000',
+		action: { labelKey: 'error.action.setApiKey', url: '' },
+	},
+	'1001': {
+		messageKey: 'error.glm.1001',
+		action: {
+			labelKey: 'error.action.createApiKey',
+			url: EXTERNAL_URLS.glm.apiKeys,
+		},
+	},
+	'1003': {
+		messageKey: 'error.glm.1003',
+		action: {
+			labelKey: 'error.action.createApiKey',
+			url: EXTERNAL_URLS.glm.apiKeys,
+		},
+	},
+	'1005': { messageKey: 'error.glm.1005' },
+
+	// ---- 速率 / 配额限制 (429) ----
+	'1113': {
+		messageKey: 'error.glm.1113',
+		action: { labelKey: 'error.action.topUp', url: EXTERNAL_URLS.glm.topUp },
+	},
+	'1302': { messageKey: 'error.glm.1302' },
+	'1305': { messageKey: 'error.glm.1305' },
+	'1308': { messageKey: 'error.glm.1308' },
+	'1309': {
+		messageKey: 'error.glm.1309',
+		action: {
+			labelKey: 'error.action.renewCodingPlan',
+			url: EXTERNAL_URLS.glm.codingPlan,
+		},
+	},
+	'1310': { messageKey: 'error.glm.1310' },
+	'1311': {
+		messageKey: 'error.glm.1311',
+		action: {
+			labelKey: 'error.action.renewCodingPlan',
+			url: EXTERNAL_URLS.glm.codingPlan,
+		},
+	},
+	'1313': {
+		messageKey: 'error.glm.1313',
+		action: {
+			labelKey: 'error.action.fairUsePolicy',
+			url: EXTERNAL_URLS.glm.fairUsePolicy,
+		},
+	},
+	'1314': { messageKey: 'error.glm.1314' },
+	'1315': {
+		messageKey: 'error.glm.1315',
+		action: {
+			labelKey: 'error.action.createApiKey',
+			url: EXTERNAL_URLS.glm.apiKeys,
+		},
+	},
+	'1316': {
+		messageKey: 'error.glm.1316',
+		action: { labelKey: 'error.action.topUp', url: EXTERNAL_URLS.glm.topUp },
+	},
+	'1317': {
+		messageKey: 'error.glm.1317',
+		action: { labelKey: 'error.action.topUp', url: EXTERNAL_URLS.glm.topUp },
+	},
+	'1318': { messageKey: 'error.glm.1318' },
+	'1319': { messageKey: 'error.glm.1319' },
+	'1320': { messageKey: 'error.glm.1320' },
+	'1321': { messageKey: 'error.glm.1321' },
+
+	// ---- 参数 / 模型 (400) ----
+	'1210': { messageKey: 'error.glm.1210' },
+	'1211': { messageKey: 'error.glm.1211' },
+	'1212': { messageKey: 'error.glm.1212' },
+	'1213': { messageKey: 'error.glm.1213' },
+	'1214': { messageKey: 'error.glm.1214' },
+	'1221': { messageKey: 'error.glm.1221' },
+	'1222': { messageKey: 'error.glm.1222' },
+	'1261': { messageKey: 'error.glm.1261' },
+	'1301': { messageKey: 'error.glm.1301' },
+
+	// ---- 服务端错误 (500) ----
+	'1200': {
+		messageKey: 'error.glm.1200',
+		action: {
+			labelKey: 'error.action.checkGLMStatus',
+			url: EXTERNAL_URLS.glm.status,
+		},
+	},
+	'1230': {
+		messageKey: 'error.glm.1230',
+		action: {
+			labelKey: 'error.action.checkGLMStatus',
+			url: EXTERNAL_URLS.glm.status,
+		},
+	},
+	'1234': {
+		messageKey: 'error.glm.1234',
+		action: {
 			labelKey: 'error.action.checkGLMStatus',
 			url: EXTERNAL_URLS.glm.status,
 		},

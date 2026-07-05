@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/umbrella22/GLM-for-copilot/compare/v0.3.1...v0.3.2) (2026-07-05)
+
+
+### Bug Fixes
+
+* Add GLM business error code handling and related internationalization support ([74f1e92](https://github.com/umbrella22/GLM-for-copilot/commit/74f1e92dc825ea5b13632716a67edc7ab1a5f0a7))
+
 ## [0.3.1](https://github.com/umbrella22/GLM-for-copilot/compare/v0.3.0...v0.3.1) (2026-07-02)
 
 

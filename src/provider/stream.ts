@@ -12,6 +12,7 @@ import {
 	formatUsageCostEstimate,
 	type UsageCostEstimate,
 } from './pricing/usage';
+import { resolveContextUsage } from './context-usage';
 import {
 	createReplayMarkerPart,
 	hasReplayMarkerMetadata,
@@ -38,7 +39,6 @@ export interface StreamChatCompletionOptions {
 	initialResponseNotice?: string;
 	getCharsPerToken: () => number;
 	setCharsPerToken: (charsPerToken: number) => void;
-	onUsageCost?: (estimate: UsageCostEstimate) => void;
 }
 
 export function streamChatCompletion({
@@ -48,7 +48,6 @@ export function streamChatCompletion({
 	initialResponseNotice,
 	getCharsPerToken,
 	setCharsPerToken,
-	onUsageCost,
 }: StreamChatCompletionOptions): Promise<void> {
 	const state: ResponseStreamState = {
 		accumulatedReasoning: '',
@@ -100,20 +99,39 @@ export function streamChatCompletion({
 				},
 
 				onUsage: (usage) => {
+					const currentCharsPerToken = getCharsPerToken();
+					const contextUsage = resolveContextUsage(
+						usage,
+						prepared.totalRequestChars,
+						currentCharsPerToken,
+					);
 					const charsPerToken = updateCharsPerToken(
 						prepared.totalRequestChars,
 						usage,
-						getCharsPerToken(),
+						currentCharsPerToken,
 					);
 					const costEstimate = estimateUsageCost(
 						prepared.modelDefinition,
 						prepared.pricingCurrency,
-						usage,
+						contextUsage.usage,
 					);
 					setCharsPerToken(charsPerToken);
 					prepared.cacheDiagnostics.onUsage(usage, charsPerToken);
-					reportUsageCost(prepared.requestKind, costEstimate, onUsageCost);
-					reportCopilotContextUsage(progress, usage, prepared.requestKind, costEstimate);
+					if (contextUsage.promptTokenSource === 'estimate') {
+						logger.info(
+							formatRequestLogLine(
+								prepared.requestKind,
+								`provider reported zero prompt tokens; estimated ${contextUsage.usage.prompt_tokens} for Copilot context usage`,
+							),
+						);
+					}
+					reportUsageCost(prepared.requestKind, costEstimate);
+					reportCopilotContextUsage(
+						progress,
+						contextUsage.usage,
+						prepared.requestKind,
+						costEstimate,
+					);
 				},
 			},
 			token,
@@ -358,11 +376,7 @@ function reportCopilotContextUsage(
 	}
 }
 
-function reportUsageCost(
-	requestKind: RequestKind,
-	estimate: UsageCostEstimate | undefined,
-	onUsageCost: ((estimate: UsageCostEstimate) => void) | undefined,
-): void {
+function reportUsageCost(requestKind: RequestKind, estimate: UsageCostEstimate | undefined): void {
 	if (!estimate) {
 		return;
 	}
@@ -373,10 +387,4 @@ function reportUsageCost(
 			`estimated cost: ${estimate.modelId} ${formatUsageCostEstimate(estimate)}`,
 		),
 	);
-
-	try {
-		onUsageCost?.(estimate);
-	} catch (error) {
-		logger.warn(formatRequestLogLine(requestKind, 'Failed to update cost status'), error);
-	}
 }

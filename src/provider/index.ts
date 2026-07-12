@@ -7,15 +7,17 @@ import { logger } from '../logger';
 import { createCacheDiagnosticsRecorder, dumpProviderInput } from './debug';
 import { toChatInfo } from './models';
 import { getPricingCurrencyForBaseUrl } from './pricing/currency';
-import { UsageCostStatus } from './pricing/status';
 import { prepareChatRequest } from './request';
 import { classifyProviderRequest } from './routing';
 import { resolveConversationSegment } from './segment';
 import { streamChatCompletion } from './stream';
 import { estimateTokenCount } from './tokens';
 import { processToolFlow } from './tools/flow';
-import { formatGLMPlanUsageForLog, queryGLMPlanUsage, supportsGLMPlanUsage } from './usage';
+import { queryGLMTokenQuotaUsage, supportsGLMPlanUsage, type GLMTokenQuotaUsage } from './usage';
+import { UsageQuotaStatus } from './usage-status';
 import { createVisionService } from './vision';
+
+const USAGE_REFRESH_INTERVAL_MS = 60_000;
 
 /**
  * GLM Chat Provider — implements vscode.LanguageModelChatProvider so
@@ -34,7 +36,12 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 
 	/** Vision proxy: internal bridge + VS Code LM fallback. */
 	private readonly vision: ReturnType<typeof createVisionService>;
-	private readonly usageCostStatus = new UsageCostStatus();
+	private readonly usageQuotaStatus = new UsageQuotaStatus();
+	private usageRefreshPromise: Promise<GLMTokenQuotaUsage | undefined> | undefined;
+	private usageRefreshRevision = -1;
+	private lastUsageQuota: GLMTokenQuotaUsage | undefined;
+	private lastUsageRefreshAt = 0;
+	private usageStatusRevision = 0;
 
 	/**
 	 * Adaptive chars-per-token ratio, calibrated from actual usage data.
@@ -49,17 +56,22 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 
 		context.subscriptions.push(
 			this.onDidChangeLanguageModelChatInformationEmitter,
-			this.usageCostStatus,
+			this.usageQuotaStatus,
 			// Settings-based fallback API key + base URL changes.
 			vscode.workspace.onDidChangeConfiguration((e) => {
-				if (
+				const affectsUsageEndpoint =
 					e.affectsConfiguration(`${CONFIG_SECTION}.apiKey`) ||
 					e.affectsConfiguration(`${CONFIG_SECTION}.baseUrl`) ||
-					e.affectsConfiguration(`${CONFIG_SECTION}.endpoint`) ||
+					e.affectsConfiguration(`${CONFIG_SECTION}.endpoint`);
+				if (
+					affectsUsageEndpoint ||
 					e.affectsConfiguration(`${CONFIG_SECTION}.customModels`) ||
 					e.affectsConfiguration(`${CONFIG_SECTION}.modelIdOverrides`)
 				) {
 					this.refreshModelPicker();
+				}
+				if (affectsUsageEndpoint) {
+					this.invalidateUsageStatus();
 				}
 			}),
 			// Multi-window: SecretStorage changes don't fire onDidChangeConfiguration.
@@ -68,9 +80,12 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 			context.secrets.onDidChange((e) => {
 				if (e.key === API_KEY_SECRET) {
 					this.refreshModelPicker();
+					this.invalidateUsageStatus();
 				}
 			}),
 		);
+
+		void this.refreshUsageStatus();
 	}
 
 	// ---- Public commands ----
@@ -79,12 +94,14 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 		const saved = await this.authManager.promptForApiKey();
 		if (saved) {
 			this.refreshModelPicker();
+			this.invalidateUsageStatus();
 		}
 	}
 
 	async clearApiKey(): Promise<void> {
 		await this.authManager.deleteApiKey();
 		this.refreshModelPicker();
+		this.invalidateUsageStatus(false);
 		vscode.window.showInformationMessage(t('auth.removed'));
 	}
 
@@ -101,15 +118,20 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 			return;
 		}
 
-		logger.show();
-		logger.info(t('usage.queryStarted'));
+		const usageStatusRevision = this.usageStatusRevision;
 		try {
-			const usage = await queryGLMPlanUsage(baseUrl, apiKey);
-			logger.info(formatGLMPlanUsageForLog(usage));
+			const quota = await this.loadUsageQuota(baseUrl, apiKey, true, usageStatusRevision);
+			if (usageStatusRevision !== this.usageStatusRevision) {
+				return;
+			}
+			if (quota) {
+				this.usageQuotaStatus.report(quota);
+			} else {
+				this.usageQuotaStatus.hide();
+			}
 			void vscode.window.showInformationMessage(t('usage.querySucceeded'));
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			logger.warn('Failed to query GLM Coding Plan usage', error);
 			void vscode.window.showErrorMessage(t('usage.queryFailed', message));
 		}
 	}
@@ -203,7 +225,7 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 			getVisionDescriber: () => this.vision.get(),
 		});
 
-		return streamChatCompletion({
+		await streamChatCompletion({
 			prepared,
 			progress,
 			token,
@@ -215,8 +237,9 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 			setCharsPerToken: (charsPerToken) => {
 				this.charsPerToken = charsPerToken;
 			},
-			onUsageCost: (estimate) => this.usageCostStatus.report(estimate),
 		});
+
+		void this.refreshUsageStatus();
 	}
 
 	async provideTokenCount(
@@ -225,6 +248,79 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 		_token: vscode.CancellationToken,
 	): Promise<number> {
 		return estimateTokenCount(text, this.charsPerToken);
+	}
+
+	private invalidateUsageStatus(refresh = true): void {
+		this.usageStatusRevision += 1;
+		this.lastUsageQuota = undefined;
+		this.lastUsageRefreshAt = 0;
+		this.usageQuotaStatus.hide();
+		if (refresh) {
+			void this.refreshUsageStatus(true);
+		}
+	}
+
+	private async refreshUsageStatus(force = false): Promise<void> {
+		const usageStatusRevision = this.usageStatusRevision;
+		const apiKey = await this.authManager.getApiKey();
+		if (usageStatusRevision !== this.usageStatusRevision) {
+			return;
+		}
+		const baseUrl = getBaseUrl();
+		if (!apiKey || !supportsGLMPlanUsage(baseUrl)) {
+			this.usageQuotaStatus.hide();
+			return;
+		}
+
+		try {
+			const quota = await this.loadUsageQuota(baseUrl, apiKey, force, usageStatusRevision);
+			if (usageStatusRevision !== this.usageStatusRevision) {
+				return;
+			}
+			if (quota) {
+				this.usageQuotaStatus.report(quota);
+			} else {
+				this.usageQuotaStatus.hide();
+			}
+		} catch (error) {
+			logger.warn('Failed to refresh GLM Coding Plan usage status', error);
+		}
+	}
+
+	private loadUsageQuota(
+		baseUrl: string,
+		apiKey: string,
+		force: boolean,
+		usageStatusRevision: number,
+	): Promise<GLMTokenQuotaUsage | undefined> {
+		const now = Date.now();
+		if (
+			!force &&
+			this.lastUsageRefreshAt > 0 &&
+			now - this.lastUsageRefreshAt < USAGE_REFRESH_INTERVAL_MS
+		) {
+			return Promise.resolve(this.lastUsageQuota);
+		}
+		if (this.usageRefreshPromise && this.usageRefreshRevision === usageStatusRevision) {
+			return this.usageRefreshPromise;
+		}
+
+		const refresh = queryGLMTokenQuotaUsage(baseUrl, apiKey).then((quota) => {
+			if (usageStatusRevision === this.usageStatusRevision) {
+				this.lastUsageQuota = quota;
+				this.lastUsageRefreshAt = Date.now();
+			}
+			return quota;
+		});
+		const trackedRefresh = refresh.finally(() => {
+			if (this.usageRefreshPromise === trackedRefresh) {
+				this.usageRefreshPromise = undefined;
+				this.usageRefreshRevision = -1;
+			}
+		});
+		this.usageRefreshPromise = trackedRefresh;
+		this.usageRefreshRevision = usageStatusRevision;
+		return trackedRefresh;
 	}
 }
 

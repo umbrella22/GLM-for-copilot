@@ -12,6 +12,16 @@ export interface GLMPlanUsageResult {
 	quotaLimit: unknown;
 }
 
+export interface GLMTokenQuotaMetric {
+	percentage: number;
+}
+
+export interface GLMTokenQuotaUsage {
+	fiveHours: GLMTokenQuotaMetric;
+	sevenDays?: GLMTokenQuotaMetric;
+	nextResetTime?: number;
+}
+
 export function supportsGLMPlanUsage(baseUrl: string): boolean {
 	return identifyOfficialGLMPlatform(baseUrl) !== undefined;
 }
@@ -46,9 +56,7 @@ export async function queryGLMPlanUsage(
 				authToken,
 				signal,
 			),
-			queryUsageEndpoint(`${baseDomain}/api/monitor/usage/quota/limit`, authToken, signal).then(
-				processQuotaLimit,
-			),
+			queryUsageEndpoint(`${baseDomain}/api/monitor/usage/quota/limit`, authToken, signal),
 		]);
 
 		return {
@@ -65,6 +73,71 @@ export async function queryGLMPlanUsage(
 		// and doesn't hold references — previously only aborted on error.
 		controller.abort();
 	}
+}
+
+export async function queryGLMTokenQuotaUsage(
+	baseUrl: string,
+	authToken: string,
+): Promise<GLMTokenQuotaUsage | undefined> {
+	if (!identifyOfficialGLMPlatform(baseUrl)) {
+		throw new Error('Unsupported GLM baseUrl');
+	}
+
+	const baseDomain = getBaseDomain(baseUrl);
+	const controller = new AbortController();
+	const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(USAGE_TIMEOUT_MS)]);
+	try {
+		const quotaLimit = await queryUsageEndpoint(
+			`${baseDomain}/api/monitor/usage/quota/limit`,
+			authToken,
+			signal,
+		);
+		return parseGLMTokenQuotaUsage(quotaLimit);
+	} finally {
+		controller.abort();
+	}
+}
+
+/** Parse the ordered token-quota windows returned by the GLM Coding Plan endpoint. */
+export function parseGLMTokenQuotaUsage(quotaLimit: unknown): GLMTokenQuotaUsage | undefined {
+	if (!isRecord(quotaLimit) || !Array.isArray(quotaLimit.limits)) {
+		return undefined;
+	}
+
+	let nextResetTime: number | undefined;
+	for (const item of quotaLimit.limits) {
+		if (
+			isRecord(item) &&
+			typeof item.nextResetTime === 'number' &&
+			Number.isFinite(item.nextResetTime)
+		) {
+			nextResetTime = item.nextResetTime;
+			break;
+		}
+	}
+	const tokenLimits = quotaLimit.limits.flatMap((item): GLMTokenQuotaMetric[] => {
+		if (!isRecord(item) || item.type !== 'TOKENS_LIMIT') {
+			return [];
+		}
+		const percentage = item.percentage;
+		if (typeof percentage !== 'number' || !Number.isFinite(percentage)) {
+			return [];
+		}
+		return [{ percentage }];
+	});
+
+	const fiveHours = tokenLimits[0];
+	if (!fiveHours) {
+		return undefined;
+	}
+
+	// The endpoint orders token windows from shortest to longest. Some plans
+	// expose only the first (5-hour) window; the second (7-day) window is optional.
+	return {
+		fiveHours,
+		...(tokenLimits[1] ? { sevenDays: tokenLimits[1] } : {}),
+		...(nextResetTime !== undefined ? { nextResetTime } : {}),
+	};
 }
 
 export function formatGLMPlanUsageForLog(result: GLMPlanUsageResult): string {
@@ -151,37 +224,6 @@ async function queryUsageEndpoint(
 	} catch {
 		return text;
 	}
-}
-
-function processQuotaLimit(data: unknown): unknown {
-	if (!isRecord(data) || !Array.isArray(data.limits)) {
-		return data;
-	}
-
-	return {
-		...data,
-		limits: data.limits.map((item) => {
-			if (!isRecord(item)) {
-				return item;
-			}
-			if (item.type === 'TOKENS_LIMIT') {
-				return {
-					type: 'Token usage (5 hours)',
-					percentage: item.percentage,
-				};
-			}
-			if (item.type === 'TIME_LIMIT') {
-				return {
-					type: 'MCP usage (1 month)',
-					percentage: item.percentage,
-					currentUsage: item.currentValue,
-					total: item.usage,
-					usageDetails: item.usageDetails,
-				};
-			}
-			return item;
-		}),
-	};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

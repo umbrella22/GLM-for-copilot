@@ -16,12 +16,7 @@ interface AnthropicSSEEvent {
 	message?: {
 		id: string;
 		model: string;
-		usage: {
-			input_tokens: number;
-			output_tokens?: number;
-			cache_creation_input_tokens?: number;
-			cache_read_input_tokens?: number;
-		};
+		usage: AnthropicUsageSnapshot;
 	};
 	content_block?: {
 		type: 'text' | 'thinking' | 'tool_use';
@@ -40,17 +35,24 @@ interface AnthropicSSEEvent {
 		stop_sequence?: string | null;
 	};
 	index?: number;
-	usage?: { output_tokens: number; input_tokens?: number };
+	usage?: AnthropicUsageSnapshot;
 	error?: { type: string; message: string };
+}
+
+interface AnthropicUsageSnapshot {
+	input_tokens?: number;
+	output_tokens?: number;
+	cache_creation_input_tokens?: number;
+	cache_read_input_tokens?: number;
 }
 
 /**
  * State for tracking in-progress content blocks across SSE events.
  */
 interface AnthropicStreamState {
-	/** Total input tokens from message_start (for final usage reporting). */
+	/** Latest cumulative uncached input-token count reported by the stream. */
 	inputTokens: number;
-	/** Latest output tokens from message_delta (for final usage reporting). */
+	/** Latest cumulative output-token count reported by the stream. */
 	outputTokens: number;
 	/** Prompt-cache hit tokens (cache_read_input_tokens); drives cache pricing. */
 	cacheReadTokens: number;
@@ -72,7 +74,7 @@ interface AnthropicStreamState {
  * - `content_block_start`: a new content block begins (text, thinking, or tool_use)
  * - `content_block_delta`: incremental content for the current block
  * - `content_block_stop`: the current block is complete
- * - `message_delta`: stop reason and output token usage
+ * - `message_delta`: stop reason and the latest cumulative usage snapshot
  * - `message_stop`: end of the complete message
  * - `ping`: keepalive, ignored
  */
@@ -227,9 +229,7 @@ function processAnthropicEvent(
 				// cache) and cache_read_input_tokens (served from cache). Capture all
 				// three so the reported prompt_tokens can be reconstructed as the true
 				// total (Anthropic's input_tokens excludes the cache buckets).
-				state.inputTokens = event.message.usage.input_tokens;
-				state.cacheReadTokens = event.message.usage.cache_read_input_tokens ?? 0;
-				state.cacheCreationTokens = event.message.usage.cache_creation_input_tokens ?? 0;
+				mergeAnthropicUsage(state, event.message.usage);
 			}
 			break;
 
@@ -337,8 +337,8 @@ function processAnthropicEvent(
 		}
 
 		case 'message_delta':
-			if (event.usage?.output_tokens) {
-				state.outputTokens = event.usage.output_tokens;
+			if (event.usage) {
+				mergeAnthropicUsage(state, event.usage);
 			}
 			break;
 
@@ -367,6 +367,26 @@ function processAnthropicEvent(
 		default:
 			break;
 	}
+}
+
+/** Merge cumulative usage snapshots without allowing later placeholder zeroes to erase data. */
+function mergeAnthropicUsage(state: AnthropicStreamState, usage: AnthropicUsageSnapshot): void {
+	state.inputTokens = mergeCumulativeTokenCount(state.inputTokens, usage.input_tokens);
+	state.outputTokens = mergeCumulativeTokenCount(state.outputTokens, usage.output_tokens);
+	state.cacheReadTokens = mergeCumulativeTokenCount(
+		state.cacheReadTokens,
+		usage.cache_read_input_tokens,
+	);
+	state.cacheCreationTokens = mergeCumulativeTokenCount(
+		state.cacheCreationTokens,
+		usage.cache_creation_input_tokens,
+	);
+}
+
+function mergeCumulativeTokenCount(current: number, next: number | undefined): number {
+	return typeof next === 'number' && Number.isFinite(next) && next >= 0
+		? Math.max(current, next)
+		: current;
 }
 
 /**
@@ -400,7 +420,7 @@ function flushToolBlocks(state: AnthropicStreamState, callbacks: StreamCallbacks
 
 /**
  * Report usage from the Anthropic stream.
- * Combines input tokens (from message_start) and output tokens (from message_delta).
+ * Combines the latest cumulative usage snapshots reported across stream events.
  */
 function reportAnthropicUsage(state: AnthropicStreamState, callbacks: StreamCallbacks): void {
 	if (!callbacks.onUsage) {

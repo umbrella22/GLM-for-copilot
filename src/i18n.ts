@@ -178,9 +178,14 @@ const zh: Translations = {
 	'usage.notConfigured': '请先配置 API Key，再查询 GLM Coding Plan 用量。',
 	'usage.unsupportedBaseUrl':
 		'当前 baseUrl 不属于 GLM 国内版或国际版官方端点，无法查询 Coding Plan 用量。',
-	'usage.queryStarted': '正在查询 GLM Coding Plan 用量...',
-	'usage.querySucceeded': 'GLM Coding Plan 用量已写入输出面板。',
+	'usage.querySucceeded': 'GLM Coding Plan 用量已刷新。',
 	'usage.queryFailed': 'GLM Coding Plan 用量查询失败：{0}',
+	'usage.status.name': 'GLM Coding Plan 用量',
+	'usage.status.title': 'GLM Coding Plan',
+	'usage.status.fiveHours': '5 小时用量',
+	'usage.status.sevenDays': '一周用量',
+	'usage.status.used': '已使用',
+	'usage.status.nextResetTime': '下次更新用量时间：{0}',
 
 	// Errors
 	'error.http.400': '[{0}] 请求体格式错误。请根据错误信息提示修改请求体。',
@@ -443,9 +448,14 @@ const en: Translations = {
 	'usage.notConfigured': 'Configure an API key before querying GLM Coding Plan usage.',
 	'usage.unsupportedBaseUrl':
 		'The current baseUrl is not an official domestic or international GLM endpoint, so Coding Plan usage cannot be queried.',
-	'usage.queryStarted': 'Querying GLM Coding Plan usage...',
-	'usage.querySucceeded': 'GLM Coding Plan usage has been written to the output panel.',
+	'usage.querySucceeded': 'GLM Coding Plan usage has been refreshed.',
 	'usage.queryFailed': 'GLM Coding Plan usage query failed: {0}',
+	'usage.status.name': 'GLM Coding Plan usage',
+	'usage.status.title': 'GLM Coding Plan',
+	'usage.status.fiveHours': '5-hour usage',
+	'usage.status.sevenDays': 'Weekly usage',
+	'usage.status.used': 'used',
+	'usage.status.nextResetTime': 'Next usage update: {0}',
 
 	// Errors
 	'error.http.400':

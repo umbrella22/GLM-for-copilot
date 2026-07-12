@@ -20,6 +20,22 @@ export class LanguageModelDataPart {
 	) {}
 }
 
+export class MarkdownString {
+	value: string;
+	isTrusted: boolean | { enabledCommands: readonly string[] } | undefined;
+	supportHtml = false;
+	supportThemeIcons = false;
+
+	constructor(value = '', _supportThemeIcons = false) {
+		this.value = value;
+	}
+
+	appendMarkdown(value: string): MarkdownString {
+		this.value += value;
+		return this;
+	}
+}
+
 export class LanguageModelToolCallPart {
 	constructor(
 		readonly callId: string,
@@ -63,6 +79,7 @@ export class EventEmitter<T = void> {
 const configurationValues = new Map<string, unknown>();
 const registeredCommands = new Map<string, (...args: unknown[]) => unknown>();
 let openedExternal: Uri | undefined;
+let lastStatusBarItem: Record<string, unknown> | undefined;
 
 export function __setConfigurationValue(key: string, value: unknown): void {
 	configurationValues.set(key, value);
@@ -79,6 +96,11 @@ export function __getOpenedExternal(): Uri | undefined {
 export function __resetCommandState(): void {
 	registeredCommands.clear();
 	openedExternal = undefined;
+	lastStatusBarItem = undefined;
+}
+
+export function __getLastStatusBarItem(): Record<string, unknown> | undefined {
+	return lastStatusBarItem;
 }
 
 export class Uri {
@@ -180,14 +202,23 @@ export const window = {
 		};
 	},
 	createStatusBarItem() {
-		return {
+		lastStatusBarItem = {
 			name: '',
 			text: '',
 			tooltip: '',
 			command: '',
-			show() {},
-			dispose() {},
+			visible: false,
+			show() {
+				this.visible = true;
+			},
+			hide() {
+				this.visible = false;
+			},
+			dispose() {
+				this.visible = false;
+			},
 		};
+		return lastStatusBarItem;
 	},
 };
 
@@ -208,6 +239,7 @@ const vscode = {
 	LanguageModelTextPart,
 	LanguageModelThinkingPart,
 	LanguageModelDataPart,
+	MarkdownString,
 	LanguageModelToolCallPart,
 	LanguageModelToolResultPart,
 	ThemeIcon,

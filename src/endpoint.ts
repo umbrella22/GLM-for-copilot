@@ -143,6 +143,25 @@ export function identifyOfficialGLMPlatform(baseUrl: string): OfficialGLMPlatfor
 	}
 }
 
+/** Identify the billing mode encoded by an official GLM endpoint path. */
+export function identifyOfficialGLMApiMode(baseUrl: string): ApiMode | undefined {
+	if (!identifyOfficialGLMPlatform(baseUrl)) {
+		return undefined;
+	}
+	try {
+		const pathname = new URL(baseUrl).pathname.toLowerCase().replace(/\/+$/u, '');
+		if (pathname === '/api/paas/v4') {
+			return 'standard';
+		}
+		if (pathname === '/api/coding/paas/v4' || pathname === '/api/anthropic') {
+			return 'coding-plan';
+		}
+		return undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 export function isOfficialGLMBaseUrl(baseUrl: string): boolean {
 	return identifyOfficialGLMPlatform(baseUrl) !== undefined;
 }

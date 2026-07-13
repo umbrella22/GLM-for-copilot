@@ -13,8 +13,13 @@ import { resolveConversationSegment } from './segment';
 import { streamChatCompletion } from './stream';
 import { estimateTokenCount } from './tokens';
 import { processToolFlow } from './tools/flow';
-import { queryGLMTokenQuotaUsage, supportsGLMPlanUsage, type GLMTokenQuotaUsage } from './usage';
-import { UsageQuotaStatus } from './usage-status';
+import {
+	queryGLMTokenQuotaUsage,
+	supportsGLMBalanceUsage,
+	supportsGLMPlanUsage,
+	type GLMTokenQuotaUsage,
+} from './usage';
+import { UsageStatus } from './usage-status';
 import { createVisionService } from './vision';
 
 const USAGE_REFRESH_INTERVAL_MS = 60_000;
@@ -36,7 +41,7 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 
 	/** Vision proxy: internal bridge + VS Code LM fallback. */
 	private readonly vision: ReturnType<typeof createVisionService>;
-	private readonly usageQuotaStatus = new UsageQuotaStatus();
+	private readonly usageStatus = new UsageStatus();
 	private usageRefreshPromise: Promise<GLMTokenQuotaUsage | undefined> | undefined;
 	private usageRefreshRevision = -1;
 	private lastUsageQuota: GLMTokenQuotaUsage | undefined;
@@ -56,7 +61,7 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 
 		context.subscriptions.push(
 			this.onDidChangeLanguageModelChatInformationEmitter,
-			this.usageQuotaStatus,
+			this.usageStatus,
 			// Settings-based fallback API key + base URL changes.
 			vscode.workspace.onDidChangeConfiguration((e) => {
 				const affectsUsageEndpoint =
@@ -125,9 +130,9 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 				return;
 			}
 			if (quota) {
-				this.usageQuotaStatus.report(quota);
+				this.usageStatus.reportQuota(quota);
 			} else {
-				this.usageQuotaStatus.hide();
+				this.usageStatus.hide();
 			}
 			void vscode.window.showInformationMessage(t('usage.querySucceeded'));
 		} catch (error) {
@@ -237,6 +242,11 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 			setCharsPerToken: (charsPerToken) => {
 				this.charsPerToken = charsPerToken;
 			},
+			...(prepared.apiMode === 'standard'
+				? {
+						onUsageCost: (estimate) => this.usageStatus.reportBalanceCost(estimate),
+					}
+				: {}),
 		});
 
 		void this.refreshUsageStatus();
@@ -254,7 +264,7 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 		this.usageStatusRevision += 1;
 		this.lastUsageQuota = undefined;
 		this.lastUsageRefreshAt = 0;
-		this.usageQuotaStatus.hide();
+		this.usageStatus.reset();
 		if (refresh) {
 			void this.refreshUsageStatus(true);
 		}
@@ -267,8 +277,16 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 			return;
 		}
 		const baseUrl = getBaseUrl();
-		if (!apiKey || !supportsGLMPlanUsage(baseUrl)) {
-			this.usageQuotaStatus.hide();
+		if (!apiKey) {
+			this.usageStatus.hide();
+			return;
+		}
+		if (supportsGLMBalanceUsage(baseUrl)) {
+			this.usageStatus.showBalanceBilling();
+			return;
+		}
+		if (!supportsGLMPlanUsage(baseUrl)) {
+			this.usageStatus.hide();
 			return;
 		}
 
@@ -278,9 +296,9 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider {
 				return;
 			}
 			if (quota) {
-				this.usageQuotaStatus.report(quota);
+				this.usageStatus.reportQuota(quota);
 			} else {
-				this.usageQuotaStatus.hide();
+				this.usageStatus.hide();
 			}
 		} catch (error) {
 			logger.warn('Failed to refresh GLM Coding Plan usage status', error);

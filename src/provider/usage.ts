@@ -1,4 +1,8 @@
-import { identifyOfficialGLMPlatform, normalizeBaseUrl } from '../endpoint';
+import {
+	identifyOfficialGLMApiMode,
+	identifyOfficialGLMPlatform,
+	normalizeBaseUrl,
+} from '../endpoint';
 
 const USAGE_TIMEOUT_MS = 15_000;
 
@@ -14,16 +18,20 @@ export interface GLMPlanUsageResult {
 
 export interface GLMTokenQuotaMetric {
 	percentage: number;
+	nextResetTime?: number;
 }
 
 export interface GLMTokenQuotaUsage {
 	fiveHours: GLMTokenQuotaMetric;
 	sevenDays?: GLMTokenQuotaMetric;
-	nextResetTime?: number;
 }
 
 export function supportsGLMPlanUsage(baseUrl: string): boolean {
-	return identifyOfficialGLMPlatform(baseUrl) !== undefined;
+	return identifyOfficialGLMApiMode(baseUrl) === 'coding-plan';
+}
+
+export function supportsGLMBalanceUsage(baseUrl: string): boolean {
+	return identifyOfficialGLMApiMode(baseUrl) === 'standard';
 }
 
 export async function queryGLMPlanUsage(
@@ -31,7 +39,7 @@ export async function queryGLMPlanUsage(
 	authToken: string,
 ): Promise<GLMPlanUsageResult> {
 	const platform = identifyOfficialGLMPlatform(baseUrl);
-	if (!platform) {
+	if (!platform || !supportsGLMPlanUsage(baseUrl)) {
 		throw new Error('Unsupported GLM baseUrl');
 	}
 
@@ -79,7 +87,7 @@ export async function queryGLMTokenQuotaUsage(
 	baseUrl: string,
 	authToken: string,
 ): Promise<GLMTokenQuotaUsage | undefined> {
-	if (!identifyOfficialGLMPlatform(baseUrl)) {
+	if (!supportsGLMPlanUsage(baseUrl)) {
 		throw new Error('Unsupported GLM baseUrl');
 	}
 
@@ -104,17 +112,6 @@ export function parseGLMTokenQuotaUsage(quotaLimit: unknown): GLMTokenQuotaUsage
 		return undefined;
 	}
 
-	let nextResetTime: number | undefined;
-	for (const item of quotaLimit.limits) {
-		if (
-			isRecord(item) &&
-			typeof item.nextResetTime === 'number' &&
-			Number.isFinite(item.nextResetTime)
-		) {
-			nextResetTime = item.nextResetTime;
-			break;
-		}
-	}
 	const tokenLimits = quotaLimit.limits.flatMap((item): GLMTokenQuotaMetric[] => {
 		if (!isRecord(item) || item.type !== 'TOKENS_LIMIT') {
 			return [];
@@ -123,7 +120,15 @@ export function parseGLMTokenQuotaUsage(quotaLimit: unknown): GLMTokenQuotaUsage
 		if (typeof percentage !== 'number' || !Number.isFinite(percentage)) {
 			return [];
 		}
-		return [{ percentage }];
+		const nextResetTime = item.nextResetTime;
+		return [
+			{
+				percentage,
+				...(typeof nextResetTime === 'number' && Number.isFinite(nextResetTime)
+					? { nextResetTime }
+					: {}),
+			},
+		];
 	});
 
 	const fiveHours = tokenLimits[0];
@@ -136,7 +141,6 @@ export function parseGLMTokenQuotaUsage(quotaLimit: unknown): GLMTokenQuotaUsage
 	return {
 		fiveHours,
 		...(tokenLimits[1] ? { sevenDays: tokenLimits[1] } : {}),
-		...(nextResetTime !== undefined ? { nextResetTime } : {}),
 	};
 }
 

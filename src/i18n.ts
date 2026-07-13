@@ -176,16 +176,25 @@ const zh: Translations = {
 
 	// Usage
 	'usage.notConfigured': '请先配置 API Key，再查询 GLM Coding Plan 用量。',
-	'usage.unsupportedBaseUrl':
-		'当前 baseUrl 不属于 GLM 国内版或国际版官方端点，无法查询 Coding Plan 用量。',
+	'usage.unsupportedBaseUrl': '当前 endpoint 不是 GLM Coding Plan endpoint，无法查询套餐用量。',
 	'usage.querySucceeded': 'GLM Coding Plan 用量已刷新。',
 	'usage.queryFailed': 'GLM Coding Plan 用量查询失败：{0}',
-	'usage.status.name': 'GLM Coding Plan 用量',
+	'usage.status.name': 'GLM 用量',
 	'usage.status.title': 'GLM Coding Plan',
 	'usage.status.fiveHours': '5 小时用量',
 	'usage.status.sevenDays': '一周用量',
 	'usage.status.used': '已使用',
-	'usage.status.nextResetTime': '下次更新用量时间：{0}',
+	'usage.status.fiveHoursResetTime': '5 小时重置时间',
+	'usage.status.sevenDaysResetTime': '一周重置时间',
+	'usage.balance.title': 'GLM 按量付费',
+	'usage.balance.waiting': '费用将在下一次请求完成后显示。',
+	'usage.balance.lastRequest': '本次请求',
+	'usage.balance.sessionTotal': '本次会话',
+	'usage.balance.model': '模型',
+	'usage.balance.pricing': '每百万 tokens 价格',
+	'usage.balance.input': '输入',
+	'usage.balance.cachedInput': '缓存输入',
+	'usage.balance.output': '输出',
 
 	// Errors
 	'error.http.400': '[{0}] 请求体格式错误。请根据错误信息提示修改请求体。',
@@ -447,15 +456,25 @@ const en: Translations = {
 	// Usage
 	'usage.notConfigured': 'Configure an API key before querying GLM Coding Plan usage.',
 	'usage.unsupportedBaseUrl':
-		'The current baseUrl is not an official domestic or international GLM endpoint, so Coding Plan usage cannot be queried.',
+		'The current endpoint is not a GLM Coding Plan endpoint, so plan usage cannot be queried.',
 	'usage.querySucceeded': 'GLM Coding Plan usage has been refreshed.',
 	'usage.queryFailed': 'GLM Coding Plan usage query failed: {0}',
-	'usage.status.name': 'GLM Coding Plan usage',
+	'usage.status.name': 'GLM usage',
 	'usage.status.title': 'GLM Coding Plan',
 	'usage.status.fiveHours': '5-hour usage',
 	'usage.status.sevenDays': 'Weekly usage',
 	'usage.status.used': 'used',
-	'usage.status.nextResetTime': 'Next usage update: {0}',
+	'usage.status.fiveHoursResetTime': '5-hour reset',
+	'usage.status.sevenDaysResetTime': 'Weekly reset',
+	'usage.balance.title': 'GLM pay-as-you-go',
+	'usage.balance.waiting': 'Cost will appear after the next request completes.',
+	'usage.balance.lastRequest': 'Last request',
+	'usage.balance.sessionTotal': 'Session total',
+	'usage.balance.model': 'Model',
+	'usage.balance.pricing': 'Price per 1M tokens',
+	'usage.balance.input': 'Input',
+	'usage.balance.cachedInput': 'Cached input',
+	'usage.balance.output': 'Output',
 
 	// Errors
 	'error.http.400':

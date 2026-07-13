@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { parseGLMTokenQuotaUsage, queryGLMTokenQuotaUsage } from '../../src/provider/usage';
+import {
+	parseGLMTokenQuotaUsage,
+	queryGLMTokenQuotaUsage,
+	supportsGLMBalanceUsage,
+	supportsGLMPlanUsage,
+} from '../../src/provider/usage';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -8,19 +13,22 @@ describe('GLM Coding Plan quota parsing', () => {
 		expect(
 			parseGLMTokenQuotaUsage({
 				limits: [
-					{ type: 'TOKENS_LIMIT', percentage: 12.4 },
+					{
+						type: 'TOKENS_LIMIT',
+						percentage: 12.4,
+						nextResetTime: 1_784_356_247_996,
+					},
 					{
 						type: 'TIME_LIMIT',
 						percentage: 30,
 						currentValue: 3,
 						usage: 10,
-						nextResetTime: 1_784_356_247_996,
+						nextResetTime: 1_799_999_999_999,
 					},
 				],
 			}),
 		).toEqual({
-			fiveHours: { percentage: 12.4 },
-			nextResetTime: 1_784_356_247_996,
+			fiveHours: { percentage: 12.4, nextResetTime: 1_784_356_247_996 },
 		});
 	});
 
@@ -28,14 +36,22 @@ describe('GLM Coding Plan quota parsing', () => {
 		expect(
 			parseGLMTokenQuotaUsage({
 				limits: [
-					{ type: 'TOKENS_LIMIT', percentage: 42 },
-					{ type: 'TOKENS_LIMIT', percentage: 18.5 },
+					{ type: 'TOKENS_LIMIT', percentage: 42, nextResetTime: 1_784_000_000_000 },
+					{ type: 'TOKENS_LIMIT', percentage: 18.5, nextResetTime: 1_784_600_000_000 },
 				],
 			}),
 		).toEqual({
-			fiveHours: { percentage: 42 },
-			sevenDays: { percentage: 18.5 },
+			fiveHours: { percentage: 42, nextResetTime: 1_784_000_000_000 },
+			sevenDays: { percentage: 18.5, nextResetTime: 1_784_600_000_000 },
 		});
+	});
+
+	it('classifies plan and balance endpoints without probing the quota API', () => {
+		expect(supportsGLMPlanUsage('https://open.bigmodel.cn/api/coding/paas/v4')).toBe(true);
+		expect(supportsGLMPlanUsage('https://api.z.ai/api/anthropic')).toBe(true);
+		expect(supportsGLMPlanUsage('https://open.bigmodel.cn/api/paas/v4')).toBe(false);
+		expect(supportsGLMBalanceUsage('https://open.bigmodel.cn/api/paas/v4')).toBe(true);
+		expect(supportsGLMBalanceUsage('https://proxy.example.com/v1')).toBe(false);
 	});
 
 	it('rejects responses without a numeric token quota', () => {

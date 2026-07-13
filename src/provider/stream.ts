@@ -39,6 +39,7 @@ export interface StreamChatCompletionOptions {
 	initialResponseNotice?: string;
 	getCharsPerToken: () => number;
 	setCharsPerToken: (charsPerToken: number) => void;
+	onUsageCost?: (estimate: UsageCostEstimate) => void;
 }
 
 export function streamChatCompletion({
@@ -48,6 +49,7 @@ export function streamChatCompletion({
 	initialResponseNotice,
 	getCharsPerToken,
 	setCharsPerToken,
+	onUsageCost,
 }: StreamChatCompletionOptions): Promise<void> {
 	const state: ResponseStreamState = {
 		accumulatedReasoning: '',
@@ -125,7 +127,7 @@ export function streamChatCompletion({
 							),
 						);
 					}
-					reportUsageCost(prepared.requestKind, costEstimate);
+					reportUsageCost(prepared.requestKind, costEstimate, onUsageCost);
 					reportCopilotContextUsage(
 						progress,
 						contextUsage.usage,
@@ -376,7 +378,11 @@ function reportCopilotContextUsage(
 	}
 }
 
-function reportUsageCost(requestKind: RequestKind, estimate: UsageCostEstimate | undefined): void {
+function reportUsageCost(
+	requestKind: RequestKind,
+	estimate: UsageCostEstimate | undefined,
+	onUsageCost: ((estimate: UsageCostEstimate) => void) | undefined,
+): void {
 	if (!estimate) {
 		return;
 	}
@@ -387,4 +393,10 @@ function reportUsageCost(requestKind: RequestKind, estimate: UsageCostEstimate |
 			`estimated cost: ${estimate.modelId} ${formatUsageCostEstimate(estimate)}`,
 		),
 	);
+
+	try {
+		onUsageCost?.(estimate);
+	} catch (error) {
+		logger.warn(formatRequestLogLine(requestKind, 'Failed to update usage status'), error);
+	}
 }

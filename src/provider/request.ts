@@ -8,9 +8,9 @@ import {
 	getBaseUrl,
 	getMaxTokens,
 } from '../config';
-import { isOfficialGLMBaseUrl } from '../endpoint';
+import { identifyOfficialGLMApiMode, isOfficialGLMBaseUrl } from '../endpoint';
 import { t } from '../i18n';
-import type { GLMRequest, ModelDefinition, PricingCurrency } from '../types';
+import type { ApiMode, GLMRequest, ModelDefinition, PricingCurrency } from '../types';
 import { convertMessages, countMessageChars } from './convert';
 import { dumpGLMRequest, type CacheDiagnosticsRecorder, type CacheDiagnosticsRun } from './debug';
 import { getConfiguredThinkingEffort, type ModelConfigurationOptions } from './models';
@@ -29,6 +29,7 @@ export interface PreparedChatRequest {
 	trailingToolResultIds: string[];
 	cacheDiagnostics: CacheDiagnosticsRun;
 	requestKind: RequestKind;
+	apiMode?: ApiMode;
 	segment: ConversationSegment;
 	replayMarkerMetadata: ReplayMarkerMetadata;
 	modelDefinition?: ModelDefinition;
@@ -154,6 +155,7 @@ export async function prepareChatRequest({
 		trailingToolResultIds: collectTrailingToolResultIds(glmMessages),
 		cacheDiagnostics: diagnosticsRun,
 		requestKind,
+		apiMode: identifyOfficialGLMApiMode(baseUrl),
 		segment,
 		replayMarkerMetadata: visionResolution.replayMarkerMetadata,
 		modelDefinition: modelDef,

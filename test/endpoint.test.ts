@@ -14,6 +14,7 @@ import {
 	GLM_INTERNATIONAL_GENERAL_API_KEY_URL,
 	GLM_INTERNATIONAL_GENERAL_BASE_URL,
 	deriveEndpointPreset,
+	identifyOfficialGLMApiMode,
 	identifyOfficialGLMPlatform,
 	isOfficialGLMBaseUrl,
 	normalizeBaseUrl,
@@ -62,6 +63,14 @@ describe('endpoint helpers', () => {
 		expect(identifyOfficialGLMPlatform(`https://${GLM_CN_LEGACY_API_HOST}/api/paas/v4`)).toBe(
 			'zhipu',
 		);
+	});
+
+	it('identifies Coding Plan and balance billing from official endpoint paths', () => {
+		expect(identifyOfficialGLMApiMode(GLM_CN_CODING_BASE_URL)).toBe('coding-plan');
+		expect(identifyOfficialGLMApiMode(GLM_INTERNATIONAL_ANTHROPIC_BASE_URL)).toBe('coding-plan');
+		expect(identifyOfficialGLMApiMode(GLM_CN_GENERAL_BASE_URL)).toBe('standard');
+		expect(identifyOfficialGLMApiMode(GLM_INTERNATIONAL_GENERAL_BASE_URL)).toBe('standard');
+		expect(identifyOfficialGLMApiMode('https://open.bigmodel.cn/custom/v1')).toBeUndefined();
 	});
 
 	it('does not classify custom or invalid URLs as official', () => {

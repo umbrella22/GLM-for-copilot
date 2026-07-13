@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.3.2...v0.4.0) (2026-07-13)
+
+
+### Features
+
+* Add GLM API pattern recognition and usage status update functionality ([d3761d2](https://github.com/umbrella22/GLM-for-copilot/commit/d3761d2ca85277dcc4635b70d663e1beb4e3ccf2))
+* Enhance GLM usage tracking and reporting ([83339eb](https://github.com/umbrella22/GLM-for-copilot/commit/83339eb15fc6001d7a8c3e5555489f5f87cf6b65))
+
 ## [0.3.2](https://github.com/umbrella22/GLM-for-copilot/compare/v0.3.1...v0.3.2) (2026-07-05)
 
 

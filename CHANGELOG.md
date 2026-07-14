@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.5.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.4.1...v0.5.0) (2026-07-14)
+
+
+### Features
+
+* Add GLM API pattern recognition and usage status update functionality ([d3761d2](https://github.com/umbrella22/GLM-for-copilot/commit/d3761d2ca85277dcc4635b70d663e1beb4e3ccf2))
+* add vision proxy panel styles and implement action URL handling ([0101028](https://github.com/umbrella22/GLM-for-copilot/commit/0101028586e9533742f2d21c499736bcab3024d7))
+* enhance configuration and command handling ([5b03555](https://github.com/umbrella22/GLM-for-copilot/commit/5b03555e11ddbfddd3582c16110f8ade892d4f15))
+* Enhance GLM usage tracking and reporting ([83339eb](https://github.com/umbrella22/GLM-for-copilot/commit/83339eb15fc6001d7a8c3e5555489f5f87cf6b65))
+
+
+### Bug Fixes
+
+* Add GLM business error code handling and related internationalization support ([74f1e92](https://github.com/umbrella22/GLM-for-copilot/commit/74f1e92dc825ea5b13632716a67edc7ab1a5f0a7))
+* enhance message conversion logic and refactor currency handling in GLMChatProvider ([0195560](https://github.com/umbrella22/GLM-for-copilot/commit/01955600685d51899e40825c64400732d59f1bbd))
+* improve code formatting and structure in multiple files ([1922986](https://github.com/umbrella22/GLM-for-copilot/commit/1922986a2ef280886ab723a7e2e9ae98b092ee8c))
+* Refactor stream handling and diagnostics migration ([f390e36](https://github.com/umbrella22/GLM-for-copilot/commit/f390e3693cffc723b356e7fccded59577cd0ef03))
+* revert version to 0.1.0 in package.json and release-please-manifest.json ([c1d749c](https://github.com/umbrella22/GLM-for-copilot/commit/c1d749c2b74bf02342a19baf0c14a4afb5978377))
+* update default values for publish options in rescue workflow ([a3907b0](https://github.com/umbrella22/GLM-for-copilot/commit/a3907b058455acf41b0fddd568d5e37cf92f8c82))
+* update devDependencies for @vscode/vsce and ovsx, and add minimumReleaseAgeExclude for ovsx ([096e96e](https://github.com/umbrella22/GLM-for-copilot/commit/096e96e92c09f80c7645ab56b9be3485858f2511))
+* update GitHub Actions workflows to use latest action versions an… ([eaba3af](https://github.com/umbrella22/GLM-for-copilot/commit/eaba3af43fc5eaf7b5038fcd88d3b453a86a1b37))
+* update GitHub Actions workflows to use latest action versions and improve pnpm setup ([9c2a4fe](https://github.com/umbrella22/GLM-for-copilot/commit/9c2a4fedeef46577ac576451e763da75d1a601e3))
+* update publisher name in package.json to 'ikaros' ([6967284](https://github.com/umbrella22/GLM-for-copilot/commit/69672845cacb75d1ed31e36411b2decb821bc8b1))
+* update workflows to use latest action versions and improve VSIX packaging process ([f32825e](https://github.com/umbrella22/GLM-for-copilot/commit/f32825e02c5e2c17ed84c2bfb02d3e38a9a2df75))
+
 ## [0.4.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.3.2...v0.4.0) (2026-07-13)
 
 

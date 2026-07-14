@@ -1,205 +1,182 @@
-import { describe, expect, it } from "vitest";
-import * as vscode from "vscode";
-import {
-  REPLAY_MARKER_MIME,
-  createReplayMarkerPart,
-} from "../../src/provider/replay";
-import {
-  resolveConversationSegment,
-  type ConversationSegment,
-} from "../../src/provider/segment";
+import { describe, expect, it } from 'vitest';
+import * as vscode from 'vscode';
+import { REPLAY_MARKER_MIME, createReplayMarkerPart } from '../../src/provider/replay';
+import { resolveConversationSegment, type ConversationSegment } from '../../src/provider/segment';
 
-const SEGMENT_ID = "3917af00-099c-49a2-8373-38df581b018e";
+const SEGMENT_ID = '3917af00-099c-49a2-8373-38df581b018e';
 
-function assistant(
-  content: readonly unknown[],
-): vscode.LanguageModelChatRequestMessage {
-  return {
-    role: vscode.LanguageModelChatMessageRole.Assistant,
-    content,
-  } as vscode.LanguageModelChatRequestMessage;
+function assistant(content: readonly unknown[]): vscode.LanguageModelChatRequestMessage {
+	return {
+		role: vscode.LanguageModelChatMessageRole.Assistant,
+		content,
+	} as vscode.LanguageModelChatRequestMessage;
 }
 
-function user(
-  content: readonly unknown[],
-): vscode.LanguageModelChatRequestMessage {
-  return {
-    role: vscode.LanguageModelChatMessageRole.User,
-    content,
-  } as vscode.LanguageModelChatRequestMessage;
+function user(content: readonly unknown[]): vscode.LanguageModelChatRequestMessage {
+	return {
+		role: vscode.LanguageModelChatMessageRole.User,
+		content,
+	} as vscode.LanguageModelChatRequestMessage;
 }
 
 function legacyUnboundMarker(text: string): vscode.LanguageModelDataPart {
-  const json = JSON.stringify({ reasoning: { text } });
-  const encoded = `json:${Buffer.from(json, "utf8").toString("base64url")}`;
-  return new vscode.LanguageModelDataPart(
-    new TextEncoder().encode(`glm-copilot\\${encoded}`),
-    REPLAY_MARKER_MIME,
-  );
+	const json = JSON.stringify({ reasoning: { text } });
+	const encoded = `json:${Buffer.from(json, 'utf8').toString('base64url')}`;
+	return new vscode.LanguageModelDataPart(
+		new TextEncoder().encode(`glm-copilot\\${encoded}`),
+		REPLAY_MARKER_MIME,
+	);
 }
 
 function legacyRawUuidMarker(): vscode.LanguageModelDataPart {
-  return new vscode.LanguageModelDataPart(
-    new TextEncoder().encode(`glm-copilot\\${SEGMENT_ID}`),
-    REPLAY_MARKER_MIME,
-  );
+	return new vscode.LanguageModelDataPart(
+		new TextEncoder().encode(`glm-copilot\\${SEGMENT_ID}`),
+		REPLAY_MARKER_MIME,
+	);
 }
 
 function isUuid(value: string | undefined): boolean {
-  return (
-    typeof value === "string" &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      value,
-    )
-  );
+	return (
+		typeof value === 'string' &&
+		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+	);
 }
 
-describe("resolveConversationSegment", () => {
-  it("mints a new uuid and reports markerMissing when no assistant marker exists", () => {
-    const segment = resolveConversationSegment([
-      user([new vscode.LanguageModelTextPart("hello")]),
-    ]);
+describe('resolveConversationSegment', () => {
+	it('mints a new uuid and reports markerMissing when no assistant marker exists', () => {
+		const segment = resolveConversationSegment([user([new vscode.LanguageModelTextPart('hello')])]);
 
-    expect(segment.reason).toBe("markerMissing");
-    expect(isUuid(segment.segmentId)).toBe(true);
-    expect(segment.markerMessageIndex).toBeUndefined();
-  });
+		expect(segment.reason).toBe('markerMissing');
+		expect(isUuid(segment.segmentId)).toBe(true);
+		expect(segment.markerMessageIndex).toBeUndefined();
+	});
 
-  it("reuses the segmentId of a full marker (markerFound)", () => {
-    const marker = createReplayMarkerPart({
-      segmentId: SEGMENT_ID,
-      reasoningText: "reasoning",
-    });
+	it('reuses the segmentId of a full marker (markerFound)', () => {
+		const marker = createReplayMarkerPart({
+			segmentId: SEGMENT_ID,
+			reasoningText: 'reasoning',
+		});
 
-    const segment = resolveConversationSegment([assistant([marker])]);
+		const segment = resolveConversationSegment([assistant([marker])]);
 
-    expect(segment).toMatchObject<ConversationSegment>({
-      segmentId: SEGMENT_ID,
-      reason: "markerFound",
-      markerMessageIndex: 0,
-      markerPartIndex: 0,
-    });
-  });
+		expect(segment).toMatchObject<ConversationSegment>({
+			segmentId: SEGMENT_ID,
+			reason: 'markerFound',
+			markerMessageIndex: 0,
+			markerPartIndex: 0,
+		});
+	});
 
-  it("returns markerFound for a segment-only marker", () => {
-    const marker = createReplayMarkerPart({ segmentId: SEGMENT_ID });
+	it('returns markerFound for a segment-only marker', () => {
+		const marker = createReplayMarkerPart({ segmentId: SEGMENT_ID });
 
-    const segment = resolveConversationSegment([assistant([marker])]);
+		const segment = resolveConversationSegment([assistant([marker])]);
 
-    expect(segment).toEqual({
-      segmentId: SEGMENT_ID,
-      reason: "markerFound",
-      markerMessageIndex: 0,
-      markerPartIndex: 0,
-    });
-  });
+		expect(segment).toEqual({
+			segmentId: SEGMENT_ID,
+			reason: 'markerFound',
+			markerMessageIndex: 0,
+			markerPartIndex: 0,
+		});
+	});
 
-  it("reuses the latest assistant marker and ignores earlier ones", () => {
-    const oldMarker = createReplayMarkerPart({
-      segmentId: "11111111-1111-1111-1111-111111111111",
-    });
-    const latestMarker = createReplayMarkerPart({ segmentId: SEGMENT_ID });
+	it('reuses the latest assistant marker and ignores earlier ones', () => {
+		const oldMarker = createReplayMarkerPart({
+			segmentId: '11111111-1111-1111-1111-111111111111',
+		});
+		const latestMarker = createReplayMarkerPart({ segmentId: SEGMENT_ID });
 
-    const segment = resolveConversationSegment([
-      assistant([oldMarker]),
-      assistant([latestMarker]),
-    ]);
+		const segment = resolveConversationSegment([assistant([oldMarker]), assistant([latestMarker])]);
 
-    expect(segment).toMatchObject({
-      segmentId: SEGMENT_ID,
-      reason: "markerFound",
-      markerMessageIndex: 1,
-    });
-  });
+		expect(segment).toMatchObject({
+			segmentId: SEGMENT_ID,
+			reason: 'markerFound',
+			markerMessageIndex: 1,
+		});
+	});
 
-  it("preserves segment continuity across a tool-call round trip", () => {
-    const assistantMarker = createReplayMarkerPart({ segmentId: SEGMENT_ID });
-    const toolCall = new vscode.LanguageModelToolCallPart(
-      "call-1",
-      "read_file",
-      {
-        path: "a.h",
-      },
-    );
-    const toolResult = new vscode.LanguageModelToolResultPart("call-1", [
-      new vscode.LanguageModelTextPart("file body"),
-    ]);
+	it('preserves segment continuity across a tool-call round trip', () => {
+		const assistantMarker = createReplayMarkerPart({ segmentId: SEGMENT_ID });
+		const toolCall = new vscode.LanguageModelToolCallPart('call-1', 'read_file', {
+			path: 'a.h',
+		});
+		const toolResult = new vscode.LanguageModelToolResultPart('call-1', [
+			new vscode.LanguageModelTextPart('file body'),
+		]);
 
-    const segment = resolveConversationSegment([
-      assistant([assistantMarker]),
-      user([toolCall, toolResult]),
-    ]);
+		const segment = resolveConversationSegment([
+			assistant([assistantMarker]),
+			user([toolCall, toolResult]),
+		]);
 
-    expect(segment).toMatchObject({
-      segmentId: SEGMENT_ID,
-      reason: "markerFound",
-      markerMessageIndex: 0,
-    });
-  });
+		expect(segment).toMatchObject({
+			segmentId: SEGMENT_ID,
+			reason: 'markerFound',
+			markerMessageIndex: 0,
+		});
+	});
 
-  it("treats a legacy raw-uuid marker as markerFound", () => {
-    const segment = resolveConversationSegment([
-      assistant([legacyRawUuidMarker()]),
-    ]);
+	it('treats a legacy raw-uuid marker as markerFound', () => {
+		const segment = resolveConversationSegment([assistant([legacyRawUuidMarker()])]);
 
-    expect(segment).toMatchObject({
-      segmentId: SEGMENT_ID,
-      reason: "markerFound",
-      markerMessageIndex: 0,
-    });
-  });
+		expect(segment).toMatchObject({
+			segmentId: SEGMENT_ID,
+			reason: 'markerFound',
+			markerMessageIndex: 0,
+		});
+	});
 
-  it("reports markerUnbound for a legacy marker with replay content but no segment id", () => {
-    const marker = legacyUnboundMarker("old reasoning");
+	it('reports markerUnbound for a legacy marker with replay content but no segment id', () => {
+		const marker = legacyUnboundMarker('old reasoning');
 
-    const segment = resolveConversationSegment([assistant([marker])]);
+		const segment = resolveConversationSegment([assistant([marker])]);
 
-    expect(segment.reason).toBe("markerUnbound");
-    expect(segment.segmentId).not.toBe(SEGMENT_ID);
-    expect(isUuid(segment.segmentId)).toBe(true);
-    expect(segment.markerMessageIndex).toBe(0);
-    expect(segment.markerPartIndex).toBe(0);
-  });
+		expect(segment.reason).toBe('markerUnbound');
+		expect(segment.segmentId).not.toBe(SEGMENT_ID);
+		expect(isUuid(segment.segmentId)).toBe(true);
+		expect(segment.markerMessageIndex).toBe(0);
+		expect(segment.markerPartIndex).toBe(0);
+	});
 
-  it("reports markerInvalid for a marker with a malformed segment id", () => {
-    const json = JSON.stringify({ segmentId: "not-a-uuid" });
-    const encoded = `json:${Buffer.from(json, "utf8").toString("base64url")}`;
-    const badMarker = new vscode.LanguageModelDataPart(
-      new TextEncoder().encode(`glm-copilot\\${encoded}`),
-      REPLAY_MARKER_MIME,
-    );
+	it('reports markerInvalid for a marker with a malformed segment id', () => {
+		const json = JSON.stringify({ segmentId: 'not-a-uuid' });
+		const encoded = `json:${Buffer.from(json, 'utf8').toString('base64url')}`;
+		const badMarker = new vscode.LanguageModelDataPart(
+			new TextEncoder().encode(`glm-copilot\\${encoded}`),
+			REPLAY_MARKER_MIME,
+		);
 
-    const segment = resolveConversationSegment([assistant([badMarker])]);
+		const segment = resolveConversationSegment([assistant([badMarker])]);
 
-    expect(segment.reason).toBe("markerInvalid");
-    expect(segment.markerError).toBe("segment-id-not-uuid");
-    expect(isUuid(segment.segmentId)).toBe(true);
-  });
+		expect(segment.reason).toBe('markerInvalid');
+		expect(segment.markerError).toBe('segment-id-not-uuid');
+		expect(isUuid(segment.segmentId)).toBe(true);
+	});
 
-  it("reports markerInvalid for a marker with a wrong writer prefix", () => {
-    const badMarker = new vscode.LanguageModelDataPart(
-      new TextEncoder().encode(`unknown-writer\\${SEGMENT_ID}`),
-      REPLAY_MARKER_MIME,
-    );
+	it('reports markerInvalid for a marker with a wrong writer prefix', () => {
+		const badMarker = new vscode.LanguageModelDataPart(
+			new TextEncoder().encode(`unknown-writer\\${SEGMENT_ID}`),
+			REPLAY_MARKER_MIME,
+		);
 
-    const segment = resolveConversationSegment([assistant([badMarker])]);
+		const segment = resolveConversationSegment([assistant([badMarker])]);
 
-    expect(segment.reason).toBe("markerInvalid");
-    expect(segment.markerError).toBe("marker-prefix-mismatch");
-  });
+		expect(segment.reason).toBe('markerInvalid');
+		expect(segment.markerError).toBe('marker-prefix-mismatch');
+	});
 
-  it("falls back to the latest valid marker when a newer marker is unbound", () => {
-    // Newer unbound marker should win over an older valid one, because the
-    // resolver scans newest-first and returns on the first marker it finds.
-    const validMarker = createReplayMarkerPart({ segmentId: SEGMENT_ID });
-    const unboundMarker = legacyUnboundMarker("newer reasoning");
+	it('falls back to the latest valid marker when a newer marker is unbound', () => {
+		// Newer unbound marker should win over an older valid one, because the
+		// resolver scans newest-first and returns on the first marker it finds.
+		const validMarker = createReplayMarkerPart({ segmentId: SEGMENT_ID });
+		const unboundMarker = legacyUnboundMarker('newer reasoning');
 
-    const segment = resolveConversationSegment([
-      assistant([validMarker]),
-      assistant([unboundMarker]),
-    ]);
+		const segment = resolveConversationSegment([
+			assistant([validMarker]),
+			assistant([unboundMarker]),
+		]);
 
-    expect(segment.reason).toBe("markerUnbound");
-    expect(segment.segmentId).not.toBe(SEGMENT_ID);
-  });
+		expect(segment.reason).toBe('markerUnbound');
+		expect(segment.segmentId).not.toBe(SEGMENT_ID);
+	});
 });

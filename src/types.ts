@@ -121,6 +121,8 @@ export type CustomModelConfigEntry = string | CustomModelConfig;
 export interface CustomModelConfig {
 	id?: string;
 	name?: string;
+	/** Shared prompt + completion window. Takes precedence over maxInputTokens when valid. */
+	contextWindowTokens?: number;
 	maxInputTokens?: number;
 	maxOutputTokens?: number;
 	toolCalling?: boolean;

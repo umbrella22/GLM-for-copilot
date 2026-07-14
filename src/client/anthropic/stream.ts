@@ -50,6 +50,8 @@ interface AnthropicUsageSnapshot {
  * State for tracking in-progress content blocks across SSE events.
  */
 interface AnthropicStreamState {
+	/** Whether the stream contained at least one provider usage snapshot. */
+	usageObserved: boolean;
 	/** Latest cumulative uncached input-token count reported by the stream. */
 	inputTokens: number;
 	/** Latest cumulative output-token count reported by the stream. */
@@ -85,6 +87,7 @@ export async function parseAnthropicStream(
 	const decoder = new TextDecoder();
 	let buffer = '';
 	const state: AnthropicStreamState = {
+		usageObserved: false,
 		inputTokens: 0,
 		outputTokens: 0,
 		cacheReadTokens: 0,
@@ -224,6 +227,7 @@ function processAnthropicEvent(
 	switch (event.type) {
 		case 'message_start':
 			if (event.message?.usage) {
+				state.usageObserved = true;
 				// Anthropic splits input usage into three non-overlapping buckets:
 				// input_tokens (uncached), cache_creation_input_tokens (written to
 				// cache) and cache_read_input_tokens (served from cache). Capture all
@@ -338,6 +342,7 @@ function processAnthropicEvent(
 
 		case 'message_delta':
 			if (event.usage) {
+				state.usageObserved = true;
 				mergeAnthropicUsage(state, event.usage);
 			}
 			break;
@@ -423,7 +428,7 @@ function flushToolBlocks(state: AnthropicStreamState, callbacks: StreamCallbacks
  * Combines the latest cumulative usage snapshots reported across stream events.
  */
 function reportAnthropicUsage(state: AnthropicStreamState, callbacks: StreamCallbacks): void {
-	if (!callbacks.onUsage) {
+	if (!callbacks.onUsage || !state.usageObserved) {
 		return;
 	}
 

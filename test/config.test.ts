@@ -128,6 +128,7 @@ describe('endpoint preset selection', () => {
 			{
 				id: ' custom-no-tools ',
 				name: ' Custom No Tools ',
+				contextWindowTokens: 1_000,
 				maxInputTokens: 123.9,
 				maxOutputTokens: 456,
 				toolCalling: false,
@@ -155,7 +156,7 @@ describe('endpoint preset selection', () => {
 		expect(models[1]).toMatchObject({
 			id: 'custom-no-tools',
 			name: 'Custom No Tools',
-			maxInputTokens: 123,
+			maxInputTokens: 544,
 			maxOutputTokens: 456,
 			capabilities: {
 				toolCalling: false,
@@ -164,6 +165,23 @@ describe('endpoint preset selection', () => {
 			},
 			requiresThinkingParam: false,
 		});
+	});
+
+	it('uses a valid shared context window before the legacy input limit', () => {
+		__setConfigurationValue('glm-copilot.customModels', [
+			{
+				id: 'shared-window',
+				contextWindowTokens: 1_000.9,
+				maxOutputTokens: 400.8,
+				maxInputTokens: 12,
+			},
+			{ id: 'invalid-window', contextWindowTokens: 400, maxOutputTokens: 400, maxInputTokens: 12 },
+		]);
+
+		const models = getCustomModels();
+
+		expect(models[0]).toMatchObject({ maxInputTokens: 600, maxOutputTokens: 400 });
+		expect(models[1]).toMatchObject({ maxInputTokens: 12, maxOutputTokens: 400 });
 	});
 
 	it('lets custom model IDs override built-in model lookup and picker registry', () => {

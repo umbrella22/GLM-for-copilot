@@ -223,6 +223,11 @@
                     "type": "string",
                     "description": "%glm-copilot.config.customModels.name.description%"
                   },
+                  "contextWindowTokens": {
+                    "type": "number",
+                    "minimum": 1,
+                    "description": "%glm-copilot.config.customModels.contextWindowTokens.description%"
+                  },
                   "maxInputTokens": {
                     "type": "number",
                     "minimum": 1,

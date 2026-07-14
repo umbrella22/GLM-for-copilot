@@ -63,6 +63,15 @@ describe('model metadata helpers', () => {
 		expect(info.priceCategory).toBe('high');
 	});
 
+	it('publishes built-in shared windows as Copilot input plus output budgets', () => {
+		expect(MODELS.map((model) => model.maxInputTokens + model.maxOutputTokens)).toEqual([
+			1_000_000, 131_072, 200_000,
+		]);
+		expect(MODELS[1].maxOutputTokens).toBe(32_768);
+		expect(toChatInfo(MODELS[0], true).maxInputTokens).toBe(868_928);
+		expect(toChatInfo(MODELS[2], true).maxOutputTokens).toBe(131_072);
+	});
+
 	it('includes custom models in picker metadata with Vision Proxy image support', () => {
 		__setConfigurationValue('glm-copilot.customModels', [
 			'team-coder',

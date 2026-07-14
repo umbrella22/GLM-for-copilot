@@ -17,6 +17,7 @@ import type { ActivatePreflightInspection } from '../tools/preflight';
 import type { VisionResolutionStats as VisionPipelineStats, VisionProxySource } from '../vision';
 import { IMAGE_DESCRIPTION_UNAVAILABLE } from '../vision/consts';
 import { formatConversationSegmentTrace } from './segment-trace';
+import type { ContextUsageSource, TokenCountSource } from '../context-usage';
 
 const LARGE_MESSAGE_CHARS = 10_000;
 const HASH_WINDOW_CHARS = 2_048;
@@ -190,9 +191,19 @@ export interface CacheDiagnosticsRun {
 	onCancellationTokenRequested(): void;
 	onReplayMarkerReport(info: ReplayMarkerReportInfo): void;
 	onUsage(usage: GLMUsage, charsPerToken: number): void;
+	onContextUsageReport(info: ContextUsageReportInfo): void;
+	onResponseOutcome(info: ResponseOutcomeInfo): void;
 }
 
 export type ReplayMarkerReportStatus = 'reported' | 'failed' | 'skipped';
+export type PartReportStatus = ReplayMarkerReportStatus;
+export type ReportedResponsePartKind =
+	| 'notice'
+	| 'thinking'
+	| 'text'
+	| 'tool-call'
+	| 'usage'
+	| 'marker';
 
 export type ReplayMarkerReportTrigger = 'done';
 
@@ -205,6 +216,43 @@ export interface ReplayMarkerReportInfo {
 	/** Whether the marker carried only a segment id (no reasoning/vision replay). */
 	segmentOnly?: boolean;
 	reason?: 'cancelled' | 'stream-error';
+	error?: unknown;
+	reportOrdinal?: number;
+}
+
+export interface ContextUsageReportInfo {
+	status: PartReportStatus;
+	reason?: 'cancelled' | 'stream-error';
+	providerUsageObserved: boolean;
+	providerCallbackCount: number;
+	source?: ContextUsageSource;
+	promptTokenSource?: TokenCountSource;
+	completionTokenSource?: TokenCountSource;
+	usage?: GLMUsage;
+	error?: unknown;
+	reportOrdinal?: number;
+}
+
+export interface ResponseOutcomeInfo {
+	startedAt: string;
+	completedAt: string;
+	durationMs: number;
+	status: 'completed' | 'cancelled' | 'stream-error';
+	clientSettlement: 'fulfilled' | 'rejected';
+	doneObserved: boolean;
+	cancellation: {
+		requestedAtSettlement: boolean;
+		requestedAtOutcome: boolean;
+	};
+	output: {
+		textChars: number;
+		reasoningChars: number;
+		toolCalls: number;
+		reportedPartCount: number;
+		lastReportedPart?: ReportedResponsePartKind;
+	};
+	contextUsage: ContextUsageReportInfo;
+	replayMarker: ReplayMarkerReportInfo;
 	error?: unknown;
 }
 
@@ -636,6 +684,24 @@ class ActiveCacheDiagnosticsRun implements CacheDiagnosticsRun {
 		}
 	}
 
+	onContextUsageReport(info: ContextUsageReportInfo): void {
+		logger.info(
+			formatRequestLogLine(
+				this.snapshot.requestKind,
+				`[cache-trace #${this.requestId}] ${formatContextUsageReport(info)}`,
+			),
+		);
+	}
+
+	onResponseOutcome(info: ResponseOutcomeInfo): void {
+		logger.info(
+			formatRequestLogLine(
+				this.snapshot.requestKind,
+				`[cache-trace #${this.requestId}] ${formatResponseOutcome(info)}`,
+			),
+		);
+	}
+
 	onCancellationTokenRequested(): void {
 		if (this.cancellationLogged) {
 			return;
@@ -671,6 +737,10 @@ class NoopCacheDiagnosticsRun implements CacheDiagnosticsRun {
 	onUsage(usage: GLMUsage, charsPerToken: number): void {
 		logUsage(usage, charsPerToken, this.usageLogContext);
 	}
+
+	onContextUsageReport(_info: ContextUsageReportInfo): void {}
+
+	onResponseOutcome(_info: ResponseOutcomeInfo): void {}
 }
 
 function formatReplayMarkerReport(info: ReplayMarkerReportInfo): string {
@@ -684,6 +754,8 @@ function formatReplayMarkerReport(info: ReplayMarkerReportInfo): string {
 		info.segmentOnly === undefined ? '' : ` segmentOnly=${info.segmentOnly ? 'true' : 'false'}`;
 	const reason = info.reason ? ` reason=${info.reason}` : '';
 	const error = info.error ? ` error=${formatError(info.error)}` : '';
+	const reportOrdinal =
+		info.reportOrdinal === undefined ? '' : ` reportOrdinal=${info.reportOrdinal}`;
 	return (
 		`replayMarker status=${info.status}` +
 		trigger +
@@ -692,6 +764,53 @@ function formatReplayMarkerReport(info: ReplayMarkerReportInfo): string {
 		reasoningTextChars +
 		segmentOnly +
 		reason +
+		reportOrdinal +
+		error
+	);
+}
+
+function formatContextUsageReport(info: ContextUsageReportInfo): string {
+	const source = info.source ? ` source=${info.source}` : '';
+	const promptSource = info.promptTokenSource ? ` promptSource=${info.promptTokenSource}` : '';
+	const completionSource = info.completionTokenSource
+		? ` completionSource=${info.completionTokenSource}`
+		: '';
+	const usage = info.usage
+		? ` prompt=${info.usage.prompt_tokens} completion=${info.usage.completion_tokens}` +
+			` cached=${getCacheHitTokens(info.usage)}`
+		: '';
+	const reason = info.reason ? ` reason=${info.reason}` : '';
+	const ordinal = info.reportOrdinal === undefined ? '' : ` reportOrdinal=${info.reportOrdinal}`;
+	const error = info.error ? ` error=${formatError(info.error)}` : '';
+	return (
+		`contextUsage status=${info.status}` +
+		` providerUsageObserved=${info.providerUsageObserved}` +
+		` providerCallbacks=${info.providerCallbackCount}` +
+		source +
+		promptSource +
+		completionSource +
+		usage +
+		reason +
+		ordinal +
+		error
+	);
+}
+
+function formatResponseOutcome(info: ResponseOutcomeInfo): string {
+	const lastPart = info.output.lastReportedPart ? ` lastPart=${info.output.lastReportedPart}` : '';
+	const error = info.error ? ` error=${formatError(info.error)}` : '';
+	return (
+		`responseOutcome status=${info.status}` +
+		` settlement=${info.clientSettlement}` +
+		` doneObserved=${info.doneObserved}` +
+		` cancelledAtSettlement=${info.cancellation.requestedAtSettlement}` +
+		` cancelledAtOutcome=${info.cancellation.requestedAtOutcome}` +
+		` output(textChars=${info.output.textChars},reasoningChars=${info.output.reasoningChars},toolCalls=${info.output.toolCalls})` +
+		` parts=${info.output.reportedPartCount}` +
+		lastPart +
+		` usage=${info.contextUsage.status}` +
+		(info.contextUsage.source ? `/${info.contextUsage.source}` : '') +
+		` marker=${info.replayMarker.status}` +
 		error
 	);
 }

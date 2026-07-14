@@ -11,8 +11,13 @@ import {
 import { identifyOfficialGLMApiMode, isOfficialGLMBaseUrl } from '../endpoint';
 import { t } from '../i18n';
 import type { ApiMode, GLMRequest, ModelDefinition, PricingCurrency } from '../types';
-import { convertMessages, countMessageChars } from './convert';
-import { dumpGLMRequest, type CacheDiagnosticsRecorder, type CacheDiagnosticsRun } from './debug';
+import { convertMessages, countRequestPromptChars } from './convert';
+import {
+	dumpGLMRequest,
+	type CacheDiagnosticsRecorder,
+	type CacheDiagnosticsRun,
+	type RequestDumpRun,
+} from './debug';
 import { getConfiguredThinkingEffort, type ModelConfigurationOptions } from './models';
 import { getPricingCurrencyForBaseUrl } from './pricing/currency';
 import type { ReplayMarkerMetadata } from './replay';
@@ -25,7 +30,7 @@ export interface PreparedChatRequest {
 	client: GLMClient;
 	request: GLMRequest;
 	isThinkingModel: boolean;
-	totalRequestChars: number;
+	promptChars: number;
 	trailingToolResultIds: string[];
 	cacheDiagnostics: CacheDiagnosticsRun;
 	requestKind: RequestKind;
@@ -36,6 +41,7 @@ export interface PreparedChatRequest {
 	pricingCurrency?: PricingCurrency;
 	visionMarkerTextChars?: number;
 	initialResponseNotice?: string;
+	requestDump?: RequestDumpRun;
 }
 
 export interface PrepareChatRequestOptions {
@@ -79,7 +85,6 @@ export async function prepareChatRequest({
 	const glmMessages = convertMessages(resolvedMessages, isThinkingModel);
 	const tools = prepareRequestTools(modelDef?.capabilities.toolCalling, options);
 
-	const totalRequestChars = countMessageChars(glmMessages);
 	const baseRequest: GLMRequest = {
 		model: apiModelId,
 		messages: glmMessages,
@@ -116,7 +121,8 @@ export async function prepareChatRequest({
 				}
 			: {}),
 	};
-	dumpGLMRequest(request, {
+	const promptChars = countRequestPromptChars(request);
+	const requestDump = dumpGLMRequest(request, {
 		globalStorageUri,
 		segment,
 		requestKind,
@@ -151,7 +157,7 @@ export async function prepareChatRequest({
 		client,
 		request,
 		isThinkingModel,
-		totalRequestChars,
+		promptChars,
 		trailingToolResultIds: collectTrailingToolResultIds(glmMessages),
 		cacheDiagnostics: diagnosticsRun,
 		requestKind,
@@ -162,5 +168,6 @@ export async function prepareChatRequest({
 		pricingCurrency: getPricingCurrencyForBaseUrl(baseUrl),
 		visionMarkerTextChars: visionResolution.stats.markerVisionTextChars || undefined,
 		initialResponseNotice: visionResolution.initialResponseNotice,
+		requestDump,
 	};
 }

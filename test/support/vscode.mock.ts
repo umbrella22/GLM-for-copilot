@@ -5,6 +5,11 @@ export enum LanguageModelChatMessageRole {
 	Assistant = 2,
 }
 
+export enum LanguageModelChatToolMode {
+	Auto = 1,
+	Required = 2,
+}
+
 export class LanguageModelTextPart {
 	constructor(readonly value: string) {}
 }
@@ -115,6 +120,10 @@ export class Uri {
 
 	static file(fsPath: string): Uri {
 		return new Uri(fsPath, `file://${fsPath}`);
+	}
+
+	static joinPath(base: Uri, ...pathSegments: string[]): Uri {
+		return Uri.file([base.fsPath, ...pathSegments].join('/'));
 	}
 
 	toString(): string {

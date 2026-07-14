@@ -475,14 +475,23 @@ function normalizeCustomModel(entry: unknown): ModelDefinition | undefined {
 	}
 
 	const thinking = model.thinking !== false;
+	const maxOutputTokens = getPositiveInteger(model.maxOutputTokens, CUSTOM_MODEL_MAX_OUTPUT_TOKENS);
+	const legacyMaxInputTokens = getPositiveInteger(
+		model.maxInputTokens,
+		CUSTOM_MODEL_MAX_INPUT_TOKENS,
+	);
+	const contextWindowTokens = getPositiveInteger(model.contextWindowTokens, 0);
 	return {
 		id,
 		name: getCustomModelName(model, id),
 		family: 'glm',
 		version: 'custom',
 		detail: CUSTOM_MODEL_DETAIL,
-		maxInputTokens: getPositiveInteger(model.maxInputTokens, CUSTOM_MODEL_MAX_INPUT_TOKENS),
-		maxOutputTokens: getPositiveInteger(model.maxOutputTokens, CUSTOM_MODEL_MAX_OUTPUT_TOKENS),
+		maxInputTokens:
+			contextWindowTokens > maxOutputTokens
+				? contextWindowTokens - maxOutputTokens
+				: legacyMaxInputTokens,
+		maxOutputTokens,
 		capabilities: {
 			toolCalling: model.toolCalling === false ? false : true,
 			imageInput: true,

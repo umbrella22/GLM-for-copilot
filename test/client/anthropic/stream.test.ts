@@ -89,4 +89,18 @@ describe('Anthropic stream usage', () => {
 			}),
 		);
 	});
+
+	it('does not synthesize a provider usage callback when no usage event arrives', async () => {
+		const onUsage = vi.fn();
+		await parseAnthropicStream(
+			createReader([
+				{ type: 'content_block_start', index: 0, content_block: { type: 'text' } },
+				{ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'ok' } },
+				{ type: 'message_stop' },
+			]),
+			createCallbacks(onUsage),
+		);
+
+		expect(onUsage).not.toHaveBeenCalled();
+	});
 });

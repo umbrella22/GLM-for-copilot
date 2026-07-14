@@ -64,7 +64,8 @@ export const MODELS: ModelDefinition[] = [
 		family: 'glm',
 		version: '5.2',
 		detail: 'Flagship coding and reasoning model',
-		maxInputTokens: 1_000_000,
+		// Copilot treats input + output as one shared context window.
+		maxInputTokens: 868_928,
 		maxOutputTokens: 131_072,
 		capabilities: {
 			toolCalling: GLM_TOOLS_LIMIT,
@@ -87,8 +88,8 @@ export const MODELS: ModelDefinition[] = [
 		family: 'glm',
 		version: '4.6v',
 		detail: 'Multimodal GLM model for image understanding',
-		maxInputTokens: 200_000,
-		maxOutputTokens: 131_072,
+		maxInputTokens: 98_304,
+		maxOutputTokens: 32_768,
 		capabilities: {
 			toolCalling: GLM_TOOLS_LIMIT,
 			imageInput: true,
@@ -107,7 +108,7 @@ export const MODELS: ModelDefinition[] = [
 		family: 'glm',
 		version: '5',
 		detail: 'Fast coding model for daily agent work',
-		maxInputTokens: 200_000,
+		maxInputTokens: 68_928,
 		maxOutputTokens: 131_072,
 		capabilities: {
 			toolCalling: GLM_TOOLS_LIMIT,

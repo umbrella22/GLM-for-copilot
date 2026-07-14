@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import * as vscode from 'vscode';
 import { LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../../src/consts';
-import { convertMessages, convertTools, countMessageChars } from '../../src/provider/convert';
+import {
+	convertMessages,
+	convertTools,
+	countMessageChars,
+	countRequestPromptChars,
+} from '../../src/provider/convert';
 import { createReplayMarkerPart } from '../../src/provider/replay';
 
 function message(
@@ -146,5 +151,46 @@ describe('message and tool conversion', () => {
 				},
 			]),
 		).toBe(14);
+		expect(
+			countRequestPromptChars({
+				messages: [
+					{
+						role: 'tool',
+						content: 'result',
+						tool_call_id: 'call-1',
+					},
+					{
+						role: 'assistant',
+						content: '',
+						tool_calls: [
+							{
+								id: 'call-2',
+								type: 'function',
+								function: { name: 'search', arguments: '{"q":"x"}' },
+							},
+						],
+					},
+				],
+				tools: [
+					{
+						type: 'function',
+						function: {
+							name: 'search',
+							description: 'Search files',
+							parameters: { type: 'object' },
+						},
+					},
+				],
+			}),
+		).toBe(
+			'result'.length +
+				'call-1'.length +
+				'call-2'.length +
+				'search'.length +
+				'{"q":"x"}'.length +
+				'search'.length +
+				'Search files'.length +
+				JSON.stringify({ type: 'object' }).length,
+		);
 	});
 });

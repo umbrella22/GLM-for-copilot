@@ -1,7 +1,7 @@
 import vscode from 'vscode';
 import { LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../consts';
 import { safeStringify } from '../json';
-import type { GLMMessage, GLMTool, GLMToolCall } from '../types';
+import type { GLMMessage, GLMRequest, GLMTool, GLMToolCall } from '../types';
 import { parseFirstReplayMarker } from './replay';
 
 /**
@@ -158,6 +158,23 @@ export function countMessageChars(messages: GLMMessage[]): number {
 				total += tc.function?.name?.length ?? 0;
 				total += tc.function?.arguments?.length ?? 0;
 			}
+		}
+	}
+	return total;
+}
+
+/** Count model-visible request content for local context-usage estimation. */
+export function countRequestPromptChars(request: Pick<GLMRequest, 'messages' | 'tools'>): number {
+	let total = countMessageChars(request.messages);
+	for (const tool of request.tools ?? []) {
+		total += tool.function.name.length;
+		total += tool.function.description?.length ?? 0;
+		total += safeStringify(tool.function.parameters ?? {}).length;
+	}
+	for (const message of request.messages) {
+		total += message.tool_call_id?.length ?? 0;
+		for (const toolCall of message.tool_calls ?? []) {
+			total += toolCall.id.length;
 		}
 	}
 	return total;

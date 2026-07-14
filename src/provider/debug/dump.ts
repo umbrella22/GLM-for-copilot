@@ -19,6 +19,7 @@ import {
 import type { ConversationSegment } from '../segment';
 import { ACTIVATE_TOOL_PREFIX } from '../tools/consts';
 import type { VisionProxySource, VisionResolutionStats } from '../vision';
+import type { ResponseOutcomeInfo } from './diagnostics';
 import { formatConversationSegmentTrace } from './segment-trace';
 
 let dumpCounter = 0;
@@ -28,7 +29,7 @@ let dumpWriteQueue: Promise<void> = Promise.resolve();
 const REQUEST_OBSERVATIONS_FILE = '_request-observations.jsonl';
 const HASH_WINDOW_CHARS = 2_048;
 
-type DumpEvent = 'provider-input' | 'glm-request';
+type DumpEvent = 'provider-input' | 'glm-request' | 'response-outcome';
 type DumpStage = 'provider-input' | 'input' | 'resolved';
 
 interface DumpContext {
@@ -48,6 +49,7 @@ interface RequestDumpPaths {
 	input: string;
 	resolved: string;
 	request: string;
+	outcome: string;
 	msg0?: string;
 }
 
@@ -110,6 +112,10 @@ export interface DumpGLMRequestOptions {
 	visionModelId?: string;
 	visionProxySource?: VisionProxySource;
 	visionStats?: VisionResolutionStats;
+}
+
+export interface RequestDumpRun {
+	finish(outcome: ResponseOutcomeInfo): void;
 }
 
 export interface DumpProviderInputOptions {
@@ -181,8 +187,11 @@ export function dumpProviderInput(options: DumpProviderInputOptions): void {
  *   glm-request-<timestamp>-NNNN.json           — full request body
  *   glm-request-<timestamp>-NNNN.msg0.txt       — messages[0] content (system prompt)
  */
-export function dumpGLMRequest(request: GLMRequest, options: DumpGLMRequestOptions): void {
-	if (!getRequestDumpEnabled()) return;
+export function dumpGLMRequest(
+	request: GLMRequest,
+	options: DumpGLMRequestOptions,
+): RequestDumpRun | undefined {
+	if (!getRequestDumpEnabled()) return undefined;
 
 	const requestKind =
 		options.requestKind ??
@@ -200,6 +209,7 @@ export function dumpGLMRequest(request: GLMRequest, options: DumpGLMRequestOptio
 	const msg0 = request.messages[0];
 	const paths = createRequestDumpPaths(context, Boolean(msg0));
 	const toolSummary = summarizeTools(options.requestOptions.tools);
+	const dumpRun = createRequestDumpRun({ request, options, context, paths, toolSummary });
 
 	enqueueDumpWrite(formatRequestLogLine(requestKind, 'requestDump'), async () => {
 		await mkdir(context.root, { recursive: true });
@@ -239,6 +249,8 @@ export function dumpGLMRequest(request: GLMRequest, options: DumpGLMRequestOptio
 		);
 		logRequestDump(request, options, paths, requestJson.length, requestKind);
 	});
+
+	return dumpRun;
 }
 
 export async function ensureRequestDumpRoot(globalStorageUri: vscode.Uri): Promise<vscode.Uri> {
@@ -276,6 +288,7 @@ function createRequestDumpPaths(context: DumpContext, hasMsg0: boolean): Request
 		input: join(context.root, `${context.basename}.input.json`),
 		resolved: join(context.root, `${context.basename}.resolved.json`),
 		request: join(context.root, `${context.basename}.json`),
+		outcome: join(context.root, `${context.basename}.outcome.json`),
 		msg0: hasMsg0 ? join(context.root, `${context.basename}.msg0.txt`) : undefined,
 	};
 }
@@ -290,6 +303,7 @@ function createDumpObservation(options: {
 	requestOptions: vscode.ProvideLanguageModelChatResponseOptions;
 	messages: readonly vscode.LanguageModelChatRequestMessage[];
 	toolSummary: ToolSummary;
+	outcome?: object;
 }): object {
 	return {
 		event: options.event,
@@ -304,6 +318,121 @@ function createDumpObservation(options: {
 		systemPromptSummary: summarizeVscodeSystemPrompt(options.messages),
 		messageStats: summarizeMessagesFromInput(options.messages),
 		toolStats: options.toolSummary,
+		...(options.outcome ? { outcome: options.outcome } : {}),
+	};
+}
+
+function createRequestDumpRun(options: {
+	request: GLMRequest;
+	options: DumpGLMRequestOptions;
+	context: DumpContext;
+	paths: RequestDumpPaths;
+	toolSummary: ToolSummary;
+}): RequestDumpRun {
+	let finished = false;
+	return {
+		finish(outcome) {
+			if (finished) {
+				return;
+			}
+			finished = true;
+			const serializedOutcome = serializeResponseOutcome(outcome);
+			enqueueDumpWrite(
+				formatRequestLogLine(options.context.requestKind, 'responseOutcomeDump'),
+				async () => {
+					await mkdir(options.context.root, { recursive: true });
+					await writeJsonFile(
+						options.paths.outcome,
+						createResponseOutcomeSnapshot(options, serializedOutcome),
+					);
+					await writeDumpObservation(
+						options.options.globalStorageUri,
+						createDumpObservation({
+							event: 'response-outcome',
+							context: options.context,
+							segment: options.options.segment,
+							paths: options.paths,
+							model: {
+								vscodeModelId: options.options.vscodeModelId,
+								apiModelId:
+									options.request.model === options.options.vscodeModelId
+										? undefined
+										: options.request.model,
+							},
+							requestKind: options.context.requestKind,
+							requestOptions: options.options.requestOptions,
+							messages: options.options.inputMessages,
+							toolSummary: options.toolSummary,
+							outcome: serializedOutcome,
+						}),
+					);
+					logger.debug(
+						formatRequestLogLine(
+							options.context.requestKind,
+							`responseOutcomeDump written: ${formatConversationSegmentTrace(options.options.segment)}` +
+								` outcome=${formatFileUri(options.paths.outcome)}`,
+						),
+					);
+				},
+			);
+		},
+	};
+}
+
+function createResponseOutcomeSnapshot(
+	options: {
+		request: GLMRequest;
+		options: DumpGLMRequestOptions;
+		context: DumpContext;
+		paths: RequestDumpPaths;
+	},
+	outcome: object,
+): object {
+	return {
+		schemaVersion: 1,
+		stage: 'response-outcome',
+		timestamp: options.context.timestamp,
+		basename: options.context.basename,
+		segment: options.options.segment,
+		requestKind: options.context.requestKind,
+		model: {
+			vscodeModelId: options.options.vscodeModelId,
+			apiModelId:
+				options.request.model === options.options.vscodeModelId ? undefined : options.request.model,
+		},
+		paths: options.paths,
+		outcome,
+	};
+}
+
+function serializeResponseOutcome(outcome: ResponseOutcomeInfo): object {
+	return {
+		...outcome,
+		error: serializeOutcomeError(outcome.error),
+		contextUsage: {
+			...outcome.contextUsage,
+			error: serializeOutcomeError(outcome.contextUsage.error),
+		},
+		replayMarker: {
+			...outcome.replayMarker,
+			error: serializeOutcomeError(outcome.replayMarker.error),
+		},
+	};
+}
+
+function serializeOutcomeError(error: unknown): { name: string; message: string } | undefined {
+	if (!error) {
+		return undefined;
+	}
+	if (error instanceof Error) {
+		return {
+			name: error.name || 'Error',
+			message: error.message.replace(/\s+/g, ' ').slice(0, 200),
+		};
+	}
+	return {
+		name: typeof error,
+		message: String(error).replace(/\s+/g, ' ').slice(0, 200),
 	};
 }
 
@@ -868,8 +997,13 @@ function formatRole(role: vscode.LanguageModelChatMessageRole): string {
 }
 
 function formatToolMode(mode: vscode.LanguageModelChatToolMode): string {
-	if (mode === vscode.LanguageModelChatToolMode.Auto) return 'auto';
-	if (mode === vscode.LanguageModelChatToolMode.Required) return 'required';
+	const ToolMode = (
+		vscode as unknown as {
+			LanguageModelChatToolMode?: { Auto: unknown; Required: unknown };
+		}
+	).LanguageModelChatToolMode;
+	if (ToolMode && mode === ToolMode.Auto) return 'auto';
+	if (ToolMode && mode === ToolMode.Required) return 'required';
 	return String(mode);
 }
 

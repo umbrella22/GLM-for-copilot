@@ -42,14 +42,20 @@ class MutableCancellationToken implements vscode.CancellationToken {
 
 function fakeDiagnostics(): CacheDiagnosticsRun & {
 	reports: unknown[];
+	contextUsage: unknown[];
+	outcomes: unknown[];
 	done: unknown[];
 	cancellations: unknown[];
 } {
 	const reports: unknown[] = [];
+	const contextUsage: unknown[] = [];
+	const outcomes: unknown[] = [];
 	const done: unknown[] = [];
 	const cancellations: unknown[] = [];
 	return {
 		reports,
+		contextUsage,
+		outcomes,
 		done,
 		cancellations,
 		onDone(info) {
@@ -62,6 +68,12 @@ function fakeDiagnostics(): CacheDiagnosticsRun & {
 			reports.push(info);
 		},
 		onUsage() {},
+		onContextUsageReport(info) {
+			contextUsage.push(info);
+		},
+		onResponseOutcome(info) {
+			outcomes.push(info);
+		},
 	};
 }
 
@@ -101,7 +113,7 @@ function buildPrepared({
 			stream: true,
 		},
 		isThinkingModel: true,
-		totalRequestChars: 0,
+		promptChars: 0,
 		trailingToolResultIds: [],
 		cacheDiagnostics: diagnostics as unknown as CacheDiagnosticsRun,
 		requestKind: 'main-agent' as RequestKind,
@@ -120,10 +132,12 @@ function getDiagnostics(prepared: PreparedChatRequest): ReturnType<typeof fakeDi
 function collectParts(parts: vscode.LanguageModelResponsePart[]): {
 	texts: string[];
 	markers: vscode.LanguageModelDataPart[];
+	usages: vscode.LanguageModelDataPart[];
 	toolCalls: vscode.LanguageModelToolCallPart[];
 } {
 	const texts: string[] = [];
 	const markers: vscode.LanguageModelDataPart[] = [];
+	const usages: vscode.LanguageModelDataPart[] = [];
 	const toolCalls: vscode.LanguageModelToolCallPart[] = [];
 	for (const part of parts) {
 		if (part instanceof vscode.LanguageModelTextPart) {
@@ -135,9 +149,11 @@ function collectParts(parts: vscode.LanguageModelResponsePart[]): {
 			part.mimeType === REPLAY_MARKER_MIME
 		) {
 			markers.push(part);
+		} else if (part instanceof vscode.LanguageModelDataPart && part.mimeType === 'usage') {
+			usages.push(part);
 		}
 	}
-	return { texts, markers, toolCalls };
+	return { texts, markers, usages, toolCalls };
 }
 
 function markerFrom(
@@ -148,8 +164,14 @@ function markerFrom(
 	return marker!;
 }
 
+function usageFrom(parts: readonly vscode.LanguageModelResponsePart[]): Record<string, unknown> {
+	const usage = collectParts([...parts]).usages[0];
+	expect(usage).toBeDefined();
+	return JSON.parse(new TextDecoder().decode(usage!.data));
+}
+
 describe('streamChatCompletion marker reporting', () => {
-	it('reports a segment-only marker last on a successful response', async () => {
+	it('reports estimated usage and a segment-only marker after a successful response', async () => {
 		const prepared = buildPrepared({
 			driver: (cb) => {
 				cb.onContent('hello');
@@ -166,16 +188,34 @@ describe('streamChatCompletion marker reporting', () => {
 			setCharsPerToken: () => {},
 		});
 
-		const { texts, markers } = collectParts(parts);
+		const { texts, markers, usages } = collectParts(parts);
 		expect(texts).toEqual(['hello']);
+		expect(usages).toHaveLength(1);
 		expect(markers).toHaveLength(1);
-		expect(parts).toHaveLength(2);
+		expect(parts).toHaveLength(3);
 		expect(parts[0]).toBeInstanceOf(vscode.LanguageModelTextPart);
-		expect(parts[1]).toBe(markers[0]);
+		expect(parts[1]).toBe(usages[0]);
+		expect(parts[2]).toBe(markers[0]);
 		expect(getDiagnostics(prepared).reports).toEqual([
 			expect.objectContaining({ status: 'reported', segmentOnly: true }),
 		]);
 		expect(getDiagnostics(prepared).done).toHaveLength(1);
+		expect(getDiagnostics(prepared).contextUsage).toEqual([
+			expect.objectContaining({
+				status: 'reported',
+				source: 'estimate',
+				promptTokenSource: 'estimate',
+				completionTokenSource: 'estimate',
+			}),
+		]);
+		expect(getDiagnostics(prepared).outcomes).toEqual([
+			expect.objectContaining({
+				status: 'completed',
+				clientSettlement: 'fulfilled',
+				doneObserved: true,
+				output: expect.objectContaining({ lastReportedPart: 'marker' }),
+			}),
+		]);
 	});
 
 	it('reports usage before the final marker and preserves reasoning', async () => {
@@ -209,6 +249,36 @@ describe('streamChatCompletion marker reporting', () => {
 			segmentId: SEGMENT_ID,
 			reasoningText: 'step one',
 		});
+	});
+
+	it('reports only the final provider usage snapshot', async () => {
+		const prepared = buildPrepared({
+			driver: (cb) => {
+				cb.onContent('answer');
+				cb.onUsage?.({ prompt_tokens: 10, completion_tokens: 2, total_tokens: 12 });
+				cb.onUsage?.({ prompt_tokens: 20, completion_tokens: 3, total_tokens: 23 });
+				cb.onDone();
+			},
+		});
+		const parts: vscode.LanguageModelResponsePart[] = [];
+
+		await streamChatCompletion({
+			prepared,
+			progress: { report: (part) => parts.push(part) },
+			token: new MutableCancellationToken(),
+			getCharsPerToken: () => 4,
+			setCharsPerToken: () => {},
+		});
+
+		expect(collectParts(parts).usages).toHaveLength(1);
+		expect(usageFrom(parts)).toMatchObject({
+			prompt_tokens: 20,
+			completion_tokens: 3,
+			total_tokens: 23,
+		});
+		expect(getDiagnostics(prepared).contextUsage).toEqual([
+			expect.objectContaining({ source: 'provider', providerCallbackCount: 2 }),
+		]);
 	});
 
 	it('reports a marker that carries vision replay metadata', async () => {
@@ -259,10 +329,11 @@ describe('streamChatCompletion marker reporting', () => {
 			setCharsPerToken: () => {},
 		});
 
-		expect(firstParts).toHaveLength(3);
+		expect(firstParts).toHaveLength(4);
 		expect(firstParts[0]).toBeInstanceOf(vscode.LanguageModelThinkingPart);
 		expect(firstParts[1]).toBeInstanceOf(vscode.LanguageModelToolCallPart);
-		expect(firstParts[2]).toBeInstanceOf(vscode.LanguageModelDataPart);
+		expect(firstParts[2]).toMatchObject({ mimeType: 'usage' });
+		expect(firstParts[3]).toBeInstanceOf(vscode.LanguageModelDataPart);
 		expect(parseReplayMarkerData(markerFrom(firstParts).data)).toMatchObject({
 			valid: true,
 			segmentId: SEGMENT_ID,
@@ -283,7 +354,7 @@ describe('streamChatCompletion marker reporting', () => {
 			segmentId: SEGMENT_ID,
 			reason: 'markerFound',
 			markerMessageIndex: 0,
-			markerPartIndex: 2,
+			markerPartIndex: 3,
 			markerSource: 'current',
 		});
 
@@ -405,6 +476,12 @@ describe('streamChatCompletion marker reporting', () => {
 		]);
 		expect(getDiagnostics(prepared).cancellations).toHaveLength(1);
 		expect(getDiagnostics(prepared).done).toHaveLength(0);
+		expect(getDiagnostics(prepared).contextUsage).toEqual([
+			expect.objectContaining({ status: 'skipped', reason: 'cancelled' }),
+		]);
+		expect(getDiagnostics(prepared).outcomes).toEqual([
+			expect.objectContaining({ status: 'cancelled', clientSettlement: 'fulfilled' }),
+		]);
 	});
 
 	it('skips the marker when the token is already cancelled and the client resolves', async () => {
@@ -567,6 +644,42 @@ describe('streamChatCompletion marker reporting', () => {
 			expect.objectContaining({ status: 'failed', trigger: 'done' }),
 		]);
 		expect(getDiagnostics(prepared).done).toHaveLength(1);
+	});
+
+	it('keeps the marker and response completion when usage reporting fails', async () => {
+		const prepared = buildPrepared({
+			driver: (cb) => {
+				cb.onContent('answer');
+				cb.onDone();
+			},
+		});
+		const parts: vscode.LanguageModelResponsePart[] = [];
+
+		await streamChatCompletion({
+			prepared,
+			progress: {
+				report: (part) => {
+					if (part instanceof vscode.LanguageModelDataPart && part.mimeType === 'usage') {
+						throw new Error('usage rejected');
+					}
+					parts.push(part);
+				},
+			},
+			token: new MutableCancellationToken(),
+			getCharsPerToken: () => 4,
+			setCharsPerToken: () => {},
+		});
+
+		expect(collectParts(parts).markers).toHaveLength(1);
+		expect(getDiagnostics(prepared).contextUsage).toEqual([
+			expect.objectContaining({ status: 'failed', source: 'estimate' }),
+		]);
+		expect(getDiagnostics(prepared).outcomes).toEqual([
+			expect.objectContaining({
+				status: 'completed',
+				replayMarker: expect.objectContaining({ status: 'reported' }),
+			}),
+		]);
 	});
 });
 

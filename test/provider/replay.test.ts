@@ -24,6 +24,7 @@ describe('replay marker encode/decode contract', () => {
 		const parsed = parseReplayMarkerData(decodeMarkerData(part));
 		expect(parsed.valid).toBe(true);
 		expect(parsed.segmentId).toBe(SEGMENT_ID);
+		expect(parsed.markerSource).toBe('current');
 		expect(parsed.reasoningText).toBeUndefined();
 		expect(parsed.visionText).toBeUndefined();
 		expect(parsed.segmentOnly).toBe(true);
@@ -39,6 +40,7 @@ describe('replay marker encode/decode contract', () => {
 		const parsed = parseReplayMarkerData(decodeMarkerData(part));
 		expect(parsed.valid).toBe(true);
 		expect(parsed.segmentId).toBe(SEGMENT_ID);
+		expect(parsed.markerSource).toBe('current');
 		expect(parsed.reasoningText).toBe('step-by-step reasoning');
 		expect(parsed.visionText).toBeUndefined();
 		expect(parsed.segmentOnly).toBe(false);
@@ -53,6 +55,7 @@ describe('replay marker encode/decode contract', () => {
 		const parsed = parseReplayMarkerData(decodeMarkerData(part));
 		expect(parsed.valid).toBe(true);
 		expect(parsed.segmentId).toBe(SEGMENT_ID);
+		expect(parsed.markerSource).toBe('current');
 		expect(parsed.visionText).toBe('[image: a diagram]');
 		expect(parsed.reasoningText).toBeUndefined();
 	});
@@ -68,6 +71,7 @@ describe('replay marker encode/decode contract', () => {
 		expect(parsed).toMatchObject({
 			valid: true,
 			segmentId: SEGMENT_ID,
+			markerSource: 'current',
 			reasoningText: 'combined reasoning',
 			visionText: 'combined vision',
 			segmentOnly: false,
@@ -95,6 +99,7 @@ describe('replay marker encode/decode contract', () => {
 		expect(parsed).toMatchObject({
 			valid: true,
 			segmentId: SEGMENT_ID,
+			markerSource: 'legacy-uuid',
 			segmentOnly: true,
 		});
 	});
@@ -111,8 +116,50 @@ describe('replay marker encode/decode contract', () => {
 		const parsed = parseReplayMarkerData(decodeMarkerData(legacy));
 		expect(parsed.valid).toBe(true);
 		expect(parsed.segmentId).toBeUndefined();
+		expect(parsed.markerSource).toBe('legacy-json');
 		expect(parsed.reasoningText).toBe('old reasoning');
 		expect(parsed.segmentOnly).toBe(false);
+	});
+
+	it('classifies encoded JSON with an id from a legacy model writer as legacy-json', () => {
+		const json = JSON.stringify({
+			segmentId: SEGMENT_ID,
+			reasoning: { text: 'legacy reasoning' },
+		});
+		const encoded = `json:${Buffer.from(json, 'utf8').toString('base64url')}`;
+		const legacy = new vscode.LanguageModelDataPart(
+			new TextEncoder().encode(`glm-5.2\\${encoded}`),
+			REPLAY_MARKER_MIME,
+		);
+
+		const parsed = parseReplayMarkerData(decodeMarkerData(legacy));
+		expect(parsed).toMatchObject({
+			valid: true,
+			segmentId: SEGMENT_ID,
+			markerSource: 'legacy-json',
+			payloadFormat: 'json-base64url',
+			reasoningText: 'legacy reasoning',
+		});
+	});
+
+	it('classifies accepted raw JSON with an id as legacy-json', () => {
+		const json = JSON.stringify({
+			segmentId: SEGMENT_ID,
+			reasoning: { text: 'raw legacy reasoning' },
+		});
+		const legacy = new vscode.LanguageModelDataPart(
+			new TextEncoder().encode(`glm-copilot\\${json}`),
+			REPLAY_MARKER_MIME,
+		);
+
+		const parsed = parseReplayMarkerData(decodeMarkerData(legacy));
+		expect(parsed).toMatchObject({
+			valid: true,
+			segmentId: SEGMENT_ID,
+			markerSource: 'legacy-json',
+			payloadFormat: 'raw-json',
+			reasoningText: 'raw legacy reasoning',
+		});
 	});
 
 	it('rejects markers with an unknown writer prefix', () => {
@@ -139,6 +186,7 @@ describe('replay marker encode/decode contract', () => {
 
 		const parsed = parseReplayMarkerData(decodeMarkerData(bad));
 		expect(parsed.valid).toBe(false);
+		expect(parsed.markerSource).toBeUndefined();
 		expect(parsed.error).toBe('segment-id-not-uuid');
 	});
 

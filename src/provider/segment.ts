@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import vscode from 'vscode';
-import { findFirstReplayMarker } from './replay';
+import { findFirstReplayMarker, type ReplayMarkerSource } from './replay';
 
 export type SegmentResolveReason =
 	| 'markerFound'
@@ -14,6 +14,7 @@ export interface ConversationSegment {
 	markerMessageIndex?: number;
 	markerPartIndex?: number;
 	markerError?: string;
+	markerSource?: ReplayMarkerSource;
 }
 
 export function resolveConversationSegment(
@@ -52,6 +53,7 @@ export function resolveConversationSegment(
 				reason: 'markerFound',
 				markerMessageIndex: messageIndex,
 				markerPartIndex: partIndex,
+				markerSource: marker.markerSource,
 			};
 		}
 
@@ -66,6 +68,7 @@ export function resolveConversationSegment(
 			reason: 'markerUnbound',
 			markerMessageIndex: messageIndex,
 			markerPartIndex: partIndex,
+			markerSource: marker.markerSource,
 		};
 	}
 

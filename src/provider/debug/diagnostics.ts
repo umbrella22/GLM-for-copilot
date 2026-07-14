@@ -16,6 +16,7 @@ import { ACTIVATE_TOOL_PREFIX } from '../tools/consts';
 import type { ActivatePreflightInspection } from '../tools/preflight';
 import type { VisionResolutionStats as VisionPipelineStats, VisionProxySource } from '../vision';
 import { IMAGE_DESCRIPTION_UNAVAILABLE } from '../vision/consts';
+import { formatConversationSegmentTrace } from './segment-trace';
 
 const LARGE_MESSAGE_CHARS = 10_000;
 const HASH_WINDOW_CHARS = 2_048;
@@ -403,7 +404,7 @@ class DefaultCacheDiagnosticsRecorder implements CacheDiagnosticsRecorder {
 				requestKind,
 				`[cache-trace #${requestId}] request ` +
 					formatModelFields(options.vscodeModelId, options.request.model) +
-					formatSegmentTrace(options.segment) +
+					` ${formatConversationSegmentTrace(options.segment)}` +
 					` thinking=${options.isThinkingModel}` +
 					` thinkingEffort=${options.thinkingEffort}` +
 					` maxTokens=${options.maxTokens ?? 'api-default'}` +
@@ -670,27 +671,6 @@ class NoopCacheDiagnosticsRun implements CacheDiagnosticsRun {
 	onUsage(usage: GLMUsage, charsPerToken: number): void {
 		logUsage(usage, charsPerToken, this.usageLogContext);
 	}
-}
-
-function formatSegmentTrace(segment: ConversationSegment): string {
-	let legacyMarker = '';
-	if (segment.reason === 'markerFound') {
-		legacyMarker = ' legacySegmentMarker=found';
-	} else if (segment.reason === 'markerUnbound') {
-		const markerLocation =
-			segment.markerMessageIndex === undefined || segment.markerPartIndex === undefined
-				? ''
-				: ` at=message#${segment.markerMessageIndex}:part#${segment.markerPartIndex}`;
-		legacyMarker = ` legacySegmentMarker=unbound${markerLocation}`;
-	} else if (segment.reason === 'markerInvalid') {
-		const markerLocation =
-			segment.markerMessageIndex === undefined || segment.markerPartIndex === undefined
-				? ''
-				: ` at=message#${segment.markerMessageIndex}:part#${segment.markerPartIndex}`;
-		const markerError = segment.markerError ? ` error=${segment.markerError}` : '';
-		legacyMarker = ` legacySegmentMarker=invalid${markerLocation}${markerError}`;
-	}
-	return ` dumpSegment=${segment.segmentId}${legacyMarker}`;
 }
 
 function formatReplayMarkerReport(info: ReplayMarkerReportInfo): string {

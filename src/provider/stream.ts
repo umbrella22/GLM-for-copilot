@@ -27,6 +27,7 @@ interface ResponseStreamState {
 	emittedToolCallIds: string[];
 	initialResponseNoticeReported: boolean;
 	replayMarkerReported: boolean;
+	doneObserved: boolean;
 	/** Whether any model-generated text or tool call has been reported to VS Code. */
 	hasModelOutput: boolean;
 }
@@ -43,7 +44,7 @@ export interface StreamChatCompletionOptions {
 	onUsageCost?: (estimate: UsageCostEstimate) => void;
 }
 
-export function streamChatCompletion({
+export async function streamChatCompletion({
 	prepared,
 	progress,
 	token,
@@ -57,12 +58,13 @@ export function streamChatCompletion({
 		emittedToolCallIds: [],
 		initialResponseNoticeReported: false,
 		replayMarkerReported: false,
+		doneObserved: false,
 		hasModelOutput: false,
 	};
 	const cancelListener = observeCancellationToken(token, prepared.cacheDiagnostics);
 
-	return prepared.client
-		.streamChatCompletion(
+	try {
+		await prepared.client.streamChatCompletion(
 			prepared.request,
 			{
 				onContent: (content: string) => {
@@ -87,18 +89,7 @@ export function streamChatCompletion({
 				},
 
 				onDone: () => {
-					if (!state.hasModelOutput) {
-						throw new Error(
-							'Model returned an empty response with no text or tool calls. ' +
-								'This may indicate an API issue or the model refused to answer.',
-						);
-					}
-					reportReplayMarkerOnce(prepared, progress, state, 'done');
-					finalizeReplayDiagnostics(
-						prepared.trailingToolResultIds,
-						state,
-						prepared.cacheDiagnostics,
-					);
+					state.doneObserved = true;
 				},
 
 				onUsage: (usage) => {
@@ -138,24 +129,35 @@ export function streamChatCompletion({
 				},
 			},
 			token,
-		)
-		.then(undefined, (error) => {
-			reportSkippedReplayMarkerIfNeeded(
-				prepared,
-				state,
-				token.isCancellationRequested ? 'cancelled' : 'stream-error',
-				error,
+		);
+
+		if (token.isCancellationRequested) {
+			reportSkippedReplayMarkerIfNeeded(prepared, state, 'cancelled');
+			return;
+		}
+		if (!state.doneObserved) {
+			throw new Error('Model stream resolved without a completion signal.');
+		}
+		if (!state.hasModelOutput) {
+			throw new Error(
+				'Model returned an empty response with no text or tool calls. ' +
+					'This may indicate an API issue or the model refused to answer.',
 			);
-			throw error;
-		})
-		.then(() => {
-			if (token.isCancellationRequested) {
-				reportSkippedReplayMarkerIfNeeded(prepared, state, 'cancelled');
-			}
-		})
-		.finally(() => {
-			cancelListener.dispose();
-		});
+		}
+
+		reportReplayMarkerOnce(prepared, progress, state, 'done');
+		finalizeReplayDiagnostics(prepared.trailingToolResultIds, state, prepared.cacheDiagnostics);
+	} catch (error) {
+		reportSkippedReplayMarkerIfNeeded(
+			prepared,
+			state,
+			token.isCancellationRequested ? 'cancelled' : 'stream-error',
+			error,
+		);
+		throw error;
+	} finally {
+		cancelListener.dispose();
+	}
 }
 
 function reportInitialResponseNoticeOnce(

@@ -5,6 +5,7 @@ export interface ReplayMarkerParseResult {
 	visionTextIgnoredReason?: VisionMarkerTextIgnoredReason;
 	reasoningText?: string;
 	reasoningTextIgnoredReason?: ReasoningMarkerTextIgnoredReason;
+	markerSource?: ReplayMarkerSource;
 	/**
 	 * True when the marker carries a segment id but no reasoning/vision replay
 	 * content. Applies to both the new segment-only markers written by this
@@ -21,6 +22,8 @@ export interface LocatedReplayMarker {
 }
 
 export type ReplayMarkerPayloadFormat = 'json-base64url' | 'raw-json' | 'raw-uuid';
+
+export type ReplayMarkerSource = 'current' | 'legacy-uuid' | 'legacy-json';
 
 export type VisionMarkerTextIgnoredReason =
 	| 'vision-not-object'

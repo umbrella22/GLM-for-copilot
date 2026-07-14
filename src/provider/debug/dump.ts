@@ -8,7 +8,7 @@ import { LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../../consts';
 import { safeStringify, toWellFormedString } from '../../json';
 import { logger } from '../../logger';
 import type { GLMMessage, GLMRequest } from '../../types';
-import { parseReplayMarkerData, REPLAY_MARKER_MIME } from '../replay';
+import { parseReplayMarkerData, REPLAY_MARKER_MIME, type ReplayMarkerSource } from '../replay';
 import {
 	classifyGLMRequest,
 	classifyProviderRequest,
@@ -19,6 +19,7 @@ import {
 import type { ConversationSegment } from '../segment';
 import { ACTIVATE_TOOL_PREFIX } from '../tools/consts';
 import type { VisionProxySource, VisionResolutionStats } from '../vision';
+import { formatConversationSegmentTrace } from './segment-trace';
 
 let dumpCounter = 0;
 let providerInputDumpCounter = 0;
@@ -446,6 +447,7 @@ type SerializedContentPart =
 			replayMarker?: {
 				valid: boolean;
 				segmentId?: string;
+				markerSource?: ReplayMarkerSource;
 				payloadFormat?: string;
 				segmentOnly?: boolean;
 				visionTextChars?: number;
@@ -563,6 +565,7 @@ function serializeContentPart(part: unknown, index: number): SerializedContentPa
 function summarizeReplayMarker(marker: ReturnType<typeof parseReplayMarkerData>): {
 	valid: boolean;
 	segmentId?: string;
+	markerSource?: ReplayMarkerSource;
 	payloadFormat?: string;
 	segmentOnly?: boolean;
 	visionTextChars?: number;
@@ -576,6 +579,7 @@ function summarizeReplayMarker(marker: ReturnType<typeof parseReplayMarkerData>)
 	return {
 		valid: marker.valid,
 		segmentId: marker.segmentId,
+		markerSource: marker.markerSource,
 		payloadFormat: marker.payloadFormat,
 		segmentOnly: marker.segmentOnly,
 		visionTextChars: marker.visionText?.length,
@@ -985,7 +989,7 @@ function logProviderInputDump(
 	logger.debug(
 		formatRequestLogLine(
 			requestKind,
-			`providerInputDump written: ${formatDumpSegment(options.segment)}` +
+			`providerInputDump written: ${formatConversationSegmentTrace(options.segment)}` +
 				` ${formatModelFields(options.modelInfo.id)}` +
 				` input=${formatFileUri(paths.providerInput)} ` +
 				`(${options.messages.length} msgs, ${toolSummary.toolCount} tools, ` +
@@ -1009,7 +1013,7 @@ function logRequestDump(
 	logger.debug(
 		formatRequestLogLine(
 			requestKind,
-			`requestDump written: ${formatDumpSegment(options.segment)}` +
+			`requestDump written: ${formatConversationSegmentTrace(options.segment)}` +
 				` ${formatModelFields(options.vscodeModelId, request.model)}` +
 				` request=${formatFileUri(paths.request)} ` +
 				`input=${formatFileUri(paths.input)} resolved=${formatFileUri(paths.resolved)} ` +
@@ -1019,28 +1023,6 @@ function logRequestDump(
 				` ${formatSystemPromptSummary(systemPromptSummary)}`,
 		),
 	);
-}
-
-function formatDumpSegment(segment: ConversationSegment): string {
-	if (segment.reason === 'markerFound') {
-		return `dumpSegment=${segment.segmentId} legacySegmentMarker=found`;
-	}
-	if (segment.reason === 'markerUnbound') {
-		const markerLocation =
-			segment.markerMessageIndex === undefined || segment.markerPartIndex === undefined
-				? ''
-				: ` at=message#${segment.markerMessageIndex}:part#${segment.markerPartIndex}`;
-		return `dumpSegment=${segment.segmentId} legacySegmentMarker=unbound${markerLocation}`;
-	}
-	if (segment.reason === 'markerInvalid') {
-		const markerLocation =
-			segment.markerMessageIndex === undefined || segment.markerPartIndex === undefined
-				? ''
-				: ` at=message#${segment.markerMessageIndex}:part#${segment.markerPartIndex}`;
-		const markerError = segment.markerError ? ` error=${segment.markerError}` : '';
-		return `dumpSegment=${segment.segmentId} legacySegmentMarker=invalid${markerLocation}${markerError}`;
-	}
-	return `dumpSegment=${segment.segmentId}`;
 }
 
 function formatHostSettingsSummary(settings: HostSettingsSummary): string {

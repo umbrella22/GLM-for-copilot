@@ -35,6 +35,15 @@ function legacyRawUuidMarker(): vscode.LanguageModelDataPart {
 	);
 }
 
+function legacyJsonMarkerWithSegmentId(): vscode.LanguageModelDataPart {
+	const json = JSON.stringify({ segmentId: SEGMENT_ID });
+	const encoded = `json:${Buffer.from(json, 'utf8').toString('base64url')}`;
+	return new vscode.LanguageModelDataPart(
+		new TextEncoder().encode(`glm-5.2\\${encoded}`),
+		REPLAY_MARKER_MIME,
+	);
+}
+
 function isUuid(value: string | undefined): boolean {
 	return (
 		typeof value === 'string' &&
@@ -64,6 +73,7 @@ describe('resolveConversationSegment', () => {
 			reason: 'markerFound',
 			markerMessageIndex: 0,
 			markerPartIndex: 0,
+			markerSource: 'current',
 		});
 	});
 
@@ -77,6 +87,7 @@ describe('resolveConversationSegment', () => {
 			reason: 'markerFound',
 			markerMessageIndex: 0,
 			markerPartIndex: 0,
+			markerSource: 'current',
 		});
 	});
 
@@ -105,14 +116,16 @@ describe('resolveConversationSegment', () => {
 		]);
 
 		const segment = resolveConversationSegment([
-			assistant([assistantMarker]),
-			user([toolCall, toolResult]),
+			assistant([toolCall, assistantMarker]),
+			user([toolResult]),
 		]);
 
 		expect(segment).toMatchObject({
 			segmentId: SEGMENT_ID,
 			reason: 'markerFound',
 			markerMessageIndex: 0,
+			markerPartIndex: 1,
+			markerSource: 'current',
 		});
 	});
 
@@ -123,6 +136,17 @@ describe('resolveConversationSegment', () => {
 			segmentId: SEGMENT_ID,
 			reason: 'markerFound',
 			markerMessageIndex: 0,
+			markerSource: 'legacy-uuid',
+		});
+	});
+
+	it('propagates legacy-json for a reusable id from a legacy model writer', () => {
+		const segment = resolveConversationSegment([assistant([legacyJsonMarkerWithSegmentId()])]);
+
+		expect(segment).toMatchObject({
+			segmentId: SEGMENT_ID,
+			reason: 'markerFound',
+			markerSource: 'legacy-json',
 		});
 	});
 
@@ -136,6 +160,7 @@ describe('resolveConversationSegment', () => {
 		expect(isUuid(segment.segmentId)).toBe(true);
 		expect(segment.markerMessageIndex).toBe(0);
 		expect(segment.markerPartIndex).toBe(0);
+		expect(segment.markerSource).toBe('legacy-json');
 	});
 
 	it('reports markerInvalid for a marker with a malformed segment id', () => {
@@ -150,6 +175,7 @@ describe('resolveConversationSegment', () => {
 
 		expect(segment.reason).toBe('markerInvalid');
 		expect(segment.markerError).toBe('segment-id-not-uuid');
+		expect(segment).not.toHaveProperty('markerSource');
 		expect(isUuid(segment.segmentId)).toBe(true);
 	});
 
@@ -165,7 +191,7 @@ describe('resolveConversationSegment', () => {
 		expect(segment.markerError).toBe('marker-prefix-mismatch');
 	});
 
-	it('falls back to the latest valid marker when a newer marker is unbound', () => {
+	it('prefers the newest unbound marker over an older bound marker', () => {
 		// Newer unbound marker should win over an older valid one, because the
 		// resolver scans newest-first and returns on the first marker it finds.
 		const validMarker = createReplayMarkerPart({ segmentId: SEGMENT_ID });

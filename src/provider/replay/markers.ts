@@ -15,6 +15,7 @@ import type {
 	ReplayMarkerParseResult,
 	ReplayMarkerPayload,
 	ReplayMarkerPayloadFormat,
+	ReplayMarkerSource,
 	VisionMarkerTextIgnoredReason,
 } from './types';
 
@@ -85,6 +86,7 @@ export function parseReplayMarkerData(data: Uint8Array): ReplayMarkerParseResult
 		return {
 			valid: true,
 			segmentId: payload.toLowerCase(),
+			markerSource: 'legacy-uuid',
 			segmentOnly: true,
 			payloadFormat: decodedPayload.format,
 		};
@@ -100,12 +102,18 @@ export function parseReplayMarkerData(data: Uint8Array): ReplayMarkerParseResult
 		if (segmentId.error) {
 			return { valid: false, error: segmentId.error };
 		}
+		const markerSource = classifyJsonMarkerSource(
+			markerPrefix,
+			decodedPayload.format,
+			segmentId.value,
+		);
 
 		const vision = parseVisionMarkerMetadata(value);
 		const reasoning = parseReasoningMarkerMetadata(value);
 		return {
 			valid: true,
 			segmentId: segmentId.value,
+			markerSource,
 			...vision,
 			...reasoning,
 			segmentOnly: Boolean(segmentId.value && !vision.visionText && !reasoning.reasoningText),
@@ -114,6 +122,16 @@ export function parseReplayMarkerData(data: Uint8Array): ReplayMarkerParseResult
 	} catch {
 		return { valid: false, error: 'marker-json-invalid' };
 	}
+}
+
+function classifyJsonMarkerSource(
+	markerPrefix: string,
+	payloadFormat: ReplayMarkerPayloadFormat,
+	segmentId: string | undefined,
+): ReplayMarkerSource {
+	return markerPrefix === REPLAY_MARKER_WRITER_ID && payloadFormat === 'json-base64url' && segmentId
+		? 'current'
+		: 'legacy-json';
 }
 
 function parseOptionalSegmentId(value: object): {

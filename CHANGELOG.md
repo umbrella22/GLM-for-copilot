@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.1](https://github.com/umbrella22/GLM-for-copilot/compare/v0.5.0...v0.5.1) (2026-07-14)
+
+
+### Bug Fixes
+
+* enhance context usage reporting and diagnostics ([0c84b80](https://github.com/umbrella22/GLM-for-copilot/commit/0c84b8007e6e572b4c111fc38331fb97f2a3618d))
+* enhance replay marker handling and segment tracing ([1d7b9a2](https://github.com/umbrella22/GLM-for-copilot/commit/1d7b9a23a3eec08da41c4048dbb2f868ab84e5f0))
+
 ## [0.5.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.4.1...v0.5.0) (2026-07-14)
 
 

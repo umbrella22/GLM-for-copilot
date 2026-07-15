@@ -164,7 +164,7 @@ export interface ResolvedModelConnection {
  *   models (e.g. a Claude-compatible text model behind the Anthropic endpoint)
  *   where injecting base64 would waste context without any benefit.
  */
-export type ModelVisionMode = 'proxy' | 'native' | 'mcp';
+export type ModelVisionMode = 'proxy' | 'native' | 'mcp'; // [FORK] +mcp
 
 export type CustomModelConfigEntry = string | CustomModelConfig;
 

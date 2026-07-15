@@ -34,7 +34,11 @@ export async function resolveServerDefinition(
 		return definition;
 	}
 
-	const apiKey = await authManager.getApiKey();
+	// [FORK] MCP servers reuse the Coding Plan credential channel. Prefer the
+	// domestic coding channel by default; the key is the same BYOK key the user
+	// configured for GLM chat. getApiKey now requires a credential channel arg
+	// in upstream (4-channel auth refactor).
+	const apiKey = await authManager.getApiKey('china-coding');
 	if (!apiKey) {
 		logger.warn(
 			`MCP server "${built.id}" requires an API key but none is configured; skipping start.`,

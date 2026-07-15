@@ -12,6 +12,7 @@ import { isOfficialGLMBaseUrl } from '../endpoint';
 import { t } from '../i18n';
 import type {
 	ApiMode,
+	GLMMessage,
 	GLMRequest,
 	ModelDefinition,
 	ModelVisionMode,

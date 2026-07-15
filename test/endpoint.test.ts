@@ -22,6 +22,7 @@ import {
 	resolveApiKeyUrl,
 	resolveEndpointApiKeyUrl,
 	resolveEndpointBaseUrl,
+	resolveEndpointCredentialChannel,
 	resolveEndpointProtocol,
 	resolvePresetBaseUrl,
 } from '../src/endpoint';
@@ -121,6 +122,19 @@ describe('endpoint preset resolver', () => {
 		expect(resolveEndpointProtocol('international-coding')).toBe('openai');
 		expect(resolveEndpointProtocol('international-standard')).toBe('openai');
 		expect(resolveEndpointProtocol('international-anthropic')).toBe('anthropic');
+	});
+
+	it('shares Coding Plan credentials between OpenAI and Anthropic endpoints', () => {
+		expect(resolveEndpointCredentialChannel('china-coding')).toBe('china-coding');
+		expect(resolveEndpointCredentialChannel('china-anthropic')).toBe('china-coding');
+		expect(resolveEndpointCredentialChannel('international-coding')).toBe('international-coding');
+		expect(resolveEndpointCredentialChannel('international-anthropic')).toBe(
+			'international-coding',
+		);
+		expect(resolveEndpointCredentialChannel('china-standard')).toBe('china-standard');
+		expect(resolveEndpointCredentialChannel('international-standard')).toBe(
+			'international-standard',
+		);
 	});
 });
 

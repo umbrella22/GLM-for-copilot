@@ -9,6 +9,7 @@ export async function registerProvider(context: vscode.ExtensionContext): Promis
 		vscode.commands.registerCommand('glm-copilot.setApiKey', () => provider.configureApiKey()),
 		vscode.commands.registerCommand('glm-copilot.queryUsage', () => provider.queryUsage()),
 		vscode.commands.registerCommand('glm-copilot.clearApiKey', () => provider.clearApiKey()),
+		vscode.commands.registerCommand('glm-copilot.manageModels', () => provider.manageModels()),
 		vscode.commands.registerCommand('glm-copilot.setVisionModel', () => provider.setVisionModel()),
 		vscode.lm.registerLanguageModelChatProvider('glm', provider),
 	);

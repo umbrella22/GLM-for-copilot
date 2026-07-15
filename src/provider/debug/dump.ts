@@ -13,7 +13,7 @@ import {
 } from '../../glm-content';
 import { safeStringify, toWellFormedString } from '../../json';
 import { logger } from '../../logger';
-import type { GLMMessage, GLMRequest, ModelVisionMode } from '../../types';
+import type { GLMMessage, GLMRequest, ModelVisionMode, ResolvedModelConnection } from '../../types';
 import { parseReplayMarkerData, REPLAY_MARKER_MIME, type ReplayMarkerSource } from '../replay';
 import {
 	classifyGLMRequest,
@@ -119,6 +119,7 @@ export interface DumpGLMRequestOptions {
 	visionProxySource?: VisionProxySource;
 	visionStats?: VisionResolutionStats;
 	visionMode?: ModelVisionMode;
+	connection?: ResolvedModelConnection;
 }
 
 export interface RequestDumpRun {
@@ -520,6 +521,16 @@ function createPipelineSnapshot(
 			isThinkingModel: options.isThinkingModel,
 			thinkingEffort: options.thinkingEffort,
 			maxTokens: options.maxTokens ?? null,
+			connection: options.connection
+				? {
+						route: options.connection.route,
+						endpoint: options.connection.endpoint,
+						protocol: options.connection.protocol,
+						apiMode: options.connection.apiMode ?? null,
+						credentialChannel: options.connection.credentialChannel,
+						usesGlobalBaseUrlOverride: options.connection.usesGlobalBaseUrlOverride,
+					}
+				: undefined,
 		},
 		vision:
 			stage === 'resolved'

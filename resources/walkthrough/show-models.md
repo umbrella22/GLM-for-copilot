@@ -1,3 +1,7 @@
-GLM models should appear in the Copilot model picker as soon as the extension is active. If an API key is not configured yet, they show a warning icon until you run GLM: Set API Key.
+GLM models should appear in the Copilot model picker as soon as the extension is active. Use the **Models** view to review each model's API ID, connection route, image mode, and credential status.
 
-If you do not see them right away, the model list may simply be long. Scroll down in the picker and look for GLM-5.2, GLM-4.6V-Flash, and GLM-5-Turbo.
+[Open Model Manager](command:glm-copilot.manageModels)
+
+If a model is hidden, enable it in VS Code's Language Models manager. GLM-5V-Turbo is available through Standard API connections only.
+
+[Open Language Models](command:workbench.action.chat.manage)

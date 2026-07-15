@@ -12,6 +12,18 @@ If GLM shows up in the editor chat but is missing from the new agent window / ba
 
 If the agent still fails with `No utility model is configured for 'copilot-utility-small' while the selected main model is BYOK`, that is a known VS Code Copilot regression ([microsoft/vscode#324007](https://github.com/microsoft/vscode/issues/324007)) — the editor chat keeps working while the upstream issue is open.
 
+## Manage models and connections
+
+The Model Manager combines the model ID, connection route, image mode, credentials, and Vision Proxy controls that affect GLM requests.
+
+- **Models**: configure API model IDs, official endpoint routes, image modes, and custom models.
+- **Connections**: choose the default endpoint, manage four credential channels, and optionally set a compatible Base URL.
+- **Vision Proxy**: select and test the backend used when a model's image mode is `proxy`.
+
+The scope selector writes model configuration to User, Workspace, or Workspace Folder settings. A custom Base URL applies only to models using the `default` route. Explicit official routes and `same-region-standard` use official GLM endpoints, and Coding Plan and Standard API requests never fall back to each other automatically.
+
+[Open Model Manager](command:glm-copilot.manageModels)
+
 ## Stabilize Tool List (Experimental)
 
 First, open VS Code's Tools configuration and check how many tools are enabled for chat.

@@ -1,7 +1,7 @@
 import vscode from 'vscode';
 import type { AuthManager } from '../../auth';
-import { getApiModelId, getApiProtocol, getBaseUrl } from '../../config';
-import { GLM_CN_CODING_BASE_URL } from '../../endpoint';
+import { getApiModelId, resolveModelConnection } from '../../config';
+import { resolveEndpointRegion, resolvePresetBaseUrl } from '../../endpoint';
 import { t } from '../../i18n';
 import { DEFAULT_GLM_VISION_MODEL_ID } from './consts';
 import {
@@ -26,7 +26,7 @@ export function createVisionService(
 	context: vscode.ExtensionContext,
 	authManager: AuthManager,
 ): {
-	get: () => Promise<VisionDescriber | undefined>;
+	get: (resource?: vscode.Uri) => Promise<VisionDescriber | undefined>;
 	reset: () => void;
 	openConfiguration: () => Promise<void>;
 } {
@@ -51,7 +51,7 @@ export function createVisionService(
 	);
 
 	return {
-		async get() {
+		async get(resource?: vscode.Uri) {
 			const source = store.getSource();
 			if (source === 'vscode-lm') {
 				return vscodeLm.get();
@@ -81,8 +81,12 @@ export function createVisionService(
 				}
 			}
 
-			const config = createAutomaticGLMVisionConfig();
-			const apiKey = await authManager.getApiKey();
+			const connection = resolveModelConnection(DEFAULT_GLM_VISION_MODEL_ID, resource);
+			const apiKey = await authManager.getApiKey(connection.credentialChannel, resource);
+			if (!apiKey) {
+				return vscodeLm.get();
+			}
+			const config = createAutomaticGLMVisionConfig(connection, resource);
 			const primary = createEndpointVisionDescriber(config, apiKey);
 			logAutomaticGLMVisionModelSelected(primary.id, config.url);
 			return new AutomaticVisionDescriber(primary, () => vscodeLm.get());
@@ -125,18 +129,22 @@ class AutomaticVisionDescriber implements VisionDescriber {
 	}
 }
 
-function createAutomaticGLMVisionConfig(): VisionProxyConfig {
-	// When the main chat protocol is Anthropic, the vision proxy still needs to use
-	// the OpenAI-compatible endpoint because Anthropic vision endpoint availability
-	// may differ. Fall back to the Coding Plan endpoint for vision descriptions.
-	const protocol = getApiProtocol();
-	const visionBaseUrl = protocol === 'anthropic' ? GLM_CN_CODING_BASE_URL : getBaseUrl();
-
+function createAutomaticGLMVisionConfig(
+	connection: ReturnType<typeof resolveModelConnection>,
+	resource?: vscode.Uri,
+): VisionProxyConfig {
+	// Keep the automatic GLM proxy on the OpenAI-compatible vision transport.
+	// Anthropic is a valid main-chat protocol, but GLM vision availability can
+	// differ there; use the matching region's Coding Plan endpoint instead.
+	const baseUrl =
+		connection.protocol === 'anthropic'
+			? resolvePresetBaseUrl('coding-plan', resolveEndpointRegion(connection.endpoint))
+			: connection.baseUrl;
 	return {
 		providerFamily: 'openai-compatible',
 		apiType: 'chat-completions',
-		url: `${visionBaseUrl}/chat/completions`,
-		modelId: getApiModelId(DEFAULT_GLM_VISION_MODEL_ID),
+		url: `${baseUrl}/chat/completions`,
+		modelId: getApiModelId(DEFAULT_GLM_VISION_MODEL_ID, resource),
 		updatedAt: Date.now(),
 	};
 }

@@ -132,6 +132,27 @@ export type EndpointPreset =
 	| 'international-standard'
 	| 'international-anthropic';
 
+/** Credential identity is owned by billing region/mode, not wire protocol. */
+export type CredentialChannel =
+	| 'china-coding'
+	| 'china-standard'
+	| 'international-coding'
+	| 'international-standard';
+
+/** How a VS Code model selects an upstream GLM endpoint. */
+export type ModelEndpointRoute = 'default' | 'same-region-standard' | EndpointPreset;
+
+export interface ResolvedModelConnection {
+	route: ModelEndpointRoute;
+	endpoint: EndpointPreset;
+	baseUrl: string;
+	protocol: ApiProtocol;
+	apiMode?: ApiMode;
+	credentialChannel: CredentialChannel;
+	pricingCurrency?: PricingCurrency;
+	usesGlobalBaseUrlOverride: boolean;
+}
+
 /** How image attachments reach the model selected in Copilot. */
 export type ModelVisionMode = 'proxy' | 'native';
 
@@ -146,6 +167,25 @@ export interface CustomModelConfig {
 	maxOutputTokens?: number;
 	toolCalling?: boolean;
 	thinking?: boolean;
+}
+
+export interface ModelManagementModelConfiguration {
+	apiModelId?: string;
+	endpointRoute?: ModelEndpointRoute;
+	visionMode?: ModelVisionMode;
+}
+
+/** Versioned configuration owned by the model management UI. */
+export interface ModelManagementConfigurationV1 {
+	version: 1;
+	defaultConnection?: {
+		endpoint?: EndpointPreset;
+		/** An empty string explicitly disables an inherited custom base URL. */
+		baseUrl?: string;
+	};
+	models?: Record<string, ModelManagementModelConfiguration>;
+	/** A null entry removes an inherited custom model with the same ID. */
+	customModels?: Record<string, CustomModelConfig | null>;
 }
 
 // ---- Model definitions ----
@@ -184,6 +224,9 @@ export interface ModelDefinition {
 		thinking: boolean;
 	};
 	requiresThinkingParam: boolean;
+	defaultEndpointRoute?: ModelEndpointRoute;
+	supportedApiModes?: readonly ApiMode[];
+	defaultVisionMode?: ModelVisionMode;
 	supportsReasoningEffort?: boolean;
 	pricing?: Readonly<Record<PricingCurrency, ModelPricing>>;
 	priceCategory?: PriceCategory;

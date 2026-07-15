@@ -3,11 +3,16 @@ import { CONFIG_SECTION, MODELS } from './consts';
 import { DEFAULT_GLM_VISION_MODEL_ID } from './provider/vision/consts';
 import {
 	deriveEndpointPreset,
+	identifyOfficialGLMApiMode,
+	identifyOfficialGLMPlatform,
 	normalizeBaseUrl,
 	resolveApiKeyUrl,
 	resolveEndpointApiKeyUrl,
+	resolveEndpointApiMode,
 	resolveEndpointBaseUrl,
+	resolveEndpointCredentialChannel,
 	resolveEndpointProtocol,
+	resolveEndpointRegion,
 } from './endpoint';
 import type {
 	ApiMode,
@@ -15,8 +20,12 @@ import type {
 	ApiRegion,
 	CustomModelConfig,
 	EndpointPreset,
-	ModelVisionMode,
+	ModelManagementConfigurationV1,
+	ModelManagementModelConfiguration,
 	ModelDefinition,
+	ModelEndpointRoute,
+	ModelVisionMode,
+	ResolvedModelConnection,
 } from './types';
 
 export type DebugMode = 'minimal' | 'metadata' | 'verbose';
@@ -27,6 +36,253 @@ const DEFAULT_API_PROTOCOL: ApiProtocol = 'openai';
 const CUSTOM_MODEL_DETAIL = 'Custom GLM-compatible model';
 const CUSTOM_MODEL_MAX_INPUT_TOKENS = 200_000;
 const CUSTOM_MODEL_MAX_OUTPUT_TOKENS = 131_072;
+const MODEL_MANAGEMENT_SETTING = 'modelManagement';
+const LEGACY_MODEL_MANAGEMENT_SETTINGS = [
+	'endpoint',
+	'baseUrl',
+	'modelIdOverrides',
+	'modelEndpointOverrides',
+	'modelVisionModes',
+	'customModels',
+] as const;
+
+export interface ModelManagementConfigurationInspection {
+	effective: ModelManagementConfigurationV1;
+	globalValue?: ModelManagementConfigurationV1;
+	workspaceValue?: ModelManagementConfigurationV1;
+	workspaceFolderValue?: ModelManagementConfigurationV1;
+}
+
+/** Read and field-wise merge the versioned configuration for one resource. */
+export function getModelManagementConfiguration(
+	resource?: vscode.Uri,
+): ModelManagementConfigurationV1 {
+	return inspectModelManagementConfiguration(resource).effective;
+}
+
+/**
+ * Return normalized values for every VS Code scope as well as their effective
+ * Global -> Workspace -> Workspace Folder merge.
+ */
+export function inspectModelManagementConfiguration(
+	resource?: vscode.Uri,
+): ModelManagementConfigurationInspection {
+	const inspection = vscode.workspace
+		.getConfiguration(CONFIG_SECTION, resource)
+		.inspect<unknown>(MODEL_MANAGEMENT_SETTING);
+	const globalValue = normalizeModelManagementConfiguration(inspection?.globalValue);
+	const workspaceValue = normalizeModelManagementConfiguration(inspection?.workspaceValue);
+	const workspaceFolderValue = normalizeModelManagementConfiguration(
+		inspection?.workspaceFolderValue,
+	);
+	return {
+		effective: mergeModelManagementConfigurations(
+			mergeModelManagementConfigurations(globalValue, workspaceValue),
+			workspaceFolderValue,
+		),
+		...(globalValue ? { globalValue } : {}),
+		...(workspaceValue ? { workspaceValue } : {}),
+		...(workspaceFolderValue ? { workspaceFolderValue } : {}),
+	};
+}
+
+/** Inspect per-scope runtime values after translating legacy settings. */
+export function inspectEffectiveModelManagementConfiguration(
+	resource?: vscode.Uri,
+): ModelManagementConfigurationInspection {
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION, resource);
+	const canonical = inspectModelManagementConfiguration(resource);
+	let effective: ModelManagementConfigurationV1 = { version: 1 };
+	const globalValue = getModelManagementScopeConfiguration(
+		effective,
+		config,
+		vscode.ConfigurationTarget.Global,
+		canonical.globalValue,
+	);
+	effective = mergeModelManagementConfigurations(effective, globalValue);
+	const workspaceValue = getModelManagementScopeConfiguration(
+		effective,
+		config,
+		vscode.ConfigurationTarget.Workspace,
+		canonical.workspaceValue,
+	);
+	effective = mergeModelManagementConfigurations(effective, workspaceValue);
+	const workspaceFolderValue = getModelManagementScopeConfiguration(
+		effective,
+		config,
+		vscode.ConfigurationTarget.WorkspaceFolder,
+		canonical.workspaceFolderValue,
+	);
+	effective = mergeModelManagementConfigurations(effective, workspaceFolderValue);
+	return {
+		effective,
+		...(globalValue ? { globalValue } : {}),
+		...(workspaceValue ? { workspaceValue } : {}),
+		...(workspaceFolderValue ? { workspaceFolderValue } : {}),
+	};
+}
+
+function getModelManagementScopeConfiguration(
+	inherited: ModelManagementConfigurationV1,
+	config: vscode.WorkspaceConfiguration,
+	target: vscode.ConfigurationTarget,
+	canonical: ModelManagementConfigurationV1 | undefined,
+): ModelManagementConfigurationV1 | undefined {
+	const legacy = getLegacyModelManagementConfiguration(config, target, inherited.customModels);
+	if (!legacy && !canonical) {
+		return undefined;
+	}
+	// Canonical values supersede legacy values only within the same VS Code scope.
+	return mergeModelManagementConfigurations(legacy, canonical);
+}
+
+/** Persist one complete scope value after validating its versioned shape. */
+export async function saveModelManagementConfiguration(
+	configuration: ModelManagementConfigurationV1,
+	target: vscode.ConfigurationTarget,
+	resource?: vscode.Uri,
+): Promise<void> {
+	if (target === vscode.ConfigurationTarget.WorkspaceFolder && !resource) {
+		throw new Error('A workspace folder resource is required for folder-scoped configuration.');
+	}
+	const normalized = normalizeModelManagementConfiguration(configuration);
+	if (!normalized) {
+		throw new Error('Unsupported model management configuration. Expected version 1.');
+	}
+	await vscode.workspace
+		.getConfiguration(CONFIG_SECTION, resource)
+		.update(MODEL_MANAGEMENT_SETTING, normalized, target);
+}
+
+/** Remove the canonical configuration at exactly one VS Code scope. */
+export async function resetModelManagementConfiguration(
+	target: vscode.ConfigurationTarget,
+	resource?: vscode.Uri,
+): Promise<void> {
+	if (target === vscode.ConfigurationTarget.WorkspaceFolder && !resource) {
+		throw new Error('A workspace folder resource is required for folder-scoped configuration.');
+	}
+	await vscode.workspace
+		.getConfiguration(CONFIG_SECTION, resource)
+		.update(MODEL_MANAGEMENT_SETTING, undefined, target);
+}
+
+/** Parse persisted or Webview-provided configuration without applying defaults. */
+export function normalizeModelManagementConfiguration(
+	value: unknown,
+): ModelManagementConfigurationV1 | undefined {
+	if (!isRecord(value) || value.version !== 1) {
+		return undefined;
+	}
+
+	const normalized: ModelManagementConfigurationV1 = { version: 1 };
+	if (isRecord(value.defaultConnection)) {
+		const endpoint = normalizeEndpointPreset(value.defaultConnection.endpoint);
+		const defaultConnection: NonNullable<ModelManagementConfigurationV1['defaultConnection']> = {};
+		if (endpoint) {
+			defaultConnection.endpoint = endpoint;
+		}
+		if (
+			hasOwn(value.defaultConnection, 'baseUrl') &&
+			typeof value.defaultConnection.baseUrl === 'string'
+		) {
+			defaultConnection.baseUrl = value.defaultConnection.baseUrl;
+		}
+		if (Object.keys(defaultConnection).length > 0) {
+			normalized.defaultConnection = defaultConnection;
+		}
+	}
+
+	if (isRecord(value.models)) {
+		const models = createModelIdRecord<ModelManagementModelConfiguration>();
+		for (const [rawId, rawProfile] of Object.entries(value.models)) {
+			if (!isCanonicalModelId(rawId)) {
+				return undefined;
+			}
+			if (!isRecord(rawProfile)) {
+				continue;
+			}
+			const profile: ModelManagementModelConfiguration = {};
+			if (typeof rawProfile.apiModelId === 'string') {
+				if (!isCanonicalModelId(rawProfile.apiModelId)) {
+					return undefined;
+				}
+				profile.apiModelId = rawProfile.apiModelId;
+			}
+			const endpointRoute = normalizeModelEndpointRoute(rawProfile.endpointRoute);
+			if (endpointRoute) {
+				profile.endpointRoute = endpointRoute;
+			}
+			const visionMode = normalizeModelVisionMode(rawProfile.visionMode);
+			if (visionMode) {
+				profile.visionMode = visionMode;
+			}
+			if (Object.keys(profile).length > 0) {
+				models[rawId] = profile;
+			}
+		}
+		if (Object.keys(models).length > 0) {
+			normalized.models = models;
+		}
+	}
+
+	if (isRecord(value.customModels)) {
+		const customModels = createModelIdRecord<CustomModelConfig | null>();
+		for (const [rawId, rawModel] of Object.entries(value.customModels)) {
+			if (!isCanonicalModelId(rawId)) {
+				return undefined;
+			}
+			if (rawModel === null) {
+				customModels[rawId] = null;
+				continue;
+			}
+			const model = normalizeCustomModelConfiguration(rawModel);
+			if (model) {
+				customModels[rawId] = model;
+			}
+		}
+		if (Object.keys(customModels).length > 0) {
+			normalized.customModels = customModels;
+		}
+	}
+
+	return normalized;
+}
+
+/** Merge normalized configurations from least to most specific scope. */
+export function mergeModelManagementConfigurations(
+	...values: Array<ModelManagementConfigurationV1 | undefined>
+): ModelManagementConfigurationV1 {
+	const result: ModelManagementConfigurationV1 = { version: 1 };
+	for (const value of values) {
+		if (!value) {
+			continue;
+		}
+		if (value.defaultConnection) {
+			result.defaultConnection = {
+				...result.defaultConnection,
+				...value.defaultConnection,
+			};
+		}
+		for (const [id, profile] of Object.entries(value.models ?? {})) {
+			result.models ??= createModelIdRecord<ModelManagementModelConfiguration>();
+			result.models[id] = { ...result.models[id], ...profile };
+		}
+		for (const [id, model] of Object.entries(value.customModels ?? {})) {
+			result.customModels ??= createModelIdRecord<CustomModelConfig | null>();
+			if (model === null) {
+				result.customModels[id] = null;
+				continue;
+			}
+			const inherited = result.customModels[id];
+			result.customModels[id] = {
+				...(inherited && inherited !== null ? inherited : {}),
+				...model,
+			};
+		}
+	}
+	return result;
+}
 
 /**
  * Get GLM API base URL from settings.
@@ -37,31 +293,41 @@ const CUSTOM_MODEL_MAX_OUTPUT_TOKENS = 131_072;
  *   3. Legacy (region, apiMode, apiProtocol) tuple — transparently mapped to
  *      a preset so existing user settings keep working without migration.
  */
-export function getBaseUrl(): string {
-	const override = getBaseUrlOverride();
+export function getBaseUrl(resource?: vscode.Uri): string {
+	const override = getBaseUrlOverride(resource);
 	if (override) {
 		return override;
 	}
 
-	const preset = getEndpoint();
+	const preset = getEndpoint(resource);
 	return resolveEndpointBaseUrl(preset);
 }
 
-export function getBaseUrlOverride(): string | undefined {
-	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-	const value = config.get<string>('baseUrl', '');
-	// Guard against non-string values in settings.json that would crash normalizeBaseUrl().trim()
-	const normalized = normalizeBaseUrl(typeof value === 'string' ? value : '');
-	return normalized || undefined;
+export function getBaseUrlOverride(resource?: vscode.Uri): string | undefined {
+	const connection =
+		inspectEffectiveModelManagementConfiguration(resource).effective.defaultConnection;
+	if (connection && hasOwn(connection, 'baseUrl')) {
+		const normalized = normalizeBaseUrl(connection.baseUrl ?? '');
+		return normalized || undefined;
+	}
+	return undefined;
 }
 
-export function getApiMode(): ApiMode {
-	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+export function getApiMode(resource?: vscode.Uri): ApiMode {
+	const configuredEndpoint = getConfiguredEndpoint(resource);
+	if (configuredEndpoint) {
+		return resolveEndpointApiMode(configuredEndpoint);
+	}
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION, resource);
 	return normalizeApiMode(config.get<string>('apiMode'), DEFAULT_API_MODE) ?? DEFAULT_API_MODE;
 }
 
-export function getRegion(): ApiRegion {
-	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+export function getRegion(resource?: vscode.Uri): ApiRegion {
+	const configuredEndpoint = getConfiguredEndpoint(resource);
+	if (configuredEndpoint) {
+		return resolveEndpointRegion(configuredEndpoint);
+	}
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION, resource);
 	return normalizeApiRegion(config.get<string>('region'), DEFAULT_API_REGION) ?? DEFAULT_API_REGION;
 }
 
@@ -72,13 +338,12 @@ export function getRegion(): ApiRegion {
  * apiProtocol) tuple when `endpoint` is not explicitly configured. This keeps
  * existing user settings working without a destructive migration.
  */
-export function getEndpoint(): EndpointPreset {
-	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-	const explicit = normalizeEndpointPreset(config.get<string>('endpoint'));
-	if (explicit) {
-		return explicit;
+export function getEndpoint(resource?: vscode.Uri): EndpointPreset {
+	const configured = getConfiguredEndpoint(resource);
+	if (configured) {
+		return configured;
 	}
-	return deriveEndpointFromLegacy();
+	return deriveEndpointFromLegacy(resource);
 }
 
 /**
@@ -87,14 +352,14 @@ export function getEndpoint(): EndpointPreset {
  * `baseUrl` override does not change the protocol — users pointing at a
  * custom gateway still pick the protocol shape explicitly via `endpoint`.
  */
-export function getApiProtocol(): ApiProtocol {
-	const preset = getEndpoint();
+export function getApiProtocol(resource?: vscode.Uri): ApiProtocol {
+	const preset = getEndpoint(resource);
 	const protocol = resolveEndpointProtocol(preset);
 	// Preserve the legacy explicit `apiProtocol` override path: when a user has
 	// NOT set the new `endpoint` but DID set `apiProtocol`, that intent still
 	// wins so custom-baseUrl users keep their chosen protocol shape.
-	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-	const explicitEndpoint = normalizeEndpointPreset(config.get<string>('endpoint'));
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION, resource);
+	const explicitEndpoint = getConfiguredEndpoint(resource);
 	if (explicitEndpoint) {
 		return protocol;
 	}
@@ -102,33 +367,32 @@ export function getApiProtocol(): ApiProtocol {
 	return legacyProtocol ?? protocol;
 }
 
-export function getApiKeyUrl(): string {
-	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-	const explicitEndpoint = normalizeEndpointPreset(config.get<string>('endpoint'));
+export function getApiKeyUrl(resource?: vscode.Uri): string {
+	const explicitEndpoint = getConfiguredEndpoint(resource);
 	if (explicitEndpoint) {
 		return resolveEndpointApiKeyUrl(explicitEndpoint);
 	}
 	// Legacy path: derive from the old tuple so old configs keep pointing at
 	// the right key-management page.
-	return resolveApiKeyUrl(getApiMode(), getRegion());
+	return resolveApiKeyUrl(getApiMode(resource), getRegion(resource));
 }
 
-function deriveEndpointFromLegacy(): EndpointPreset {
-	const region = getRegion();
-	const apiMode = getApiMode();
-	const apiProtocol = getApiProtocolLegacy();
+function deriveEndpointFromLegacy(resource?: vscode.Uri): EndpointPreset {
+	const region = getRegion(resource);
+	const apiMode = getApiMode(resource);
+	const apiProtocol = getApiProtocolLegacy(resource);
 	return deriveEndpointPreset(region, apiMode, apiProtocol);
 }
 
-function getApiProtocolLegacy(): ApiProtocol {
-	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+function getApiProtocolLegacy(resource?: vscode.Uri): ApiProtocol {
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION, resource);
 	return (
 		normalizeApiProtocol(config.get<string>('apiProtocol'), DEFAULT_API_PROTOCOL) ??
 		DEFAULT_API_PROTOCOL
 	);
 }
 
-function normalizeEndpointPreset(value: unknown): EndpointPreset | undefined {
+export function normalizeEndpointPreset(value: unknown): EndpointPreset | undefined {
 	if (
 		value === 'china-coding' ||
 		value === 'china-standard' ||
@@ -142,6 +406,97 @@ function normalizeEndpointPreset(value: unknown): EndpointPreset | undefined {
 	return undefined;
 }
 
+export function getModelEndpointRoutes(resource?: vscode.Uri): Record<string, ModelEndpointRoute> {
+	const configured = Object.entries(
+		inspectEffectiveModelManagementConfiguration(resource).effective.models ?? {},
+	)
+		.map(([key, value]) => [key.trim(), value.endpointRoute] as const)
+		.filter(
+			(entry): entry is readonly [string, ModelEndpointRoute] =>
+				entry[0].length > 0 && entry[1] !== undefined,
+		);
+
+	return Object.fromEntries(configured);
+}
+
+export function getModelEndpointRoute(
+	vscodeModelId: string,
+	resource?: vscode.Uri,
+): ModelEndpointRoute {
+	return (
+		getModelEndpointRoutes(resource)[vscodeModelId] ??
+		findModelDefinition(vscodeModelId, resource)?.defaultEndpointRoute ??
+		'default'
+	);
+}
+
+export function resolveModelConnection(
+	vscodeModelId: string,
+	resource?: vscode.Uri,
+): ResolvedModelConnection {
+	const route = getModelEndpointRoute(vscodeModelId, resource);
+	const globalEndpoint = getEndpoint(resource);
+	const endpoint = resolveRouteEndpoint(route, globalEndpoint);
+	const usesGlobalBaseUrlOverride =
+		route === 'default' && getBaseUrlOverride(resource) !== undefined;
+	const baseUrl = usesGlobalBaseUrlOverride
+		? getBaseUrlOverride(resource)!
+		: resolveEndpointBaseUrl(endpoint);
+	const endpointApiMode = resolveEndpointApiMode(endpoint);
+	const model = findModelDefinition(vscodeModelId, resource);
+	const supportedApiModes =
+		MODELS.find((candidate) => candidate.id === vscodeModelId)?.supportedApiModes ??
+		model?.supportedApiModes;
+	if (supportedApiModes && !supportedApiModes.includes(endpointApiMode)) {
+		throw new Error(
+			`Model ${vscodeModelId} does not support the ${endpointApiMode} connection route (${route}).`,
+		);
+	}
+	const platform = identifyOfficialGLMPlatform(baseUrl);
+	return {
+		route,
+		endpoint,
+		baseUrl,
+		protocol: route === 'default' ? getApiProtocol(resource) : resolveEndpointProtocol(endpoint),
+		apiMode: identifyOfficialGLMApiMode(baseUrl),
+		credentialChannel: resolveEndpointCredentialChannel(endpoint),
+		pricingCurrency: platform === 'zhipu' ? 'CNY' : platform === 'zai' ? 'USD' : undefined,
+		usesGlobalBaseUrlOverride,
+	};
+}
+
+export function resolveDefaultConnection(resource?: vscode.Uri): ResolvedModelConnection {
+	const endpoint = getEndpoint(resource);
+	const override = getBaseUrlOverride(resource);
+	const baseUrl = override ?? resolveEndpointBaseUrl(endpoint);
+	const platform = identifyOfficialGLMPlatform(baseUrl);
+	return {
+		route: 'default',
+		endpoint,
+		baseUrl,
+		protocol: getApiProtocol(resource),
+		apiMode: identifyOfficialGLMApiMode(baseUrl),
+		credentialChannel: resolveEndpointCredentialChannel(endpoint),
+		pricingCurrency: platform === 'zhipu' ? 'CNY' : platform === 'zai' ? 'USD' : undefined,
+		usesGlobalBaseUrlOverride: override !== undefined,
+	};
+}
+
+function resolveRouteEndpoint(
+	route: ModelEndpointRoute,
+	globalEndpoint: EndpointPreset,
+): EndpointPreset {
+	if (route === 'default') {
+		return globalEndpoint;
+	}
+	if (route === 'same-region-standard') {
+		return resolveEndpointRegion(globalEndpoint) === 'international'
+			? 'international-standard'
+			: 'china-standard';
+	}
+	return route;
+}
+
 /**
  * Resolve the API model ID to send to the endpoint.
  *
@@ -149,23 +504,19 @@ function normalizeEndpointPreset(value: unknown): EndpointPreset | undefined {
  * (e.g. for third-party API proxies). Falls back to the VS Code model ID
  * when no override is configured.
  */
-export function getApiModelId(vscodeModelId: string): string {
-	const override = getModelIdOverrides()[vscodeModelId]?.trim();
+export function getApiModelId(vscodeModelId: string, resource?: vscode.Uri): string {
+	const override = getModelIdOverrides(resource)[vscodeModelId]?.trim();
 	return override || vscodeModelId;
 }
 
-export function getModelIdOverrides(): Record<string, string> {
-	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-	const raw = config.get<Record<string, unknown>>('modelIdOverrides');
-	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-		return {};
-	}
+export function getModelIdOverrides(resource?: vscode.Uri): Record<string, string> {
+	const configured = Object.entries(
+		inspectEffectiveModelManagementConfiguration(resource).effective.models ?? {},
+	)
+		.map(([key, value]) => [key.trim(), value.apiModelId?.trim() ?? ''] as const)
+		.filter(([key, value]) => key.length > 0 && value.length > 0);
 
-	return Object.fromEntries(
-		Object.entries(raw)
-			.map(([key, value]) => [key.trim(), typeof value === 'string' ? value.trim() : ''])
-			.filter(([key, value]) => key.length > 0 && value.length > 0),
-	);
+	return Object.fromEntries(configured);
 }
 
 /**
@@ -173,41 +524,40 @@ export function getModelIdOverrides(): Record<string, string> {
  * override. The built-in vision model opts into native image input by default;
  * all other models retain the proxy behavior unless explicitly configured.
  */
-export function getModelVisionMode(vscodeModelId: string): ModelVisionMode {
-	const mode = getModelVisionModes()[vscodeModelId];
+export function getModelVisionMode(vscodeModelId: string, resource?: vscode.Uri): ModelVisionMode {
+	const mode = getModelVisionModes(resource)[vscodeModelId];
 	if (mode) {
 		return mode;
 	}
-	return vscodeModelId === DEFAULT_GLM_VISION_MODEL_ID ? 'native' : 'proxy';
-}
-
-export function getModelVisionModes(): Record<string, ModelVisionMode> {
-	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-	const raw = config.get<Record<string, unknown>>('modelVisionModes');
-	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-		return {};
-	}
-
-	return Object.fromEntries(
-		Object.entries(raw)
-			.map(([key, value]) => [key.trim(), normalizeModelVisionMode(value)] as const)
-			.filter(
-				(entry): entry is readonly [string, ModelVisionMode] =>
-					entry[0].length > 0 && entry[1] !== undefined,
-			),
+	return (
+		findModelDefinition(vscodeModelId, resource)?.defaultVisionMode ??
+		(vscodeModelId === DEFAULT_GLM_VISION_MODEL_ID ? 'native' : 'proxy')
 	);
 }
 
-export function getCustomModels(): ModelDefinition[] {
-	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-	const raw = config.get<unknown[]>('customModels', []);
-	if (!Array.isArray(raw)) {
-		return [];
-	}
+export function getModelVisionModes(resource?: vscode.Uri): Record<string, ModelVisionMode> {
+	const configured = Object.entries(
+		inspectEffectiveModelManagementConfiguration(resource).effective.models ?? {},
+	)
+		.map(([key, value]) => [key.trim(), value.visionMode] as const)
+		.filter(
+			(entry): entry is readonly [string, ModelVisionMode] =>
+				entry[0].length > 0 && entry[1] !== undefined,
+		);
 
+	return Object.fromEntries(configured);
+}
+
+export function getCustomModels(resource?: vscode.Uri): ModelDefinition[] {
 	const byId = new Map<string, ModelDefinition>();
-	for (const entry of raw) {
-		const model = normalizeCustomModel(entry);
+	for (const [id, entry] of Object.entries(
+		inspectEffectiveModelManagementConfiguration(resource).effective.customModels ?? {},
+	)) {
+		if (entry === null) {
+			byId.delete(id);
+			continue;
+		}
+		const model = normalizeCustomModel({ ...entry, id });
 		if (model) {
 			byId.set(model.id, model);
 		}
@@ -215,16 +565,19 @@ export function getCustomModels(): ModelDefinition[] {
 	return [...byId.values()];
 }
 
-export function listProviderModels(): ModelDefinition[] {
+export function listProviderModels(resource?: vscode.Uri): ModelDefinition[] {
 	const byId = new Map(MODELS.map((model) => [model.id, model]));
-	for (const model of getCustomModels()) {
+	for (const model of getCustomModels(resource)) {
 		byId.set(model.id, model);
 	}
 	return [...byId.values()];
 }
 
-export function findModelDefinition(modelId: string): ModelDefinition | undefined {
-	return listProviderModels().find((model) => model.id === modelId);
+export function findModelDefinition(
+	modelId: string,
+	resource?: vscode.Uri,
+): ModelDefinition | undefined {
+	return listProviderModels(resource).find((model) => model.id === modelId);
 }
 
 /**
@@ -296,169 +649,366 @@ export async function migrateLegacyDebugSetting(): Promise<void> {
  * Migrate the legacy `region` + `apiMode` + `apiProtocol` settings into the
  * single `endpoint` preset, then clear the legacy keys.
  *
- * Reads the *effective* (cross-scope merged) legacy values so that users who
- * split their legacy keys across scopes (e.g. `region` at Global,
- * `apiMode` at Workspace) get a correct migration result.
+ * Reads the effective legacy values for each target so split Global/Workspace
+ * tuples and independent Workspace Folder tuples retain their original scope.
  *
- * Writes the new endpoint to the most-specific scope that had any legacy key,
- * then clears legacy keys at all scopes.  Idempotent: a second run finds no
- * legacy values and exits immediately.
+ * Writes the new endpoint to each applicable target, then clears legacy keys
+ * at all scopes. Idempotent: a second run finds no legacy values and exits.
  */
 export async function migrateLegacyEndpointSettings(): Promise<void> {
-	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+	for (const folder of vscode.workspace.workspaceFolders ?? []) {
+		await migrateLegacyEndpointSettingsAtScope(
+			vscode.ConfigurationTarget.WorkspaceFolder,
+			folder.uri,
+		);
+	}
+	if (vscode.workspace.workspaceFile || vscode.workspace.workspaceFolders?.length) {
+		await migrateLegacyEndpointSettingsAtScope(vscode.ConfigurationTarget.Workspace);
+	}
+	await migrateLegacyEndpointSettingsAtScope(vscode.ConfigurationTarget.Global);
+}
 
-	// Effective (cross-scope merged) endpoint — if already set explicitly the
-	// migration only needs to clean up stale legacy keys.
-	const effectiveEndpoint = normalizeEndpointPreset(config.get<string>('endpoint'));
-
-	// Effective legacy values (VS Code merges across Global → Workspace →
-	// WorkspaceFolder automatically via config.get).
-	const effectiveRegion = config.get<string>('region');
-	const effectiveApiMode = config.get<string>('apiMode');
-	const effectiveApiProtocol = config.get<string>('apiProtocol');
-
-	const region = normalizeApiRegion(effectiveRegion, undefined);
-	const apiMode = normalizeApiMode(effectiveApiMode, undefined);
-	const apiProtocol = normalizeApiProtocol(effectiveApiProtocol, undefined);
-
-	if (region === undefined && apiMode === undefined && apiProtocol === undefined) {
+async function migrateLegacyEndpointSettingsAtScope(
+	target: vscode.ConfigurationTarget,
+	resource?: vscode.Uri,
+): Promise<void> {
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION, resource);
+	if (!hasLegacyEndpointTupleAtScope(config, target)) {
 		return;
 	}
 
-	const preset = deriveEndpointPreset(
-		region ?? DEFAULT_API_REGION,
-		apiMode ?? DEFAULT_API_MODE,
-		apiProtocol ?? DEFAULT_API_PROTOCOL,
-	);
-
-	if (!effectiveEndpoint) {
-		// Determine the most specific scope(s) that have any legacy key, and
-		// write the new endpoint there so VS Code's scope-precedence picks it
-		// up. WorkspaceFolder requires a resource-scoped config object — the
-		// section-scoped `config` above throws when ConfigurationTarget.
-		// WorkspaceFolder is passed without a resource URI (same root cause as
-		// the legacy-key cleanup below). Furthermore, in a multi-root workspace
-		// `config.inspect(...).workspaceFolderValue` is undefined (no specific
-		// resource is associated), so WorkspaceFolder legacy keys are only
-		// discoverable by inspecting each folder individually. Write the preset
-		// to every folder that carries a legacy key, plus the most specific of
-		// Workspace/Global when those scopes hold legacy keys.
-		await writeDerivedEndpointPreset(config, preset);
+	if (!getExplicitEndpointThroughScope(resource, config, target)) {
+		const endpoint = deriveLegacyEndpointPresetAtScope(config, target);
+		// Do not remove the fallback tuple until the canonical endpoint write succeeds.
+		await config.update('endpoint', endpoint, target);
 	}
+	await clearLegacyEndpointTupleAtScope(config, target);
+}
 
-	// Clear legacy keys at Global and Workspace scopes.  WorkspaceFolder
-	// requires a resource-scoped config object (the section-scoped config
-	// used above throws when ConfigurationTarget.WorkspaceFolder is passed
-	// without a resource URI).  Iterate workspace folders separately below.
-	// Failures are non-fatal — the new endpoint preset takes precedence at
-	// runtime regardless.
-	for (const target of [
-		vscode.ConfigurationTarget.Global,
-		vscode.ConfigurationTarget.Workspace,
-	] as const) {
+async function clearLegacyEndpointTupleAtScope(
+	config: vscode.WorkspaceConfiguration,
+	target: vscode.ConfigurationTarget,
+): Promise<void> {
+	for (const key of ['region', 'apiMode', 'apiProtocol'] as const) {
 		try {
-			await config.update('region', undefined, target);
+			await config.update(key, undefined, target);
 		} catch {
-			/* non-fatal */
-		}
-		try {
-			await config.update('apiMode', undefined, target);
-		} catch {
-			/* non-fatal */
-		}
-		try {
-			await config.update('apiProtocol', undefined, target);
-		} catch {
-			/* non-fatal */
-		}
-	}
-	for (const folder of vscode.workspace.workspaceFolders ?? []) {
-		const folderConfig = vscode.workspace.getConfiguration(CONFIG_SECTION, folder.uri);
-		try {
-			await folderConfig.update('region', undefined, vscode.ConfigurationTarget.WorkspaceFolder);
-		} catch {
-			/* non-fatal */
-		}
-		try {
-			await folderConfig.update('apiMode', undefined, vscode.ConfigurationTarget.WorkspaceFolder);
-		} catch {
-			/* non-fatal */
-		}
-		try {
-			await folderConfig.update(
-				'apiProtocol',
-				undefined,
-				vscode.ConfigurationTarget.WorkspaceFolder,
-			);
-		} catch {
-			/* non-fatal */
+			// Cleanup is retryable; the endpoint written above already wins at runtime.
 		}
 	}
 }
 
-/**
- * Write the derived endpoint preset to the most-specific scope(s) that carry at
- * least one legacy key.
- *
- * WorkspaceFolder keys require a resource-scoped config and are invisible to a
- * section-scoped `inspect()` in multi-root workspaces, so each folder is
- * inspected individually and the preset is written to every folder that has a
- * legacy key. The single-section config handles Workspace/Global. Failures are
- * non-fatal — the runtime endpoint resolver falls back to defaults.
- */
-async function writeDerivedEndpointPreset(
+function getExplicitEndpointThroughScope(
+	resource: vscode.Uri | undefined,
 	config: vscode.WorkspaceConfiguration,
-	preset: string,
-): Promise<void> {
-	// WorkspaceFolder: per-folder resource-scoped writes.
-	for (const folder of vscode.workspace.workspaceFolders ?? []) {
-		const folderConfig = vscode.workspace.getConfiguration(CONFIG_SECTION, folder.uri);
-		const regionInspect = folderConfig.inspect<string>('region');
-		const apiModeInspect = folderConfig.inspect<string>('apiMode');
-		const apiProtocolInspect = folderConfig.inspect<string>('apiProtocol');
-		if (
-			regionInspect?.workspaceFolderValue !== undefined ||
-			apiModeInspect?.workspaceFolderValue !== undefined ||
-			apiProtocolInspect?.workspaceFolderValue !== undefined
-		) {
-			try {
-				await folderConfig.update('endpoint', preset, vscode.ConfigurationTarget.WorkspaceFolder);
-			} catch {
-				/* non-fatal */
-			}
+	target: vscode.ConfigurationTarget,
+): EndpointPreset | undefined {
+	const canonical = inspectModelManagementConfiguration(resource);
+	const legacy = config.inspect<unknown>('endpoint');
+	const values = [
+		[
+			canonical.workspaceFolderValue?.defaultConnection?.endpoint,
+			legacy?.workspaceFolderValue,
+			vscode.ConfigurationTarget.WorkspaceFolder,
+		],
+		[
+			canonical.workspaceValue?.defaultConnection?.endpoint,
+			legacy?.workspaceValue,
+			vscode.ConfigurationTarget.Workspace,
+		],
+		[
+			canonical.globalValue?.defaultConnection?.endpoint,
+			legacy?.globalValue,
+			vscode.ConfigurationTarget.Global,
+		],
+	] as const;
+	for (const [canonicalEndpoint, legacyEndpoint, scope] of values) {
+		if (scope > target) {
+			continue;
+		}
+		const endpoint = canonicalEndpoint ?? normalizeEndpointPreset(legacyEndpoint);
+		if (endpoint) {
+			return endpoint;
 		}
 	}
+	return undefined;
+}
 
-	// Workspace scope.
-	const wsRegionInspect = config.inspect<string>('region');
-	const wsApiModeInspect = config.inspect<string>('apiMode');
-	const wsApiProtocolInspect = config.inspect<string>('apiProtocol');
-	if (
-		wsRegionInspect?.workspaceValue !== undefined ||
-		wsApiModeInspect?.workspaceValue !== undefined ||
-		wsApiProtocolInspect?.workspaceValue !== undefined
-	) {
-		try {
-			await config.update('endpoint', preset, vscode.ConfigurationTarget.Workspace);
-		} catch {
-			/* non-fatal */
-		}
+/**
+ * Move the six model/connection settings into the versioned management object.
+ * Each VS Code scope is migrated independently so inheritance is preserved.
+ */
+export async function migrateLegacyModelManagementSettings(): Promise<void> {
+	await migrateLegacyModelManagementSettingsAtScope(vscode.ConfigurationTarget.Global);
+
+	if (vscode.workspace.workspaceFile || vscode.workspace.workspaceFolders?.length) {
+		await migrateLegacyModelManagementSettingsAtScope(vscode.ConfigurationTarget.Workspace);
+	}
+
+	for (const folder of vscode.workspace.workspaceFolders ?? []) {
+		await migrateLegacyModelManagementSettingsAtScope(
+			vscode.ConfigurationTarget.WorkspaceFolder,
+			folder.uri,
+		);
+	}
+}
+
+async function migrateLegacyModelManagementSettingsAtScope(
+	target: vscode.ConfigurationTarget,
+	resource?: vscode.Uri,
+): Promise<void> {
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION, resource);
+	const currentRaw = getScopedValue(config.inspect<unknown>(MODEL_MANAGEMENT_SETTING), target);
+	const current = normalizeModelManagementConfiguration(currentRaw);
+	const canonical = inspectModelManagementConfiguration(resource);
+	const inherited = getModelManagementConfigurationBeforeScope(config, canonical, target);
+	const legacy = getLegacyModelManagementConfiguration(config, target, inherited.customModels);
+	if (!legacy) {
 		return;
 	}
+	if (currentRaw !== undefined && !current) {
+		throw new Error(
+			`Cannot migrate legacy model settings over an unsupported ${MODEL_MANAGEMENT_SETTING} value.`,
+		);
+	}
 
-	// Global scope (only when no Workspace legacy key exists, to avoid a
-	// lower-precedence Global write shadowing behaviour unexpectedly).
-	if (
-		wsRegionInspect?.globalValue !== undefined ||
-		wsApiModeInspect?.globalValue !== undefined ||
-		wsApiProtocolInspect?.globalValue !== undefined
-	) {
+	// Canonical fields win; legacy values only fill fields that are still absent.
+	const migrated = mergeModelManagementConfigurations(legacy, current);
+	await saveModelManagementConfiguration(migrated, target, resource);
+
+	// Never remove the fallback representation before the canonical write has completed.
+	await clearLegacyModelManagementSettingsAtScope(config, target);
+}
+
+async function clearLegacyModelManagementSettingsAtScope(
+	config: vscode.WorkspaceConfiguration,
+	target: vscode.ConfigurationTarget,
+): Promise<void> {
+	for (const key of LEGACY_MODEL_MANAGEMENT_SETTINGS) {
 		try {
-			await config.update('endpoint', preset, vscode.ConfigurationTarget.Global);
+			await config.update(key, undefined, target);
 		} catch {
-			/* non-fatal */
+			// Cleanup is retryable; the canonical configuration already wins at runtime.
 		}
 	}
+}
+
+function getLegacyModelManagementConfiguration(
+	config: vscode.WorkspaceConfiguration,
+	target: vscode.ConfigurationTarget,
+	inheritedCustomModels?: ModelManagementConfigurationV1['customModels'],
+): ModelManagementConfigurationV1 | undefined {
+	const endpointRaw = getScopedValue(config.inspect<unknown>('endpoint'), target);
+	const baseUrlRaw = getScopedValue(config.inspect<unknown>('baseUrl'), target);
+	const modelIdsRaw = getScopedValue(config.inspect<unknown>('modelIdOverrides'), target);
+	const modelEndpointsRaw = getScopedValue(
+		config.inspect<unknown>('modelEndpointOverrides'),
+		target,
+	);
+	const modelVisionRaw = getScopedValue(config.inspect<unknown>('modelVisionModes'), target);
+	const customModelsRaw = getScopedValue(config.inspect<unknown>('customModels'), target);
+	if (
+		endpointRaw === undefined &&
+		baseUrlRaw === undefined &&
+		modelIdsRaw === undefined &&
+		modelEndpointsRaw === undefined &&
+		modelVisionRaw === undefined &&
+		customModelsRaw === undefined
+	) {
+		return undefined;
+	}
+
+	const candidate: Record<string, unknown> = { version: 1 };
+	const endpoint = normalizeEndpointPreset(endpointRaw);
+	const defaultConnection: Record<string, unknown> = {};
+	if (endpoint) {
+		defaultConnection.endpoint = endpoint;
+	}
+	if (typeof baseUrlRaw === 'string') {
+		defaultConnection.baseUrl = baseUrlRaw;
+	}
+	if (Object.keys(defaultConnection).length > 0) {
+		candidate.defaultConnection = defaultConnection;
+	}
+
+	const models = createModelIdRecord<Record<string, unknown>>();
+	appendLegacyApiModelIds(models, modelIdsRaw);
+	appendLegacyModelFields(models, modelEndpointsRaw, 'endpointRoute');
+	appendLegacyModelFields(models, modelVisionRaw, 'visionMode');
+	if (Object.keys(models).length > 0) {
+		candidate.models = models;
+	}
+
+	if (Array.isArray(customModelsRaw)) {
+		const customModels = createModelIdRecord<CustomModelConfig | null>();
+		for (const [id, model] of Object.entries(inheritedCustomModels ?? {})) {
+			if (model !== null) {
+				customModels[id] = null;
+			}
+		}
+		for (const entry of customModelsRaw) {
+			const model = materializeLegacyCustomModelConfiguration(entry);
+			if (model?.id) {
+				customModels[model.id] = model;
+			}
+		}
+		if (Object.keys(customModels).length > 0) {
+			candidate.customModels = customModels;
+		}
+	}
+
+	return normalizeModelManagementConfiguration(candidate) ?? { version: 1 };
+}
+
+function appendLegacyApiModelIds(
+	models: Record<string, Record<string, unknown>>,
+	value: unknown,
+): void {
+	if (!isRecord(value)) {
+		return;
+	}
+	for (const [rawId, rawApiModelId] of Object.entries(value)) {
+		const id = rawId.trim();
+		const apiModelId = typeof rawApiModelId === 'string' ? rawApiModelId.trim() : '';
+		if (id && apiModelId) {
+			(models[id] ??= {}).apiModelId = apiModelId;
+		}
+	}
+}
+
+function getModelManagementConfigurationBeforeScope(
+	config: vscode.WorkspaceConfiguration,
+	canonical: ModelManagementConfigurationInspection,
+	target: vscode.ConfigurationTarget,
+): ModelManagementConfigurationV1 {
+	let effective: ModelManagementConfigurationV1 = { version: 1 };
+	if (target === vscode.ConfigurationTarget.Global) {
+		return effective;
+	}
+	effective = mergeModelManagementConfigurations(
+		effective,
+		getModelManagementScopeConfiguration(
+			effective,
+			config,
+			vscode.ConfigurationTarget.Global,
+			canonical.globalValue,
+		),
+	);
+	if (target === vscode.ConfigurationTarget.Workspace) {
+		return effective;
+	}
+	return mergeModelManagementConfigurations(
+		effective,
+		getModelManagementScopeConfiguration(
+			effective,
+			config,
+			vscode.ConfigurationTarget.Workspace,
+			canonical.workspaceValue,
+		),
+	);
+}
+
+function appendLegacyModelFields(
+	models: Record<string, Record<string, unknown>>,
+	value: unknown,
+	field: keyof ModelManagementModelConfiguration,
+): void {
+	if (!isRecord(value)) {
+		return;
+	}
+	for (const [rawId, fieldValue] of Object.entries(value)) {
+		const id = rawId.trim();
+		if (id) {
+			(models[id] ??= {})[field] = fieldValue;
+		}
+	}
+}
+
+function hasLegacyEndpointTupleAtScope(
+	config: vscode.WorkspaceConfiguration,
+	target: vscode.ConfigurationTarget,
+): boolean {
+	return (
+		normalizeApiRegion(getScopedValue(config.inspect<unknown>('region'), target), undefined) !==
+			undefined ||
+		normalizeApiMode(getScopedValue(config.inspect<unknown>('apiMode'), target), undefined) !==
+			undefined ||
+		normalizeApiProtocol(
+			getScopedValue(config.inspect<unknown>('apiProtocol'), target),
+			undefined,
+		) !== undefined
+	);
+}
+
+function deriveLegacyEndpointPresetAtScope(
+	config: vscode.WorkspaceConfiguration,
+	target: vscode.ConfigurationTarget,
+): EndpointPreset {
+	const inherited = getInheritedEndpointBeforeScope(config, target);
+	return deriveEndpointPreset(
+		normalizeApiRegion(
+			getScopedValue(config.inspect<unknown>('region'), target),
+			resolveEndpointRegion(inherited),
+		) ?? resolveEndpointRegion(inherited),
+		normalizeApiMode(
+			getScopedValue(config.inspect<unknown>('apiMode'), target),
+			resolveEndpointApiMode(inherited),
+		) ?? resolveEndpointApiMode(inherited),
+		normalizeApiProtocol(
+			getScopedValue(config.inspect<unknown>('apiProtocol'), target),
+			resolveEndpointProtocol(inherited),
+		) ?? resolveEndpointProtocol(inherited),
+	);
+}
+
+function getInheritedEndpointBeforeScope(
+	config: vscode.WorkspaceConfiguration,
+	target: vscode.ConfigurationTarget,
+): EndpointPreset {
+	if (target === vscode.ConfigurationTarget.Global) {
+		return deriveEndpointPreset(DEFAULT_API_REGION, DEFAULT_API_MODE, DEFAULT_API_PROTOCOL);
+	}
+
+	if (target === vscode.ConfigurationTarget.Workspace) {
+		return resolveEndpointThroughScope(config, vscode.ConfigurationTarget.Global);
+	}
+
+	return resolveEndpointThroughScope(config, vscode.ConfigurationTarget.Workspace);
+}
+
+function resolveEndpointThroughScope(
+	config: vscode.WorkspaceConfiguration,
+	target: vscode.ConfigurationTarget.Global | vscode.ConfigurationTarget.Workspace,
+): EndpointPreset {
+	const endpointInspection = config.inspect<unknown>('endpoint');
+	const regionInspection = config.inspect<unknown>('region');
+	const modeInspection = config.inspect<unknown>('apiMode');
+	const protocolInspection = config.inspect<unknown>('apiProtocol');
+	let endpoint =
+		normalizeEndpointPreset(endpointInspection?.globalValue) ??
+		deriveEndpointPreset(
+			normalizeApiRegion(regionInspection?.globalValue, DEFAULT_API_REGION) ?? DEFAULT_API_REGION,
+			normalizeApiMode(modeInspection?.globalValue, DEFAULT_API_MODE) ?? DEFAULT_API_MODE,
+			normalizeApiProtocol(protocolInspection?.globalValue, DEFAULT_API_PROTOCOL) ??
+				DEFAULT_API_PROTOCOL,
+		);
+	if (target === vscode.ConfigurationTarget.Global) {
+		return endpoint;
+	}
+
+	const workspaceEndpoint = normalizeEndpointPreset(endpointInspection?.workspaceValue);
+	if (workspaceEndpoint) {
+		return workspaceEndpoint;
+	}
+	endpoint = deriveEndpointPreset(
+		normalizeApiRegion(regionInspection?.workspaceValue, resolveEndpointRegion(endpoint)) ??
+			resolveEndpointRegion(endpoint),
+		normalizeApiMode(modeInspection?.workspaceValue, resolveEndpointApiMode(endpoint)) ??
+			resolveEndpointApiMode(endpoint),
+		normalizeApiProtocol(protocolInspection?.workspaceValue, resolveEndpointProtocol(endpoint)) ??
+			resolveEndpointProtocol(endpoint),
+	);
+	return endpoint;
 }
 
 function getConfiguredDebugMode(config: vscode.WorkspaceConfiguration): DebugMode | undefined {
@@ -499,6 +1049,56 @@ function normalizeModelVisionMode(value: unknown): ModelVisionMode | undefined {
 	return value === 'proxy' || value === 'native' ? value : undefined;
 }
 
+function normalizeModelEndpointRoute(value: unknown): ModelEndpointRoute | undefined {
+	if (value === 'default' || value === 'same-region-standard') {
+		return value;
+	}
+	return normalizeEndpointPreset(value);
+}
+
+function getConfiguredEndpoint(resource?: vscode.Uri): EndpointPreset | undefined {
+	return inspectEffectiveModelManagementConfiguration(resource).effective.defaultConnection
+		?.endpoint;
+}
+
+function normalizeCustomModelConfiguration(value: unknown): CustomModelConfig | undefined {
+	if (!isRecord(value)) {
+		return undefined;
+	}
+	const result: CustomModelConfig = {};
+	if (typeof value.id === 'string') result.id = value.id;
+	if (typeof value.name === 'string') result.name = value.name;
+	const contextWindowTokens = getCanonicalPositiveInteger(value.contextWindowTokens);
+	const maxInputTokens = getCanonicalPositiveInteger(value.maxInputTokens);
+	const maxOutputTokens = getCanonicalPositiveInteger(value.maxOutputTokens);
+	if (contextWindowTokens !== undefined) result.contextWindowTokens = contextWindowTokens;
+	if (maxInputTokens !== undefined) result.maxInputTokens = maxInputTokens;
+	if (maxOutputTokens !== undefined) result.maxOutputTokens = maxOutputTokens;
+	if (typeof value.toolCalling === 'boolean') result.toolCalling = value.toolCalling;
+	if (typeof value.thinking === 'boolean') result.thinking = value.thinking;
+	return result;
+}
+
+function getCanonicalPositiveInteger(value: unknown): number | undefined {
+	return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : undefined;
+}
+
+function isCanonicalModelId(value: string): boolean {
+	return value.length > 0 && value === value.trim();
+}
+
+function createModelIdRecord<T>(): Record<string, T> {
+	return Object.create(null) as Record<string, T>;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function hasOwn(value: object, key: PropertyKey): boolean {
+	return Object.prototype.hasOwnProperty.call(value, key);
+}
+
 function normalizeCustomModel(entry: unknown): ModelDefinition | undefined {
 	const model = readCustomModelConfig(entry);
 	if (!model) {
@@ -534,6 +1134,21 @@ function normalizeCustomModel(entry: unknown): ModelDefinition | undefined {
 			thinking,
 		},
 		requiresThinkingParam: thinking,
+	};
+}
+
+function materializeLegacyCustomModelConfiguration(entry: unknown): CustomModelConfig | undefined {
+	const model = normalizeCustomModel(entry);
+	if (!model) {
+		return undefined;
+	}
+	return {
+		id: model.id,
+		name: model.name,
+		contextWindowTokens: model.maxInputTokens + model.maxOutputTokens,
+		maxOutputTokens: model.maxOutputTokens,
+		toolCalling: model.capabilities.toolCalling !== false,
+		thinking: model.capabilities.thinking,
 	};
 }
 

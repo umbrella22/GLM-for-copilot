@@ -1,7 +1,7 @@
 import { DEFAULT_GLM_BASE_URL } from './endpoint';
 import { GLM_TOOLS_LIMIT } from './provider/tools/consts';
 import { DEFAULT_GLM_VISION_MODEL_ID } from './provider/vision/consts';
-import type { ModelDefinition } from './types';
+import type { CredentialChannel, ModelDefinition } from './types';
 
 /**
  * Compile-time constants shared across the extension.
@@ -45,6 +45,13 @@ export const LANGUAGE_MODEL_CHAT_SYSTEM_ROLE = 3;
 
 /** SecretStorage key for the GLM API key. */
 export const API_KEY_SECRET = 'glm-copilot.apiKey';
+
+export const API_KEY_SECRETS: Readonly<Record<CredentialChannel, string>> = {
+	'china-coding': 'glm-copilot.apiKey.china-coding',
+	'china-standard': 'glm-copilot.apiKey.china-standard',
+	'international-coding': 'glm-copilot.apiKey.international-coding',
+	'international-standard': 'glm-copilot.apiKey.international-standard',
+};
 
 /** memento key tracking whether the welcome walkthrough has been shown. */
 export const WELCOME_SHOWN_KEY = 'glm-copilot.welcomeShown';
@@ -96,11 +103,56 @@ export const MODELS: ModelDefinition[] = [
 			thinking: true,
 		},
 		requiresThinkingParam: true,
+		defaultVisionMode: 'native',
 		pricing: {
 			CNY: { cacheHitInput: 0, cacheMissInput: 0, output: 0 },
 			USD: { cacheHitInput: 0, cacheMissInput: 0, output: 0 },
 		},
 		priceCategory: 'low',
+	},
+	{
+		id: 'glm-5v-turbo',
+		name: 'GLM-5V-Turbo',
+		family: 'glm',
+		version: '5v',
+		detail: 'Multimodal coding model for visual agent workflows',
+		// Official 200K shared context with up to 128K output.
+		maxInputTokens: 68_928,
+		maxOutputTokens: 131_072,
+		capabilities: {
+			toolCalling: GLM_TOOLS_LIMIT,
+			imageInput: true,
+			thinking: true,
+		},
+		requiresThinkingParam: true,
+		defaultEndpointRoute: 'same-region-standard',
+		supportedApiModes: ['standard'],
+		defaultVisionMode: 'native',
+		pricing: {
+			CNY: {
+				cacheHitInput: 1.2,
+				cacheMissInput: 5,
+				output: 22,
+				tiers: [
+					{
+						label: 'prompt < 32K',
+						maxPromptTokens: 32_000,
+						cacheHitInput: 1.2,
+						cacheMissInput: 5,
+						output: 22,
+					},
+					{
+						label: 'prompt >= 32K',
+						minPromptTokens: 32_000,
+						cacheHitInput: 1.8,
+						cacheMissInput: 7,
+						output: 26,
+					},
+				],
+			},
+			USD: { cacheHitInput: 0.24, cacheMissInput: 1.2, output: 4 },
+		},
+		priceCategory: 'medium',
 	},
 	{
 		id: 'glm-5-turbo',

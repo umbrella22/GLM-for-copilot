@@ -1,9 +1,12 @@
-GLM for Copilot Chat 使用你自己的 GLM API Key 或 Coding Plan Token，让 GLM-5.2、GLM-4.6V-Flash 和 GLM-5-Turbo 出现在模型选择器中。
+打开模型管理，选择默认连接、检查模型专属路由，并为这些路由实际使用的通道配置凭据。
 
-只需粘贴一次，之后可通过命令面板更新或移除。
+[打开模型管理](command:glm-copilot.manageModels)
+
+`连接` 视图集中展示国内/国际 Coding Plan 和标准 API 通道。每个凭据都存储在系统密钥链中；页面只能读取是否已配置 Key。
 
 - `Cmd/Ctrl + Shift + P`：打开命令面板
-- `GLM: 设置 API Key`：设置或更新 API Key
-- `GLM: 清除 API Key`：移除 API Key
-- `GLM: 获取 API Key`：创建 GLM API Key
-- `GLM: 查询 Coding Plan 用量`：查询套餐额度和用量
+- `GLM: 管理模型与连接`：打开管理页
+- `GLM: 设置 API Key`：设置或更新一个通道
+- `GLM: 清除 API Key`：移除一个通道
+- `GLM: 获取 API Key`：打开一个通道的 Key 管理页面
+- `GLM: 查询 Coding Plan 用量`：查询所有活跃 Coding Plan 通道

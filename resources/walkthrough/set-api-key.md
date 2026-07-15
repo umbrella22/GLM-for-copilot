@@ -1,9 +1,12 @@
-GLM for Copilot Chat uses your own GLM API key or Coding Plan token to make GLM-5.2, GLM-4.6V-Flash, and GLM-5-Turbo available in the model picker.
+Open the Model Manager to choose the default connection, review model-specific routes, and configure the credentials those routes use.
 
-Paste it once, then update or remove it later from the Command Palette.
+[Open Model Manager](command:glm-copilot.manageModels)
+
+The **Connections** view lists China/International Coding Plan and Standard API channels. Each credential is stored in the OS keychain; the page receives only whether a key exists.
 
 - `Cmd/Ctrl + Shift + P`: Open the Command Palette
-- `GLM: Set API Key`: Set or update your API key
-- `GLM: Clear API Key`: Remove your API key
-- `GLM: Get API Key`: Create a GLM API key
-- `GLM: Query Coding Plan Usage`: Query plan quota and usage
+- `GLM: Manage Models and Connections`: Open the manager
+- `GLM: Set API Key`: Set or update one channel
+- `GLM: Clear API Key`: Remove one channel
+- `GLM: Get API Key`: Open the key page for one channel
+- `GLM: Query Coding Plan Usage`: Query all active Coding Plan channels

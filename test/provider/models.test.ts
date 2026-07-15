@@ -2,7 +2,11 @@ import * as vscode from 'vscode';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { listProviderModels } from '../../src/config';
 import { MODELS } from '../../src/consts';
-import { getConfiguredThinkingEffort, toChatInfo } from '../../src/provider/models';
+import {
+	getConfiguredThinkingEffort,
+	getModelConfigurationResource,
+	toChatInfo,
+} from '../../src/provider/models';
 import { __clearConfigurationValues, __setConfigurationValue } from '../support/vscode.mock';
 
 describe('model metadata helpers', () => {
@@ -63,13 +67,28 @@ describe('model metadata helpers', () => {
 		expect(info.priceCategory).toBe('high');
 	});
 
+	it('carries the resource-scoped configuration snapshot with picker metadata', () => {
+		const resource = vscode.Uri.file('/workspace/app');
+		const info = toChatInfo(MODELS[0], true, 'CNY', undefined, resource);
+
+		expect(info.configurationResource).toBe(resource.toString());
+		expect(getModelConfigurationResource(info)?.toString()).toBe(resource.toString());
+	});
+
 	it('publishes built-in shared windows as Copilot input plus output budgets', () => {
 		expect(MODELS.map((model) => model.maxInputTokens + model.maxOutputTokens)).toEqual([
-			1_000_000, 131_072, 200_000,
+			1_000_000, 131_072, 200_000, 200_000,
 		]);
 		expect(MODELS[1].maxOutputTokens).toBe(32_768);
 		expect(toChatInfo(MODELS[0], true).maxInputTokens).toBe(868_928);
 		expect(toChatInfo(MODELS[2], true).maxOutputTokens).toBe(131_072);
+		expect(MODELS[2]).toMatchObject({
+			id: 'glm-5v-turbo',
+			defaultEndpointRoute: 'same-region-standard',
+			supportedApiModes: ['standard'],
+			defaultVisionMode: 'native',
+			capabilities: { imageInput: true, thinking: true },
+		});
 	});
 
 	it('includes custom models in picker metadata with Vision Proxy image support', () => {

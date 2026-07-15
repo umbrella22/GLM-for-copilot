@@ -12,6 +12,18 @@
 
 如果 agent 仍报错 `No utility model is configured for 'copilot-utility-small' while the selected main model is BYOK`，这是 VS Code Copilot 端的已知回归（[microsoft/vscode#324007](https://github.com/microsoft/vscode/issues/324007)）——上游修复前编辑器聊天仍可正常使用。
 
+## 管理模型与连接
+
+模型管理将影响 GLM 请求的模型 ID、连接路由、图片模式、凭据和视觉代理配置集中在同一页面。
+
+- `模型`：配置 API 模型 ID、官方 Endpoint 路由、图片模式和自定义模型。
+- `连接`：选择默认 Endpoint、管理四个凭据通道，并可设置兼容 Base URL。
+- `视觉代理`：选择并测试 `proxy` 图片模式使用的后端。
+
+作用域选择器可将模型配置写入用户、工作区或工作区文件夹设置。自定义 Base URL 只影响使用 `default` 路由的模型；显式官方路由和 `same-region-standard` 使用官方 GLM Endpoint，Coding Plan 与标准 API 请求不会自动互相回退。
+
+[打开模型管理](command:glm-copilot.manageModels)
+
 ## 稳定工具列表（实验性）
 
 先打开 VS Code 的 Tools 配置，查看当前聊天启用了多少个工具。

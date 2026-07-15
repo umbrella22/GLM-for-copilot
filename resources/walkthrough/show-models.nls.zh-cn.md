@@ -1,3 +1,7 @@
-扩展激活后，GLM 模型应立即出现在 Copilot 模型选择器中。如果尚未配置 API Key，模型会显示警告图标，直到你运行 `GLM: 设置 API Key` 为止。
+扩展激活后，GLM 模型应立即出现在 Copilot 模型选择器中。通过`模型`视图检查各模型的 API ID、连接路由、图片模式和凭据状态。
 
-如果没有立即看到，可能只是模型列表较长。在选取器中向下滚动，查找 GLM-5.2、GLM-4.6V-Flash 和 GLM-5-Turbo。
+[打开模型管理](command:glm-copilot.manageModels)
+
+如果模型被隐藏，请在 VS Code 语言模型管理器中启用它。GLM-5V-Turbo 仅支持标准 API 连接。
+
+[打开语言模型管理](command:workbench.action.chat.manage)

@@ -1,5 +1,7 @@
 import vscode from 'vscode';
+import { CREDENTIAL_CHANNELS, formatCredentialChannel } from '../auth';
 import { t } from '../i18n';
+import type { CredentialChannel } from '../types';
 import { formatMoney, type UsageCostEstimate } from './pricing/usage';
 import type { GLMTokenQuotaMetric, GLMTokenQuotaUsage } from './usage';
 
@@ -11,8 +13,11 @@ const OPEN_SETTINGS_COMMAND = 'glm-copilot.openSettings';
 
 export class UsageStatus implements vscode.Disposable {
 	private readonly item: vscode.StatusBarItem;
-	private readonly balanceSessionTotals = new Map<UsageCostEstimate['currency'], number>();
-	private lastBalanceEstimate: UsageCostEstimate | undefined;
+	private readonly quotas = new Map<CredentialChannel, GLMTokenQuotaUsage>();
+	private readonly balanceSessionTotals = new Map<CredentialChannel, number>();
+	private readonly lastBalanceEstimates = new Map<CredentialChannel, UsageCostEstimate>();
+	private activeChannels = new Set<CredentialChannel>();
+	private defaultChannel: CredentialChannel = 'china-coding';
 
 	constructor() {
 		this.item = vscode.window.createStatusBarItem(
@@ -22,32 +27,37 @@ export class UsageStatus implements vscode.Disposable {
 		this.item.name = t('usage.status.name');
 	}
 
-	reportQuota(quota: GLMTokenQuotaUsage): void {
-		this.item.command = QUERY_USAGE_COMMAND;
-		this.item.text = `$(pulse) GLM 5h ${formatPercentage(quota.fiveHours.percentage)}`;
-		this.item.tooltip = createUsageQuotaTooltip(quota);
-		this.item.show();
+	setActiveChannels(
+		defaultChannel: CredentialChannel,
+		channels: readonly CredentialChannel[],
+	): void {
+		this.defaultChannel = defaultChannel;
+		this.activeChannels = new Set(channels);
+		this.render();
 	}
 
-	showBalanceBilling(): void {
-		this.item.command = OPEN_SETTINGS_COMMAND;
-		const estimate = this.lastBalanceEstimate;
-		this.item.text = estimate
-			? `$(credit-card) GLM ${formatMoney(estimate.totalCost, estimate.currency)}`
-			: '$(credit-card) GLM PAYG';
-		this.item.tooltip = createBalanceUsageTooltip(
-			estimate,
-			estimate ? this.balanceSessionTotals.get(estimate.currency) : undefined,
-		);
-		this.item.show();
+	reportQuota(channel: CredentialChannel, quota: GLMTokenQuotaUsage): void {
+		this.quotas.set(channel, quota);
+		this.activeChannels.add(channel);
+		this.render();
 	}
 
-	reportBalanceCost(estimate: UsageCostEstimate): void {
-		const sessionTotal =
-			(this.balanceSessionTotals.get(estimate.currency) ?? 0) + estimate.totalCost;
-		this.balanceSessionTotals.set(estimate.currency, sessionTotal);
-		this.lastBalanceEstimate = estimate;
-		this.showBalanceBilling();
+	clearQuota(channel: CredentialChannel): void {
+		this.quotas.delete(channel);
+		this.render();
+	}
+
+	showBalanceBilling(channel: CredentialChannel): void {
+		this.activeChannels.add(channel);
+		this.render();
+	}
+
+	reportBalanceCost(channel: CredentialChannel, estimate: UsageCostEstimate): void {
+		const sessionTotal = (this.balanceSessionTotals.get(channel) ?? 0) + estimate.totalCost;
+		this.balanceSessionTotals.set(channel, sessionTotal);
+		this.lastBalanceEstimates.set(channel, estimate);
+		this.activeChannels.add(channel);
+		this.render();
 	}
 
 	hide(): void {
@@ -55,24 +65,113 @@ export class UsageStatus implements vscode.Disposable {
 	}
 
 	reset(): void {
+		this.quotas.clear();
 		this.balanceSessionTotals.clear();
-		this.lastBalanceEstimate = undefined;
+		this.lastBalanceEstimates.clear();
+		this.activeChannels.clear();
+		this.hide();
+	}
+
+	/** Reset active connection/quota state without losing session PAYG totals. */
+	resetConnections(): void {
+		this.quotas.clear();
+		this.activeChannels.clear();
 		this.hide();
 	}
 
 	dispose(): void {
 		this.item.dispose();
 	}
+
+	private render(): void {
+		const orderedChannels = CREDENTIAL_CHANNELS.filter((channel) =>
+			this.activeChannels.has(channel),
+		);
+		if (orderedChannels.length === 0) {
+			this.hide();
+			return;
+		}
+
+		const headlineChannel = this.activeChannels.has(this.defaultChannel)
+			? this.defaultChannel
+			: orderedChannels[0];
+		const quota = this.quotas.get(headlineChannel);
+		const estimate = this.lastBalanceEstimates.get(headlineChannel);
+		if (isCodingChannel(headlineChannel)) {
+			this.item.text = quota
+				? `$(pulse) GLM 5h ${formatPercentage(quota.fiveHours.percentage)}`
+				: '$(pulse) GLM Coding Plan';
+		} else {
+			this.item.text = estimate
+				? `$(credit-card) GLM ${formatMoney(estimate.totalCost, estimate.currency)}`
+				: '$(credit-card) GLM PAYG';
+		}
+
+		const hasCodingChannel = orderedChannels.some(isCodingChannel);
+		this.item.command = hasCodingChannel ? QUERY_USAGE_COMMAND : OPEN_SETTINGS_COMMAND;
+		this.item.tooltip = createCombinedUsageTooltip({
+			channels: orderedChannels,
+			quotas: this.quotas,
+			lastBalanceEstimates: this.lastBalanceEstimates,
+			balanceSessionTotals: this.balanceSessionTotals,
+			hasCodingChannel,
+		});
+		this.item.show();
+	}
+}
+
+interface CombinedUsageTooltipOptions {
+	channels: readonly CredentialChannel[];
+	quotas: ReadonlyMap<CredentialChannel, GLMTokenQuotaUsage>;
+	lastBalanceEstimates: ReadonlyMap<CredentialChannel, UsageCostEstimate>;
+	balanceSessionTotals: ReadonlyMap<CredentialChannel, number>;
+	hasCodingChannel: boolean;
+}
+
+export function createCombinedUsageTooltip(
+	options: CombinedUsageTooltipOptions,
+): vscode.MarkdownString {
+	const command = options.hasCodingChannel ? QUERY_USAGE_COMMAND : OPEN_SETTINGS_COMMAND;
+	const tooltip = createInteractiveTooltip(
+		t('usage.status.combinedTitle'),
+		command,
+		options.hasCodingChannel ? 'refresh' : 'settings-gear',
+	);
+	for (const [index, channel] of options.channels.entries()) {
+		if (index > 0) {
+			tooltip.appendMarkdown('\n\n---\n\n');
+		}
+		tooltip.appendMarkdown(`**${escapeHtmlText(formatCredentialChannel(channel))}**\n\n`);
+		if (isCodingChannel(channel)) {
+			const quota = options.quotas.get(channel);
+			if (!quota) {
+				tooltip.appendMarkdown(t('usage.status.waiting'));
+				continue;
+			}
+			appendQuotaContent(tooltip, quota);
+			continue;
+		}
+		appendBalanceContent(
+			tooltip,
+			options.lastBalanceEstimates.get(channel),
+			options.balanceSessionTotals.get(channel),
+		);
+	}
+	return tooltip;
 }
 
 export function createUsageQuotaTooltip(quota: GLMTokenQuotaUsage): vscode.MarkdownString {
 	const tooltip = createInteractiveTooltip(t('usage.status.title'), QUERY_USAGE_COMMAND, 'refresh');
+	appendQuotaContent(tooltip, quota);
+	return tooltip;
+}
+
+function appendQuotaContent(tooltip: vscode.MarkdownString, quota: GLMTokenQuotaUsage): void {
 	appendQuotaMetric(tooltip, t('usage.status.fiveHours'), quota.fiveHours);
 	if (quota.sevenDays) {
 		appendQuotaMetric(tooltip, t('usage.status.sevenDays'), quota.sevenDays);
 	}
 	appendQuotaResetTimes(tooltip, quota);
-	return tooltip;
 }
 
 export function createBalanceUsageTooltip(
@@ -84,9 +183,18 @@ export function createBalanceUsageTooltip(
 		OPEN_SETTINGS_COMMAND,
 		'settings-gear',
 	);
+	appendBalanceContent(tooltip, estimate, sessionTotal);
+	return tooltip;
+}
+
+function appendBalanceContent(
+	tooltip: vscode.MarkdownString,
+	estimate: UsageCostEstimate | undefined,
+	sessionTotal: number | undefined,
+): void {
 	if (!estimate || sessionTotal === undefined) {
 		tooltip.appendMarkdown(t('usage.balance.waiting'));
-		return tooltip;
+		return;
 	}
 
 	tooltip.appendMarkdown(
@@ -96,7 +204,10 @@ export function createBalanceUsageTooltip(
 	tooltip.appendMarkdown(
 		`<table width="100%"><tr><td>${t('usage.balance.input')}</td><td align="right">${escapeHtmlText(formatMoney(estimate.pricing.cacheMissInput, estimate.currency))}</td></tr><tr><td>${t('usage.balance.cachedInput')}</td><td align="right">${escapeHtmlText(formatMoney(estimate.pricing.cacheHitInput, estimate.currency))}</td></tr><tr><td>${t('usage.balance.output')}</td><td align="right">${escapeHtmlText(formatMoney(estimate.pricing.output, estimate.currency))}</td></tr></table>`,
 	);
-	return tooltip;
+}
+
+function isCodingChannel(channel: CredentialChannel): boolean {
+	return channel.endsWith('-coding');
 }
 
 function createInteractiveTooltip(

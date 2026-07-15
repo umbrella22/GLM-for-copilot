@@ -1,7 +1,7 @@
 {
   "name": "glm-for-vscode-copilot",
   "displayName": "GLM for VsCode Copilot",
-  "description": "Pick GLM-5.2, GLM-4.6V-Flash, and GLM-5-Turbo from the Copilot Chat model picker. Vision, thinking mode, agent tools — zero config, BYOK.",
+  "description": "Pick GLM-5.2, GLM-4.6V-Flash, GLM-5V-Turbo, and GLM-5-Turbo from the Copilot Chat model picker. Vision, thinking mode, agent tools — BYOK.",
   "icon": "resources/icon.png",
   "version": "0.5.1",
   "packageManager": "pnpm@11.7.0",
@@ -69,6 +69,10 @@
         "title": "%glm-copilot.command.clearApiKey%"
       },
       {
+        "command": "glm-copilot.manageModels",
+        "title": "%glm-copilot.command.manageModels%"
+      },
+      {
         "command": "glm-copilot.setVisionModel",
         "title": "%glm-copilot.command.setVisionModel%"
       },
@@ -99,6 +103,7 @@
               "markdown": "resources/walkthrough/set-api-key.md"
             },
             "completionEvents": [
+              "onCommand:glm-copilot.manageModels",
               "onCommand:glm-copilot.setApiKey"
             ]
           },
@@ -124,39 +129,168 @@
     "configuration": {
       "title": "%glm-copilot.config.title%",
       "properties": {
-        "glm-copilot.baseUrl": {
-          "type": "string",
-          "default": "",
-          "markdownDescription": "%glm-copilot.config.baseUrl.description%"
-        },
-        "glm-copilot.endpoint": {
-          "type": "string",
-          "default": "china-coding",
-          "enum": [
-            "china-coding",
-            "china-standard",
-            "china-anthropic",
-            "international-coding",
-            "international-standard",
-            "international-anthropic"
+        "glm-copilot.modelManagement": {
+          "type": "object",
+          "default": {
+            "version": 1
+          },
+          "scope": "resource",
+          "tags": [
+            "advanced"
           ],
-          "enumItemLabels": [
-            "%glm-copilot.config.endpoint.chinaCoding.label%",
-            "%glm-copilot.config.endpoint.chinaStandard.label%",
-            "%glm-copilot.config.endpoint.chinaAnthropic.label%",
-            "%glm-copilot.config.endpoint.internationalCoding.label%",
-            "%glm-copilot.config.endpoint.internationalStandard.label%",
-            "%glm-copilot.config.endpoint.internationalAnthropic.label%"
+          "required": [
+            "version"
           ],
-          "markdownEnumDescriptions": [
-            "%glm-copilot.config.endpoint.chinaCoding.description%",
-            "%glm-copilot.config.endpoint.chinaStandard.description%",
-            "%glm-copilot.config.endpoint.chinaAnthropic.description%",
-            "%glm-copilot.config.endpoint.internationalCoding.description%",
-            "%glm-copilot.config.endpoint.internationalStandard.description%",
-            "%glm-copilot.config.endpoint.internationalAnthropic.description%"
-          ],
-          "markdownDescription": "%glm-copilot.config.endpoint.description%"
+          "additionalProperties": false,
+          "markdownDescription": "%glm-copilot.config.modelManagement.description%",
+          "properties": {
+            "version": {
+              "type": "number",
+              "enum": [
+                1
+              ],
+              "description": "%glm-copilot.config.modelManagement.version.description%"
+            },
+            "defaultConnection": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "%glm-copilot.config.modelManagement.defaultConnection.description%",
+              "properties": {
+                "endpoint": {
+                  "type": "string",
+                  "enum": [
+                    "china-coding",
+                    "china-standard",
+                    "china-anthropic",
+                    "international-coding",
+                    "international-standard",
+                    "international-anthropic"
+                  ],
+                  "enumItemLabels": [
+                    "%glm-copilot.config.endpoint.chinaCoding.label%",
+                    "%glm-copilot.config.endpoint.chinaStandard.label%",
+                    "%glm-copilot.config.endpoint.chinaAnthropic.label%",
+                    "%glm-copilot.config.endpoint.internationalCoding.label%",
+                    "%glm-copilot.config.endpoint.internationalStandard.label%",
+                    "%glm-copilot.config.endpoint.internationalAnthropic.label%"
+                  ],
+                  "description": "%glm-copilot.config.modelManagement.endpoint.description%"
+                },
+                "baseUrl": {
+                  "type": "string",
+                  "description": "%glm-copilot.config.modelManagement.baseUrl.description%"
+                }
+              }
+            },
+            "models": {
+              "type": "object",
+              "description": "%glm-copilot.config.modelManagement.models.description%",
+              "propertyNames": {
+                "minLength": 1,
+                "pattern": "^\\S(?:.*\\S)?$"
+              },
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "apiModelId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^\\S(?:.*\\S)?$",
+                    "description": "%glm-copilot.config.modelManagement.apiModelId.description%"
+                  },
+                  "endpointRoute": {
+                    "type": "string",
+                    "enum": [
+                      "default",
+                      "same-region-standard",
+                      "china-coding",
+                      "china-standard",
+                      "china-anthropic",
+                      "international-coding",
+                      "international-standard",
+                      "international-anthropic"
+                    ],
+                    "enumItemLabels": [
+                      "%glm-copilot.config.modelEndpointOverrides.default.label%",
+                      "%glm-copilot.config.modelEndpointOverrides.sameRegionStandard.label%",
+                      "%glm-copilot.config.endpoint.chinaCoding.label%",
+                      "%glm-copilot.config.endpoint.chinaStandard.label%",
+                      "%glm-copilot.config.endpoint.chinaAnthropic.label%",
+                      "%glm-copilot.config.endpoint.internationalCoding.label%",
+                      "%glm-copilot.config.endpoint.internationalStandard.label%",
+                      "%glm-copilot.config.endpoint.internationalAnthropic.label%"
+                    ],
+                    "description": "%glm-copilot.config.modelManagement.endpointRoute.description%"
+                  },
+                  "visionMode": {
+                    "type": "string",
+                    "enum": [
+                      "proxy",
+                      "native"
+                    ],
+                    "description": "%glm-copilot.config.modelManagement.visionMode.description%"
+                  }
+                }
+              }
+            },
+            "customModels": {
+              "type": "object",
+              "description": "%glm-copilot.config.modelManagement.customModels.description%",
+              "propertyNames": {
+                "minLength": 1,
+                "pattern": "^\\S(?:.*\\S)?$"
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "null",
+                    "description": "%glm-copilot.config.modelManagement.customModels.tombstone.description%"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "%glm-copilot.config.modelManagement.customModels.id.description%"
+                      },
+                      "name": {
+                        "type": "string",
+                        "description": "%glm-copilot.config.customModels.name.description%"
+                      },
+                      "contextWindowTokens": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991,
+                        "description": "%glm-copilot.config.customModels.contextWindowTokens.description%"
+                      },
+                      "maxInputTokens": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991,
+                        "description": "%glm-copilot.config.customModels.maxInputTokens.description%"
+                      },
+                      "maxOutputTokens": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991,
+                        "description": "%glm-copilot.config.customModels.maxOutputTokens.description%"
+                      },
+                      "toolCalling": {
+                        "type": "boolean",
+                        "description": "%glm-copilot.config.customModels.toolCalling.description%"
+                      },
+                      "thinking": {
+                        "type": "boolean",
+                        "description": "%glm-copilot.config.customModels.thinking.description%"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
         },
         "glm-copilot.maxTokens": {
           "type": "number",
@@ -171,126 +305,6 @@
           "tags": [
             "experimental"
           ]
-        },
-        "glm-copilot.modelIdOverrides": {
-          "type": "object",
-          "default": {
-            "glm-5.2": "glm-5.2",
-            "glm-4.6v-flash": "glm-4.6v-flash",
-            "glm-5-turbo": "glm-5-turbo"
-          },
-          "markdownDescription": "%glm-copilot.config.modelIdOverrides.description%",
-          "additionalProperties": {
-            "type": "string"
-          },
-          "properties": {
-            "glm-5.2": {
-              "type": "string",
-              "description": "%glm-copilot.config.modelIdOverrides.glm-5.2.description%"
-            },
-            "glm-4.6v-flash": {
-              "type": "string",
-              "description": "%glm-copilot.config.modelIdOverrides.glm-4.6v-flash.description%"
-            },
-            "glm-5-turbo": {
-              "type": "string",
-              "description": "%glm-copilot.config.modelIdOverrides.glm-5-turbo.description%"
-            }
-          }
-        },
-        "glm-copilot.modelVisionModes": {
-          "type": "object",
-          "default": {
-            "glm-4.6v-flash": "native"
-          },
-          "markdownDescription": "%glm-copilot.config.modelVisionModes.description%",
-          "additionalProperties": {
-            "type": "string",
-            "enum": [
-              "proxy",
-              "native"
-            ],
-            "markdownDescription": "%glm-copilot.config.modelVisionModes.entry.description%"
-          },
-          "properties": {
-            "glm-5.2": {
-              "type": "string",
-              "enum": [
-                "proxy",
-                "native"
-              ],
-              "description": "%glm-copilot.config.modelVisionModes.entry.description%"
-            },
-            "glm-4.6v-flash": {
-              "type": "string",
-              "enum": [
-                "proxy",
-                "native"
-              ],
-              "description": "%glm-copilot.config.modelVisionModes.entry.description%"
-            },
-            "glm-5-turbo": {
-              "type": "string",
-              "enum": [
-                "proxy",
-                "native"
-              ],
-              "description": "%glm-copilot.config.modelVisionModes.entry.description%"
-            }
-          }
-        },
-        "glm-copilot.customModels": {
-          "type": "array",
-          "default": [],
-          "markdownDescription": "%glm-copilot.config.customModels.description%",
-          "items": {
-            "anyOf": [
-              {
-                "type": "string",
-                "description": "%glm-copilot.config.customModels.string.description%"
-              },
-              {
-                "type": "object",
-                "required": [
-                  "id"
-                ],
-                "additionalProperties": false,
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "description": "%glm-copilot.config.customModels.id.description%"
-                  },
-                  "name": {
-                    "type": "string",
-                    "description": "%glm-copilot.config.customModels.name.description%"
-                  },
-                  "contextWindowTokens": {
-                    "type": "number",
-                    "minimum": 1,
-                    "description": "%glm-copilot.config.customModels.contextWindowTokens.description%"
-                  },
-                  "maxInputTokens": {
-                    "type": "number",
-                    "minimum": 1,
-                    "description": "%glm-copilot.config.customModels.maxInputTokens.description%"
-                  },
-                  "maxOutputTokens": {
-                    "type": "number",
-                    "minimum": 1,
-                    "description": "%glm-copilot.config.customModels.maxOutputTokens.description%"
-                  },
-                  "toolCalling": {
-                    "type": "boolean",
-                    "description": "%glm-copilot.config.customModels.toolCalling.description%"
-                  },
-                  "thinking": {
-                    "type": "boolean",
-                    "description": "%glm-copilot.config.customModels.thinking.description%"
-                  }
-                }
-              }
-            ]
-          }
         },
         "glm-copilot.visionModel": {
           "type": "string",

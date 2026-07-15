@@ -4,12 +4,11 @@ import { GLMClient } from '../client';
 import {
 	findModelDefinition,
 	getApiModelId,
-	getApiProtocol,
-	getBaseUrl,
 	getMaxTokens,
 	getModelVisionMode,
+	resolveModelConnection,
 } from '../config';
-import { identifyOfficialGLMApiMode, isOfficialGLMBaseUrl } from '../endpoint';
+import { isOfficialGLMBaseUrl } from '../endpoint';
 import { t } from '../i18n';
 import type {
 	ApiMode,
@@ -17,6 +16,7 @@ import type {
 	ModelDefinition,
 	ModelVisionMode,
 	PricingCurrency,
+	ResolvedModelConnection,
 } from '../types';
 import { convertMessages, countRequestPromptChars } from './convert';
 import {
@@ -52,11 +52,13 @@ export interface PreparedChatRequest {
 	visionMode: ModelVisionMode;
 	nativeImageParts: number;
 	nativeImageBytes: number;
+	connection: ResolvedModelConnection;
 }
 
 export interface PrepareChatRequestOptions {
 	authManager: AuthManager;
 	globalStorageUri: vscode.Uri;
+	configurationResource?: vscode.Uri;
 	modelInfo: vscode.LanguageModelChatInformation;
 	segment: ConversationSegment;
 	messages: readonly vscode.LanguageModelChatRequestMessage[];
@@ -69,6 +71,7 @@ export interface PrepareChatRequestOptions {
 export async function prepareChatRequest({
 	authManager,
 	globalStorageUri,
+	configurationResource,
 	modelInfo,
 	segment,
 	messages,
@@ -77,19 +80,19 @@ export async function prepareChatRequest({
 	cacheDiagnostics,
 	getVisionDescriber,
 }: PrepareChatRequestOptions): Promise<PreparedChatRequest> {
-	const apiKey = await authManager.getApiKey();
+	const connection = resolveModelConnection(modelInfo.id, configurationResource);
+	const apiKey = await authManager.getApiKey(connection.credentialChannel, configurationResource);
 	if (!apiKey) {
-		throw new Error(t('auth.notConfigured'));
+		throw new Error(t('auth.notConfiguredForChannel', connection.credentialChannel));
 	}
 
-	const baseUrl = getBaseUrl();
-	const apiProtocol = getApiProtocol();
+	const { baseUrl, protocol: apiProtocol } = connection;
 	const client = new GLMClient(baseUrl, apiKey, apiProtocol);
-	const modelDef = findModelDefinition(modelInfo.id);
+	const modelDef = findModelDefinition(modelInfo.id, configurationResource);
 	const isThinkingModel = modelDef?.capabilities.thinking ?? false;
 	const maxTokens = getMaxTokens();
-	const apiModelId = getApiModelId(modelInfo.id);
-	const visionMode = getModelVisionMode(modelInfo.id);
+	const apiModelId = getApiModelId(modelInfo.id, configurationResource);
+	const visionMode = getModelVisionMode(modelInfo.id, configurationResource);
 
 	const visionResolution = await resolveImageMessages(
 		messages,
@@ -153,6 +156,7 @@ export async function prepareChatRequest({
 		visionProxySource: visionResolution.visionProxySource,
 		visionStats: visionResolution.stats,
 		visionMode,
+		connection,
 	});
 
 	const diagnosticsRun = cacheDiagnostics.beginRequest({
@@ -169,6 +173,7 @@ export async function prepareChatRequest({
 		visionProxySource: visionResolution.visionProxySource,
 		visionStats: visionResolution.stats,
 		visionMode,
+		connection,
 	});
 
 	return {
@@ -179,16 +184,17 @@ export async function prepareChatRequest({
 		trailingToolResultIds: collectTrailingToolResultIds(glmMessages),
 		cacheDiagnostics: diagnosticsRun,
 		requestKind,
-		apiMode: identifyOfficialGLMApiMode(baseUrl),
+		apiMode: connection.apiMode,
 		segment,
 		replayMarkerMetadata: visionResolution.replayMarkerMetadata,
 		modelDefinition: modelDef,
-		pricingCurrency: getPricingCurrencyForBaseUrl(baseUrl),
+		pricingCurrency: connection.pricingCurrency ?? getPricingCurrencyForBaseUrl(baseUrl),
 		visionMarkerTextChars: visionResolution.stats.markerVisionTextChars || undefined,
 		initialResponseNotice: visionResolution.initialResponseNotice,
 		requestDump,
 		visionMode,
 		nativeImageParts: visionResolution.stats.nativeImageParts,
 		nativeImageBytes: visionResolution.stats.nativeImageBytes,
+		connection,
 	};
 }

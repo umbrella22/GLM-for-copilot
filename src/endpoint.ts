@@ -1,4 +1,4 @@
-import type { ApiMode, ApiRegion, EndpointPreset } from './types';
+import type { ApiMode, ApiRegion, CredentialChannel, EndpointPreset } from './types';
 
 export const GLM_CN_API_HOST = 'open.bigmodel.cn';
 export const GLM_CN_LEGACY_API_HOST = 'dev.bigmodel.cn';
@@ -95,6 +95,35 @@ export function resolveEndpointProtocol(preset: EndpointPreset): 'openai' | 'ant
 	return preset === 'china-anthropic' || preset === 'international-anthropic'
 		? 'anthropic'
 		: 'openai';
+}
+
+export function resolveEndpointApiMode(preset: EndpointPreset): ApiMode {
+	return preset === 'china-standard' || preset === 'international-standard'
+		? 'standard'
+		: 'coding-plan';
+}
+
+export function resolveEndpointRegion(preset: EndpointPreset): ApiRegion {
+	return preset.startsWith('international-') ? 'international' : 'china';
+}
+
+export function resolveEndpointCredentialChannel(preset: EndpointPreset): CredentialChannel {
+	const region = resolveEndpointRegion(preset);
+	const mode = resolveEndpointApiMode(preset);
+	return `${region}-${mode === 'coding-plan' ? 'coding' : 'standard'}`;
+}
+
+export function resolveCredentialChannelApiKeyUrl(channel: CredentialChannel): string {
+	switch (channel) {
+		case 'china-coding':
+			return GLM_CN_CODING_API_KEY_URL;
+		case 'china-standard':
+			return GLM_CN_GENERAL_API_KEY_URL;
+		case 'international-coding':
+			return GLM_INTERNATIONAL_CODING_API_KEY_URL;
+		case 'international-standard':
+			return GLM_INTERNATIONAL_GENERAL_API_KEY_URL;
+	}
 }
 
 /**

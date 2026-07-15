@@ -33,27 +33,32 @@ export type ModelPickerChatInformation = vscode.LanguageModelChatInformation &
 		readonly isBYOK: true;
 		readonly statusIcon?: vscode.ThemeIcon;
 		readonly configurationSchema?: ThinkingEffortConfigurationSchema;
+		readonly configurationResource?: string;
 	};
 
 export function toChatInfo(
 	m: ModelDefinition,
 	hasApiKey: boolean,
 	pricingCurrency?: PricingCurrency,
+	configurationError?: string,
+	configurationResource?: vscode.Uri,
 ): ModelPickerChatInformation {
 	const modelDetail = resolveModelText(m, 'detail') ?? m.detail;
 	const modelTooltip = resolveModelText(m, 'tooltip');
+	const unavailableDetail = configurationError ?? t('auth.apiKeyRequiredDetail');
 	return {
 		id: m.id,
 		name: m.name,
 		family: m.family,
 		version: m.version,
-		detail: hasApiKey ? modelDetail : t('auth.apiKeyRequiredDetail'),
-		tooltip: hasApiKey ? modelTooltip : t('auth.apiKeyRequiredDetail'),
+		detail: hasApiKey ? modelDetail : unavailableDetail,
+		tooltip: hasApiKey ? modelTooltip : unavailableDetail,
 		statusIcon: hasApiKey ? undefined : new vscode.ThemeIcon('warning'),
 		maxInputTokens: m.maxInputTokens,
 		maxOutputTokens: m.maxOutputTokens,
 		isBYOK: true,
 		isUserSelectable: true,
+		...(configurationResource ? { configurationResource: configurationResource.toString() } : {}),
 		capabilities: {
 			toolCalling: m.capabilities.toolCalling,
 			imageInput: m.capabilities.imageInput,
@@ -61,6 +66,20 @@ export function toChatInfo(
 		...toModelCostInfo(m, pricingCurrency),
 		...(m.capabilities.thinking ? { configurationSchema: buildThinkingEffortSchema() } : {}),
 	};
+}
+
+export function getModelConfigurationResource(
+	modelInfo: vscode.LanguageModelChatInformation,
+): vscode.Uri | undefined {
+	const value = (modelInfo as Partial<ModelPickerChatInformation>).configurationResource;
+	if (typeof value !== 'string' || !value) {
+		return undefined;
+	}
+	try {
+		return vscode.Uri.parse(value);
+	} catch {
+		return undefined;
+	}
 }
 
 export function getConfiguredThinkingEffort(options: ModelConfigurationOptions): ThinkingEffort {

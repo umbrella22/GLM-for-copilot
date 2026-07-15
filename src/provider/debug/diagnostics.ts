@@ -4,7 +4,14 @@ import { getDebugLoggingEnabled } from '../../config';
 import { LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../../consts';
 import { getGLMContentText, redactGLMImageDataUrls } from '../../glm-content';
 import { logger } from '../../logger';
-import type { GLMMessage, GLMRequest, GLMTool, GLMUsage, ModelVisionMode } from '../../types';
+import type {
+	GLMMessage,
+	GLMRequest,
+	GLMTool,
+	GLMUsage,
+	ModelVisionMode,
+	ResolvedModelConnection,
+} from '../../types';
 import { REPLAY_MARKER_MIME, parseFirstReplayMarker } from '../replay';
 import {
 	classifyGLMRequest,
@@ -180,6 +187,7 @@ export interface BeginCacheDiagnosticsOptions {
 	visionProxySource?: VisionProxySource;
 	visionStats?: VisionPipelineStats;
 	visionMode?: ModelVisionMode;
+	connection?: ResolvedModelConnection;
 }
 
 export interface CacheDiagnosticsDoneInfo {
@@ -462,6 +470,7 @@ class DefaultCacheDiagnosticsRecorder implements CacheDiagnosticsRecorder {
 					` thinking=${options.isThinkingModel}` +
 					` thinkingEffort=${options.thinkingEffort}` +
 					` maxTokens=${options.maxTokens ?? 'api-default'}` +
+					formatConnectionTrace(options.connection) +
 					` inputMessages=${options.inputMessages.length}` +
 					` glmMessages=${options.request.messages.length}`,
 			),
@@ -643,6 +652,19 @@ class DefaultCacheDiagnosticsRecorder implements CacheDiagnosticsRecorder {
 			this.previousCacheTraces.delete(oldestKey);
 		}
 	}
+}
+
+function formatConnectionTrace(connection: ResolvedModelConnection | undefined): string {
+	if (!connection) {
+		return '';
+	}
+	return (
+		` route=${connection.route}` +
+		` endpoint=${connection.endpoint}` +
+		` protocol=${connection.protocol}` +
+		` credentialChannel=${connection.credentialChannel}` +
+		` customBaseUrl=${connection.usesGlobalBaseUrlOverride}`
+	);
 }
 
 function getCacheTraceStoreKey(snapshot: CacheTraceSnapshot): string {

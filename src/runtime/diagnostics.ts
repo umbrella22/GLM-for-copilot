@@ -1,5 +1,11 @@
 import vscode from 'vscode';
-import { getDebugMode, migrateLegacyDebugSetting, migrateLegacyEndpointSettings } from '../config';
+import { migrateLegacyApiKey } from '../auth';
+import {
+	getDebugMode,
+	migrateLegacyDebugSetting,
+	migrateLegacyEndpointSettings,
+	migrateLegacyModelManagementSettings,
+} from '../config';
 import { CONFIG_SECTION } from '../consts';
 import { logger } from '../logger';
 
@@ -14,6 +20,17 @@ export async function initializeDiagnostics(context: vscode.ExtensionContext): P
 		await migrateLegacyEndpointSettings();
 	} catch (error) {
 		logger.warn('Failed to migrate legacy endpoint settings', error);
+	}
+	try {
+		await migrateLegacyModelManagementSettings();
+	} catch (error) {
+		logger.warn('Failed to migrate legacy model management settings', error);
+	}
+
+	try {
+		await migrateLegacyApiKey(context);
+	} catch (error) {
+		logger.warn('Failed to migrate legacy API key', error);
 	}
 
 	logger.info(

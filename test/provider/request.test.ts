@@ -13,7 +13,10 @@ import type { ConversationSegment } from '../../src/provider/segment';
 import {
 	__clearConfigurationValues,
 	__resetCommandState,
+	__setConfigurationValueAtScope,
 	__setConfigurationValue,
+	__setWorkspaceFolders,
+	ConfigurationTarget,
 } from '../support/vscode.mock';
 
 const token = {
@@ -138,6 +141,113 @@ describe('request preparation', () => {
 				{ type: 'image_url', image_url: { url: 'data:image/png;base64,BwgJ' } },
 			],
 		});
+	});
+
+	it('routes GLM-5V-Turbo through the regional Standard API key and native image path', async () => {
+		__setConfigurationValue('glm-copilot.endpoint', 'china-coding');
+		const getApiKey = vi.fn().mockResolvedValue('standard-api-key');
+		const describe = vi.fn();
+
+		const prepared = await prepareChatRequest({
+			authManager: { getApiKey } as unknown as AuthManager,
+			globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
+			modelInfo: { id: 'glm-5v-turbo' } as vscode.LanguageModelChatInformation,
+			segment,
+			messages: [userMessage([new vscode.LanguageModelTextPart('Look'), imagePart([5, 2])])],
+			options: {} as vscode.ProvideLanguageModelChatResponseOptions,
+			token,
+			cacheDiagnostics: createCacheDiagnosticsRecorder(),
+			getVisionDescriber: async () => ({ id: 'unused', source: 'auto', describe }),
+		});
+
+		expect(getApiKey).toHaveBeenCalledOnce();
+		expect(getApiKey).toHaveBeenCalledWith('china-standard', undefined);
+		expect(prepared.connection).toMatchObject({
+			route: 'same-region-standard',
+			endpoint: 'china-standard',
+			credentialChannel: 'china-standard',
+			apiMode: 'standard',
+		});
+		expect(describe).not.toHaveBeenCalled();
+		expect(resizeImage).toHaveBeenCalledOnce();
+		expect(prepared.visionMode).toBe('native');
+		expect(prepared.request.messages[0]?.content).toEqual([
+			{ type: 'text', text: 'Look' },
+			{ type: 'image_url', image_url: { url: 'data:image/png;base64,BQI=' } },
+		]);
+	});
+
+	it('uses workspace-folder model, route, and vision configuration in the real request', async () => {
+		const folder = vscode.Uri.file('/workspace/app');
+		__setWorkspaceFolders([folder]);
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			{
+				version: 1,
+				defaultConnection: { endpoint: 'international-coding' },
+				models: {
+					'folder-vision': {
+						apiModelId: 'upstream-folder-vision',
+						endpointRoute: 'same-region-standard',
+						visionMode: 'native',
+					},
+				},
+				customModels: {
+					'folder-vision': { id: 'folder-vision', name: 'Folder Vision' },
+				},
+			},
+			ConfigurationTarget.WorkspaceFolder,
+			folder,
+		);
+		const getApiKey = vi.fn().mockResolvedValue('folder-standard-key');
+
+		const prepared = await prepareChatRequest({
+			authManager: { getApiKey } as unknown as AuthManager,
+			globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
+			configurationResource: folder,
+			modelInfo: { id: 'folder-vision' } as vscode.LanguageModelChatInformation,
+			segment,
+			messages: [userMessage([imagePart([4, 2])])],
+			options: {} as vscode.ProvideLanguageModelChatResponseOptions,
+			token,
+			cacheDiagnostics: createCacheDiagnosticsRecorder(),
+			getVisionDescriber: async () => undefined,
+		});
+
+		expect(getApiKey).toHaveBeenCalledWith('international-standard', folder);
+		expect(prepared.request.model).toBe('upstream-folder-vision');
+		expect(prepared.connection).toMatchObject({
+			endpoint: 'international-standard',
+			credentialChannel: 'international-standard',
+		});
+		expect(prepared.visionMode).toBe('native');
+		expect(prepared.request.messages[0]?.content).toEqual([
+			{ type: 'image_url', image_url: { url: 'data:image/png;base64,BAI=' } },
+		]);
+	});
+
+	it('rejects an unsupported GLM-5V-Turbo Coding Plan route before reading a key', async () => {
+		__setConfigurationValue('glm-copilot.modelEndpointOverrides', {
+			'glm-5v-turbo': 'china-coding',
+		});
+		const getApiKey = vi.fn().mockResolvedValue('coding-plan-key');
+
+		await expect(
+			prepareChatRequest({
+				authManager: { getApiKey } as unknown as AuthManager,
+				globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
+				modelInfo: { id: 'glm-5v-turbo' } as vscode.LanguageModelChatInformation,
+				segment,
+				messages: [userMessage([new vscode.LanguageModelTextPart('Hello')])],
+				options: {} as vscode.ProvideLanguageModelChatResponseOptions,
+				token,
+				cacheDiagnostics: createCacheDiagnosticsRecorder(),
+				getVisionDescriber: async () => undefined,
+			}),
+		).rejects.toThrow('does not support the coding-plan connection route');
+
+		expect(getApiKey).not.toHaveBeenCalled();
+		expect(resizeImage).not.toHaveBeenCalled();
 	});
 
 	it('uses resized native bytes for OpenAI-compatible and Anthropic requests', async () => {

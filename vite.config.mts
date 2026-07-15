@@ -1,5 +1,5 @@
-import { defineConfig } from 'vite-plus';
 import { fileURLToPath } from 'node:url';
+import { defineConfig } from 'vite-plus';
 
 const vscodeMockPath = fileURLToPath(new URL('./test/support/vscode.mock.ts', import.meta.url));
 
@@ -21,8 +21,9 @@ export default defineConfig({
 		platform: 'node',
 		target: 'node24.11',
 		fixedExtension: false,
-		sourcemap: true,
-		dts: true,
+		sourcemap: false,
+		// VS Code loads the bundled extension entrypoint; no public declaration bundle is consumed.
+		dts: false,
 		clean: true,
 		checks: {
 			legacyCjs: false,

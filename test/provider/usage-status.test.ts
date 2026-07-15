@@ -19,7 +19,8 @@ describe('GLM usage quota status', () => {
 
 	it('renders only the five-hour progress bar when weekly usage is absent', () => {
 		const nextResetTime = new Date(2026, 6, 18, 12, 30, 47).getTime();
-		status.reportQuota({ fiveHours: { percentage: 5, nextResetTime } });
+		status.setActiveChannels('china-coding', ['china-coding']);
+		status.reportQuota('china-coding', { fiveHours: { percentage: 5, nextResetTime } });
 
 		const item = __getLastStatusBarItem();
 		expect(item).toBeDefined();
@@ -34,9 +35,8 @@ describe('GLM usage quota status', () => {
 			enabledCommands: ['glm-copilot.queryUsage'],
 		});
 		const tooltip = markdown.value;
-		expect(tooltip).toContain(
-			'<table width="100%"><tr><td><b>GLM Coding Plan</b></td><td align="right"><a href="command:glm-copilot.queryUsage">$(refresh)</a></td></tr></table>',
-		);
+		expect(tooltip).toContain('GLM connection usage');
+		expect(tooltip).toContain('China · Coding Plan');
 		expect(tooltip).toContain('5-hour usage');
 		expect(tooltip).not.toContain('Weekly usage');
 		expect(tooltip).toContain('data:image/svg+xml');
@@ -49,7 +49,8 @@ describe('GLM usage quota status', () => {
 	it('renders separate reset times for the five-hour and weekly windows', () => {
 		const fiveHoursReset = new Date(2026, 6, 18, 12, 30, 47).getTime();
 		const sevenDaysReset = new Date(2026, 6, 22, 8, 15, 12).getTime();
-		status.reportQuota({
+		status.setActiveChannels('china-coding', ['china-coding']);
+		status.reportQuota('china-coding', {
 			fiveHours: { percentage: 125, nextResetTime: fiveHoursReset },
 			sevenDays: { percentage: -5, nextResetTime: sevenDaysReset },
 		});
@@ -68,7 +69,8 @@ describe('GLM usage quota status', () => {
 	});
 
 	it('renders a pay-as-you-go waiting state before the first request', () => {
-		status.showBalanceBilling();
+		status.setActiveChannels('china-standard', ['china-standard']);
+		status.showBalanceBilling('china-standard');
 
 		const item = __getLastStatusBarItem();
 		expect(item).toBeDefined();
@@ -79,13 +81,15 @@ describe('GLM usage quota status', () => {
 		expect(markdown.isTrusted).toEqual({
 			enabledCommands: ['glm-copilot.openSettings'],
 		});
-		expect(markdown.value).toContain('GLM pay-as-you-go');
+		expect(markdown.value).toContain('GLM connection usage');
+		expect(markdown.value).toContain('China · Standard API');
 		expect(markdown.value).toContain('Cost will appear after the next request completes.');
 	});
 
 	it('renders last-request and session costs for pay-as-you-go usage', () => {
-		status.reportBalanceCost(createCostEstimate(0.005));
-		status.reportBalanceCost(createCostEstimate(0.01));
+		status.setActiveChannels('china-standard', ['china-standard']);
+		status.reportBalanceCost('china-standard', createCostEstimate(0.005));
+		status.reportBalanceCost('china-standard', createCostEstimate(0.01));
 
 		const item = __getLastStatusBarItem();
 		expect(item).toBeDefined();
@@ -96,6 +100,34 @@ describe('GLM usage quota status', () => {
 		expect(tooltip).toContain('$0.015');
 		expect(tooltip).toContain('GLM &lt;custom&gt;');
 		expect(tooltip).toContain('&lt;$0.0001');
+	});
+
+	it('keeps the default Coding Plan headline while showing standard API costs', () => {
+		status.setActiveChannels('china-coding', ['china-coding', 'china-standard']);
+		status.reportQuota('china-coding', { fiveHours: { percentage: 12 } });
+		status.reportBalanceCost('china-standard', createCostEstimate(0.01));
+
+		const item = __getLastStatusBarItem();
+		if (!item) throw new Error('Expected a status bar item');
+		expect(item.text).toBe('$(pulse) GLM 5h 12%');
+		expect(item.command).toBe('glm-copilot.queryUsage');
+		const tooltip = (item.tooltip as MarkdownString).value;
+		expect(tooltip).toContain('China · Coding Plan');
+		expect(tooltip).toContain('China · Standard API');
+		expect(tooltip).toContain('$0.010');
+	});
+
+	it('preserves PAYG session totals while resetting active connections', () => {
+		status.setActiveChannels('china-standard', ['china-standard']);
+		status.reportBalanceCost('china-standard', createCostEstimate(0.01));
+
+		status.resetConnections();
+		status.setActiveChannels('china-standard', ['china-standard']);
+
+		const item = __getLastStatusBarItem();
+		if (!item) throw new Error('Expected a status bar item');
+		expect(item.text).toBe('$(credit-card) GLM $0.010');
+		expect((item.tooltip as MarkdownString).value).toContain('$0.010');
 	});
 });
 

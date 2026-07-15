@@ -51,6 +51,12 @@
         "displayName": "GLM"
       }
     ],
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "glm-copilot.mcp-servers",
+        "label": "GLM Copilot MCP Servers"
+      }
+    ],
     "commands": [
       {
         "command": "glm-copilot.setApiKey",
@@ -320,6 +326,38 @@
           "default": "Describe all image attachments in this message.\n\nIf there is one image, describe it directly.\nIf there are multiple images:\n1. Describe each image separately, preserving their order.\n2. Then provide a combined description explaining the overall context and relationships across the images.\n\nReturn one concise factual description suitable for inserting into a text-only chat prompt. Include visible text, objects, UI elements, people, and relevant context. Do not invent details.",
           "markdownDescription": "%glm-copilot.config.visionPrompt.description%"
         },
+        "glm-copilot.mcp.zai-mcp-server.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%glm-copilot.config.mcp.zai-mcp-server.enabled.description%"
+        },
+        "glm-copilot.mcp.web-search-prime.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%glm-copilot.config.mcp.web-search-prime.enabled.description%"
+        },
+        "glm-copilot.mcp.web-reader.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%glm-copilot.config.mcp.web-reader.enabled.description%"
+        },
+        "glm-copilot.mcp.zread.enabled": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%glm-copilot.config.mcp.zread.enabled.description%"
+        },
+        "glm-copilot.imageHandlingPrompt": {
+          "type": "string",
+          "editPresentation": "multilineText",
+          "default": "[Image Handling]\nAttached images are stored as local files; their paths appear in the conversation as \"[Image attached at local file: <path>]\". You cannot see images inline — they must be read through an image-capable MCP tool. The file name is a content hash, so the same path always refers to the same image.\n\nBefore reading an image, check whether this conversation already contains an analysis of it (a prior image-tool result, or the one-line digest you emit after analyzing). Reuse that analysis whenever it already answers the user's current question — do not re-read out of habit. Read the image again only when:\n(a) it has not been analyzed yet in this conversation;\n(b) the current question needs detail the prior analysis did not cover; or\n(c) the image may have changed since (for example, the user edited the UI and re-captured it).\n\nAfter you read an image, end with a one-line digest so later turns can reuse it without re-reading:\n[Image digest | <label/path> | <type: ui-mockup | error-screenshot | diagram | …> | <key facts: layout, colors, text, sizes, errors> | <open questions>]\nKeep it to one line — it is an index, not a full description; update it if you re-read and learn more.\n\nNever invent the contents of an image you have not actually read — if analysis is needed and none exists yet, call the tool. If a read fails, returns nothing useless, or leaves you uncertain, say so explicitly rather than guessing; the user must be able to tell when your understanding of an image may be wrong.\n\nWhen the images at hand are stale, missing, or do not show the current state of the problem — for example the user has changed the code and is now reporting a visual bug, or a screenshot is too low-resolution to read an error — ask the user for a fresh, specific screenshot to ground your diagnosis. Ask only when a new capture would actually change your next step; otherwise proceed from what you have and state your assumptions. Request something concrete (the current top nav, the full error dialog with its stack trace), not a vague \"send a screenshot\".\n\nChoose the most appropriate image tool for the image type and the user's intent, and call it directly — do not mention tool names in your reply unless you are invoking that tool.\n",
+          "markdownDescription": "%glm-copilot.config.imageHandlingPrompt.description%"
+        },
+        "glm-copilot.imageStoredPrompt": {
+          "type": "string",
+          "editPresentation": "multilineText",
+          "default": "[{0} attached at local file: {1}]\nThis image cannot be displayed inline; read it with an image-capable MCP tool. The file name is a content hash — if you have already analyzed this path in this conversation, reuse that analysis unless you need new detail or the image has changed.",
+          "markdownDescription": "%glm-copilot.config.imageStoredPrompt.description%"
+        },
         "glm-copilot.debugMode": {
           "type": "string",
           "default": "minimal",
@@ -339,6 +377,79 @@
             "%glm-copilot.config.debugMode.verbose.description%"
           ],
           "markdownDescription": "%glm-copilot.config.debugMode.description%"
+        },
+        "glm-copilot.mcp.servers": {
+          "type": "object",
+          "default": {
+            "zai-mcp-server": {
+              "type": "stdio",
+              "label": "ZAI MCP Server",
+              "detail": "GLM 官方聚合 MCP，含视觉识别等能力",
+              "enabled": true,
+              "command": "npx",
+              "args": ["-y", "@z_ai/mcp-server"]
+            },
+            "web-search-prime": {
+              "type": "http",
+              "label": "Web Search Prime",
+              "detail": "GLM 官方网页搜索",
+              "enabled": true,
+              "url": "https://open.bigmodel.cn/api/mcp/web_search_prime/mcp"
+            },
+            "web-reader": {
+              "type": "http",
+              "label": "Web Reader",
+              "detail": "GLM 官方网页内容抓取",
+              "enabled": true,
+              "url": "https://open.bigmodel.cn/api/mcp/web_reader/mcp"
+            },
+            "zread": {
+              "type": "http",
+              "label": "Zread",
+              "detail": "GLM 官方深度阅读",
+              "enabled": true,
+              "url": "https://open.bigmodel.cn/api/mcp/zread/mcp"
+            }
+          },
+          "scope": "application",
+          "markdownDescription": "%glm-copilot.config.mcp.servers.description%",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type",
+                  "label",
+                  "command"
+                ],
+                "properties": {
+                  "type": { "type": "string", "enum": ["stdio"] },
+                  "label": { "type": "string" },
+                  "detail": { "type": "string" },
+                  "enabled": { "type": "boolean" },
+                  "command": { "type": "string" },
+                  "args": { "type": "array", "items": { "type": "string" } },
+                  "authEnvKey": { "type": "string" }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type",
+                  "label",
+                  "url"
+                ],
+                "properties": {
+                  "type": { "type": "string", "enum": ["http"] },
+                  "label": { "type": "string" },
+                  "detail": { "type": "string" },
+                  "enabled": { "type": "boolean" },
+                  "url": { "type": "string" },
+                  "authScheme": { "type": "string", "enum": ["bearer", "none"] }
+                }
+              }
+            ]
+          }
         }
       }
     }

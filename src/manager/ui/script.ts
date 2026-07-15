@@ -348,6 +348,7 @@ export function getModelManagerScript(initialState: string, initialStrings: stri
 				[
 					{ value: 'proxy', label: strings.visionProxy },
 					{ value: 'native', label: strings.nativeImages },
+					{ value: 'mcp', label: strings.mcpImages }, // [FORK]
 				].forEach((item) => {
 					const label = element('label', 'segmented-option');
 					const input = element('input');

@@ -1046,7 +1046,9 @@ function normalizeApiRegion(
 }
 
 function normalizeModelVisionMode(value: unknown): ModelVisionMode | undefined {
-	return value === 'proxy' || value === 'native' ? value : undefined;
+	return value === 'proxy' || value === 'native' || value === 'mcp' // [FORK] +mcp
+		? value
+		: undefined;
 }
 
 function normalizeModelEndpointRoute(value: unknown): ModelEndpointRoute | undefined {

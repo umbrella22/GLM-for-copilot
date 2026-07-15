@@ -91,6 +91,9 @@ const zh: Translations = {
 		'图片会先由视觉代理识别为文字描述，当前模型只接收描述，不直接接收图片数据。',
 	'manager.visionMode.native': '原生图片',
 	'manager.visionMode.nativeHint': '原生图片会在发送前缩放，并共享 2.5 MiB 图片上下文预算。',
+	'manager.visionMode.mcp': 'MCP 工具', // [FORK]
+	'manager.visionMode.mcpHint': // [FORK]
+		'图片会从请求中剥离并存到本地文件，在对话中只保留一个指向文件路径的简短提示。由具备图像能力的 MCP 工具按需读取。适合纯文本模型（如走 Anthropic 接口的文本模型），避免 base64 无谓浪费上下文。',
 	'manager.field.contextWindow': '上下文窗口（tokens）',
 	'manager.field.maxOutput': '最大输出（tokens）',
 	'manager.field.toolCalling': '支持工具调用',
@@ -486,6 +489,9 @@ const en: Translations = {
 	'manager.visionMode.native': 'Native images',
 	'manager.visionMode.nativeHint':
 		'Native images are resized before sending and share a 2.5 MiB image context budget.',
+	'manager.visionMode.mcp': 'MCP tools', // [FORK]
+	'manager.visionMode.mcpHint': // [FORK]
+		'Images are stripped from the request and persisted to disk; only a short file-path prompt is left in the conversation. An image-capable MCP tool reads them on demand. Best for text-only models (e.g. a Claude-compatible text model behind the Anthropic endpoint) where base64 would waste context.',
 	'manager.field.contextWindow': 'Context window (tokens)',
 	'manager.field.maxOutput': 'Maximum output (tokens)',
 	'manager.field.toolCalling': 'Supports tool calling',

@@ -20,7 +20,7 @@ export type ManagerCredentialChannel =
 	| 'international-coding'
 	| 'international-standard';
 
-export type ManagerVisionMode = 'proxy' | 'native';
+export type ManagerVisionMode = 'proxy' | 'native' | 'mcp'; // [FORK] +mcp
 
 export type ManagerVisionProxySource = 'auto' | 'vscode-lm' | 'api-endpoint';
 

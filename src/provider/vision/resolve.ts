@@ -9,7 +9,9 @@ import {
 	IMAGE_DESCRIPTION_SUFFIX,
 	IMAGE_DESCRIPTION_UNAVAILABLE,
 } from './consts';
+import { logger } from '../../logger'; // [FORK] mcp mode logging
 import { logVisionProxyDescribeFailed, logVisionProxyUnavailable } from './log';
+import { buildImagePromptText, storeImage } from './image-store'; // [FORK] mcp mode
 import { prepareNativeImageMessages } from './native';
 import {
 	formatVisionProxyErrorCode,
@@ -47,6 +49,14 @@ export async function resolveImageMessages(
 	}
 	if (visionMode === 'native') {
 		return prepareNativeImageMessages(messages, token, stats);
+	}
+	// [FORK] mcp mode: strip images from the request, persist them to disk, and
+	// replace each image part with a short text prompt pointing to the file path.
+	// This lets an image-capable MCP tool read the image by path, avoiding the
+	// massive context bloat of base64 for text-only models. Kept as a single
+	// early-return branch so the upstream proxy/native logic below is untouched.
+	if (visionMode === 'mcp') {
+		return stripImagesForMcpMode(messages, token, stats);
 	}
 
 	const markerBindings = createVisionMarkerBindings(messages, stats);
@@ -377,4 +387,98 @@ function toVisionImagePart(part: vscode.LanguageModelDataPart): VisionImagePart 
 		mimeType: part.mimeType,
 		data: part.data,
 	};
+}
+
+// ---- [FORK] MCP mode: strip images, persist to disk, leave file-path prompts ----
+
+/**
+ * MCP vision mode: for every message that carries image parts, persist the
+ * images to disk (content-addressable) and replace them with a short text
+ * prompt pointing to the file path. Non-image parts are preserved.
+ *
+ * Unlike `proxy` mode, no vision model is called and no base64 is kept in
+ * context — the model is expected to call an image-capable MCP tool to read
+ * the stored file on demand. This is the right mode for text-only models
+ * (e.g. a Claude-compatible text model behind the Anthropic endpoint) where
+ * injecting base64 would waste context without any benefit.
+ *
+ * If storage fails for any image, that image falls back to an
+ * "[unavailable]" text marker (still no base64), so a storage hiccup never
+ * silently bloats the context.
+ */
+async function stripImagesForMcpMode(
+	messages: readonly vscode.LanguageModelChatRequestMessage[],
+	token: vscode.CancellationToken,
+	stats: VisionResolutionStats,
+): Promise<VisionResolutionResult> {
+	const result: vscode.LanguageModelChatRequestMessage[] = [];
+
+	for (const message of messages) {
+		const imageParts = getImageParts(message);
+		if (imageParts.length === 0) {
+			result.push(message as vscode.LanguageModelChatRequestMessage);
+			continue;
+		}
+
+		const nonImageParts = getNonImageParts(message);
+		const stored = await storeImagesAndBuildText(imageParts, token);
+		stats.droppedImageParts += imageParts.length;
+
+		if (stored) {
+			result.push(
+				createResolvedMessage(message, [...nonImageParts, ...stored.textParts]),
+			);
+		} else {
+			// Storage failed — fall back to an unavailable marker. Never keep
+			// base64 in context: it would bloat text models with no benefit.
+			logVisionProxyUnavailable();
+			stats.unavailableImageMessages += 1;
+			result.push(
+				createResolvedMessage(message, [
+					...nonImageParts,
+					new vscode.LanguageModelTextPart(IMAGE_DESCRIPTION_UNAVAILABLE),
+				]),
+			);
+		}
+	}
+
+	return {
+		messages: result,
+		stats,
+		replayMarkerMetadata: {},
+	};
+}
+
+/**
+ * Persist image parts to temporary files and build text prompt parts that
+ * tell the model where to find each image on disk.
+ *
+ * Returns `undefined` if storage is unavailable (not initialized or write
+ * failure for any image). In that case the caller falls back to the
+ * unavailable-marker path — NOT base64.
+ *
+ * The resulting text is ~50 tokens per image vs ~50K+ tokens for base64.
+ */
+async function storeImagesAndBuildText(
+	imageParts: readonly vscode.LanguageModelDataPart[],
+	token: vscode.CancellationToken,
+): Promise<{ textParts: vscode.LanguageModelTextPart[] } | undefined> {
+	const textParts: vscode.LanguageModelTextPart[] = [];
+
+	for (let i = 0; i < imageParts.length; i++) {
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		const part = imageParts[i];
+		const filePath = await storeImage(part.data, part.mimeType);
+		if (!filePath) {
+			logger.warn(
+				`Failed to store image ${i + 1}/${imageParts.length} to file; falling back to unavailable marker`,
+			);
+			return undefined;
+		}
+		textParts.push(new vscode.LanguageModelTextPart(buildImagePromptText(filePath, i, imageParts.length)));
+	}
+
+	return textParts.length > 0 ? { textParts } : undefined;
 }

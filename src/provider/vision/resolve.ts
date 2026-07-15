@@ -1,6 +1,7 @@
 import vscode from 'vscode';
 import { t } from '../../i18n';
 import { toWellFormedString } from '../../json';
+import type { ModelVisionMode } from '../../types';
 import { parseFirstReplayMarker } from '../replay';
 import { createVisionProxyFailureNotice, createVisionProxyMissingNotice } from '../tools/notices';
 import {
@@ -9,6 +10,7 @@ import {
 	IMAGE_DESCRIPTION_UNAVAILABLE,
 } from './consts';
 import { logVisionProxyDescribeFailed, logVisionProxyUnavailable } from './log';
+import { prepareNativeImageMessages } from './native';
 import {
 	formatVisionProxyErrorCode,
 	getVisionProxyErrorDisplayCode,
@@ -36,11 +38,15 @@ export async function resolveImageMessages(
 	messages: readonly vscode.LanguageModelChatRequestMessage[],
 	token: vscode.CancellationToken,
 	getDescriber: () => Promise<VisionDescriber | undefined>,
+	visionMode: ModelVisionMode = 'proxy',
 ): Promise<VisionResolutionResult> {
 	const stats = createVisionResolutionStats();
 	collectInputImageStats(messages, stats);
 	if (stats.inputImageParts === 0) {
 		return { messages, stats, replayMarkerMetadata: {} };
+	}
+	if (visionMode === 'native') {
+		return prepareNativeImageMessages(messages, token, stats);
 	}
 
 	const markerBindings = createVisionMarkerBindings(messages, stats);
@@ -124,6 +130,13 @@ function createVisionResolutionStats(): VisionResolutionStats {
 	return {
 		inputImageParts: 0,
 		inputImageMessages: 0,
+		inputImageBytes: 0,
+		nativeImageParts: 0,
+		nativeImageMessages: 0,
+		nativeImageBytesAfterResize: 0,
+		nativeImageBytes: 0,
+		nativeBudgetOmittedParts: 0,
+		nativeResizeFailures: 0,
 		currentImageMessages: 0,
 		generatedImageMessages: 0,
 		replayedImageMessages: 0,
@@ -141,12 +154,13 @@ function collectInputImageStats(
 	stats: VisionResolutionStats,
 ): void {
 	for (const message of messages) {
-		const imageParts = getImageParts(message).length;
-		if (imageParts === 0) {
+		const imageParts = getImageParts(message);
+		if (imageParts.length === 0) {
 			continue;
 		}
 		stats.inputImageMessages += 1;
-		stats.inputImageParts += imageParts;
+		stats.inputImageParts += imageParts.length;
+		stats.inputImageBytes += imageParts.reduce((total, part) => total + part.data.byteLength, 0);
 	}
 }
 

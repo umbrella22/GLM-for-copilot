@@ -82,6 +82,8 @@ interface BuildPreparedOptions {
 	replayMarkerMetadata?: { visionText?: string; reasoningText?: string };
 	requestMessages?: GLMMessage[];
 	segment?: ConversationSegment;
+	nativeImageParts?: number;
+	nativeImageBytes?: number;
 }
 
 function chatMessage(
@@ -103,6 +105,8 @@ function buildPrepared({
 	replayMarkerMetadata = {},
 	requestMessages = [],
 	segment = defaultSegment(),
+	nativeImageParts = 0,
+	nativeImageBytes = 0,
 }: BuildPreparedOptions): PreparedChatRequest {
 	const diagnostics = fakeDiagnostics();
 	const prepared: PreparedChatRequest = {
@@ -119,6 +123,9 @@ function buildPrepared({
 		requestKind: 'main-agent' as RequestKind,
 		segment,
 		replayMarkerMetadata,
+		visionMode: nativeImageParts > 0 ? 'native' : 'proxy',
+		nativeImageParts,
+		nativeImageBytes,
 	};
 	(prepared as unknown as { __diagnostics: typeof diagnostics }).__diagnostics = diagnostics;
 	return prepared;
@@ -278,6 +285,61 @@ describe('streamChatCompletion marker reporting', () => {
 		});
 		expect(getDiagnostics(prepared).contextUsage).toEqual([
 			expect.objectContaining({ source: 'provider', providerCallbackCount: 2 }),
+		]);
+	});
+
+	it('marks native image token usage unknown when the provider omits usage', async () => {
+		const prepared = buildPrepared({
+			nativeImageParts: 1,
+			nativeImageBytes: 3,
+			driver: (cb) => {
+				cb.onContent('answer');
+				cb.onDone();
+			},
+		});
+
+		await streamChatCompletion({
+			prepared,
+			progress: { report() {} },
+			token: new MutableCancellationToken(),
+			getCharsPerToken: () => 4,
+			setCharsPerToken: () => {},
+		});
+
+		expect(getDiagnostics(prepared).contextUsage).toEqual([
+			expect.objectContaining({
+				source: 'estimate',
+				nativeImageParts: 1,
+				nativeImageBytes: 3,
+				imageTokenSource: 'unknown',
+			}),
+		]);
+	});
+
+	it('treats provider usage as authoritative for native image token accounting', async () => {
+		const prepared = buildPrepared({
+			nativeImageParts: 1,
+			nativeImageBytes: 3,
+			driver: (cb) => {
+				cb.onContent('answer');
+				cb.onUsage?.({ prompt_tokens: 12, completion_tokens: 3, total_tokens: 15 });
+				cb.onDone();
+			},
+		});
+
+		await streamChatCompletion({
+			prepared,
+			progress: { report() {} },
+			token: new MutableCancellationToken(),
+			getCharsPerToken: () => 4,
+			setCharsPerToken: () => {},
+		});
+
+		expect(getDiagnostics(prepared).contextUsage).toEqual([
+			expect.objectContaining({
+				source: 'provider',
+				imageTokenSource: 'provider',
+			}),
 		]);
 	});
 

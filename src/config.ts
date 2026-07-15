@@ -1,5 +1,6 @@
 import vscode from 'vscode';
 import { CONFIG_SECTION, MODELS } from './consts';
+import { DEFAULT_GLM_VISION_MODEL_ID } from './provider/vision/consts';
 import {
 	deriveEndpointPreset,
 	normalizeBaseUrl,
@@ -14,6 +15,7 @@ import type {
 	ApiRegion,
 	CustomModelConfig,
 	EndpointPreset,
+	ModelVisionMode,
 	ModelDefinition,
 } from './types';
 
@@ -163,6 +165,36 @@ export function getModelIdOverrides(): Record<string, string> {
 		Object.entries(raw)
 			.map(([key, value]) => [key.trim(), typeof value === 'string' ? value.trim() : ''])
 			.filter(([key, value]) => key.length > 0 && value.length > 0),
+	);
+}
+
+/**
+ * Resolve image routing by VS Code model ID rather than by its upstream API
+ * override. The built-in vision model opts into native image input by default;
+ * all other models retain the proxy behavior unless explicitly configured.
+ */
+export function getModelVisionMode(vscodeModelId: string): ModelVisionMode {
+	const mode = getModelVisionModes()[vscodeModelId];
+	if (mode) {
+		return mode;
+	}
+	return vscodeModelId === DEFAULT_GLM_VISION_MODEL_ID ? 'native' : 'proxy';
+}
+
+export function getModelVisionModes(): Record<string, ModelVisionMode> {
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+	const raw = config.get<Record<string, unknown>>('modelVisionModes');
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+		return {};
+	}
+
+	return Object.fromEntries(
+		Object.entries(raw)
+			.map(([key, value]) => [key.trim(), normalizeModelVisionMode(value)] as const)
+			.filter(
+				(entry): entry is readonly [string, ModelVisionMode] =>
+					entry[0].length > 0 && entry[1] !== undefined,
+			),
 	);
 }
 
@@ -461,6 +493,10 @@ function normalizeApiRegion(
 	fallback: ApiRegion | undefined,
 ): ApiRegion | undefined {
 	return value === 'china' || value === 'international' ? value : fallback;
+}
+
+function normalizeModelVisionMode(value: unknown): ModelVisionMode | undefined {
+	return value === 'proxy' || value === 'native' ? value : undefined;
 }
 
 function normalizeCustomModel(entry: unknown): ModelDefinition | undefined {

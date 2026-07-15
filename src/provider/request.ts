@@ -7,10 +7,17 @@ import {
 	getApiProtocol,
 	getBaseUrl,
 	getMaxTokens,
+	getModelVisionMode,
 } from '../config';
 import { identifyOfficialGLMApiMode, isOfficialGLMBaseUrl } from '../endpoint';
 import { t } from '../i18n';
-import type { ApiMode, GLMRequest, ModelDefinition, PricingCurrency } from '../types';
+import type {
+	ApiMode,
+	GLMRequest,
+	ModelDefinition,
+	ModelVisionMode,
+	PricingCurrency,
+} from '../types';
 import { convertMessages, countRequestPromptChars } from './convert';
 import {
 	dumpGLMRequest,
@@ -42,6 +49,9 @@ export interface PreparedChatRequest {
 	visionMarkerTextChars?: number;
 	initialResponseNotice?: string;
 	requestDump?: RequestDumpRun;
+	visionMode: ModelVisionMode;
+	nativeImageParts: number;
+	nativeImageBytes: number;
 }
 
 export interface PrepareChatRequestOptions {
@@ -79,8 +89,14 @@ export async function prepareChatRequest({
 	const isThinkingModel = modelDef?.capabilities.thinking ?? false;
 	const maxTokens = getMaxTokens();
 	const apiModelId = getApiModelId(modelInfo.id);
+	const visionMode = getModelVisionMode(modelInfo.id);
 
-	const visionResolution = await resolveImageMessages(messages, token, getVisionDescriber);
+	const visionResolution = await resolveImageMessages(
+		messages,
+		token,
+		getVisionDescriber,
+		visionMode,
+	);
 	const resolvedMessages = visionResolution.messages;
 	const glmMessages = convertMessages(resolvedMessages, isThinkingModel);
 	const tools = prepareRequestTools(modelDef?.capabilities.toolCalling, options);
@@ -136,6 +152,7 @@ export async function prepareChatRequest({
 		visionModelId: visionResolution.visionModelId,
 		visionProxySource: visionResolution.visionProxySource,
 		visionStats: visionResolution.stats,
+		visionMode,
 	});
 
 	const diagnosticsRun = cacheDiagnostics.beginRequest({
@@ -151,6 +168,7 @@ export async function prepareChatRequest({
 		visionModelId: visionResolution.visionModelId,
 		visionProxySource: visionResolution.visionProxySource,
 		visionStats: visionResolution.stats,
+		visionMode,
 	});
 
 	return {
@@ -169,5 +187,8 @@ export async function prepareChatRequest({
 		visionMarkerTextChars: visionResolution.stats.markerVisionTextChars || undefined,
 		initialResponseNotice: visionResolution.initialResponseNotice,
 		requestDump,
+		visionMode,
+		nativeImageParts: visionResolution.stats.nativeImageParts,
+		nativeImageBytes: visionResolution.stats.nativeImageBytes,
 	};
 }

@@ -16,6 +16,10 @@ function message(
 	return { role, content } as vscode.LanguageModelChatRequestMessage;
 }
 
+function imagePart(data = [1, 2, 3]): vscode.LanguageModelDataPart {
+	return new vscode.LanguageModelDataPart(new Uint8Array(data), 'image/png');
+}
+
 describe('message and tool conversion', () => {
 	it('converts user, assistant, and internal system-role text messages', () => {
 		const messages = convertMessages(
@@ -114,6 +118,52 @@ describe('message and tool conversion', () => {
 		);
 
 		expect(messages[0]?.reasoning_content).toBe('marker reasoning');
+	});
+
+	it('preserves user text and native images in their original order', () => {
+		const messages = convertMessages(
+			[
+				message(vscode.LanguageModelChatMessageRole.User, [
+					new vscode.LanguageModelTextPart('before'),
+					imagePart([1, 2, 3]),
+					new vscode.LanguageModelTextPart('after'),
+				]),
+			],
+			false,
+		);
+
+		expect(messages).toEqual([
+			{
+				role: 'user',
+				content: [
+					{ type: 'text', text: 'before' },
+					{ type: 'image_url', image_url: { url: 'data:image/png;base64,AQID' } },
+					{ type: 'text', text: 'after' },
+				],
+			},
+		]);
+		expect(countMessageChars(messages)).toBe('beforeafter'.length);
+	});
+
+	it('preserves a user message containing only a native image', () => {
+		const messages = convertMessages(
+			[message(vscode.LanguageModelChatMessageRole.User, [imagePart([4, 5])])],
+			false,
+		);
+
+		expect(messages[0]).toEqual({
+			role: 'user',
+			content: [{ type: 'image_url', image_url: { url: 'data:image/png;base64,BAU=' } }],
+		});
+	});
+
+	it('rejects native images outside user messages', () => {
+		expect(() =>
+			convertMessages(
+				[message(vscode.LanguageModelChatMessageRole.Assistant, [imagePart()])],
+				false,
+			),
+		).toThrow('Native image input is only supported in user messages.');
 	});
 
 	it('converts tool definitions and counts request characters', () => {

@@ -1,7 +1,8 @@
 import vscode from 'vscode';
 import { LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../consts';
+import { createGLMImageContentPart } from '../glm-content';
 import { safeStringify } from '../json';
-import type { GLMMessage, GLMRequest, GLMTool, GLMToolCall } from '../types';
+import type { GLMMessage, GLMMessageContent, GLMRequest, GLMTool, GLMToolCall } from '../types';
 import { parseFirstReplayMarker } from './replay';
 
 /**
@@ -17,14 +18,22 @@ export function convertMessages(
 	for (const message of messages) {
 		const role = mapRole(message.role);
 
-		let content = '';
+		const contentParts: Exclude<GLMMessageContent, string> = [];
 		let thinkingContent = '';
 		const toolCalls: GLMToolCall[] = [];
 		const toolResults: Array<{ callId: string; content: string }> = [];
 
 		for (const part of message.content) {
 			if (part instanceof vscode.LanguageModelTextPart) {
-				content += part.value;
+				appendTextContentPart(contentParts, part.value);
+			} else if (
+				part instanceof vscode.LanguageModelDataPart &&
+				part.mimeType.startsWith('image/')
+			) {
+				if (role !== 'user') {
+					throw new Error('Native image input is only supported in user messages.');
+				}
+				contentParts.push(createGLMImageContentPart(part.mimeType, part.data));
 			} else if (isLanguageModelThinkingPart(part)) {
 				thinkingContent += normalizeThinkingPartText(part.value);
 			} else if (part instanceof vscode.LanguageModelToolCallPart) {
@@ -49,13 +58,14 @@ export function convertMessages(
 				});
 			}
 		}
+		const content = getMessageContent(contentParts);
 
 		if (role === 'assistant') {
 			if (content || toolCalls.length > 0 || (isThinkingModel && thinkingContent)) {
 				const replayMarker = isThinkingModel ? parseFirstReplayMarker(message) : undefined;
 				const msg: GLMMessage = {
 					role: 'assistant' as const,
-					content: content || '',
+					content: typeof content === 'string' ? content : '',
 				};
 
 				if (toolCalls.length > 0) {
@@ -69,7 +79,7 @@ export function convertMessages(
 				result.push(msg);
 			}
 		} else {
-			if (content) {
+			if (typeof content === 'string' ? content.length > 0 : content.length > 0) {
 				result.push({
 					role,
 					content: content,
@@ -151,7 +161,7 @@ export function convertTools(
 export function countMessageChars(messages: GLMMessage[]): number {
 	let total = 0;
 	for (const msg of messages) {
-		total += msg.content?.length ?? 0;
+		total += getTextContentChars(msg.content);
 		total += msg.reasoning_content?.length ?? 0;
 		if (msg.tool_calls) {
 			for (const tc of msg.tool_calls) {
@@ -161,6 +171,36 @@ export function countMessageChars(messages: GLMMessage[]): number {
 		}
 	}
 	return total;
+}
+
+function appendTextContentPart(
+	contentParts: Exclude<GLMMessageContent, string>,
+	text: string,
+): void {
+	const previous = contentParts.at(-1);
+	if (previous?.type === 'text') {
+		previous.text += text;
+		return;
+	}
+	contentParts.push({ type: 'text', text });
+}
+
+function getMessageContent(contentParts: Exclude<GLMMessageContent, string>): GLMMessageContent {
+	return contentParts.some((part) => part.type === 'image_url')
+		? contentParts
+		: contentParts
+				.filter(
+					(part): part is Extract<(typeof contentParts)[number], { type: 'text' }> =>
+						part.type === 'text',
+				)
+				.map((part) => part.text)
+				.join('');
+}
+
+function getTextContentChars(content: GLMMessageContent): number {
+	return typeof content === 'string'
+		? content.length
+		: content.reduce((total, part) => total + (part.type === 'text' ? part.text.length : 0), 0);
 }
 
 /** Count model-visible request content for local context-usage estimation. */

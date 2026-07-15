@@ -2,8 +2,9 @@ import { createHash } from 'crypto';
 import vscode from 'vscode';
 import { getDebugLoggingEnabled } from '../../config';
 import { LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../../consts';
+import { getGLMContentText, redactGLMImageDataUrls } from '../../glm-content';
 import { logger } from '../../logger';
-import type { GLMMessage, GLMRequest, GLMTool, GLMUsage } from '../../types';
+import type { GLMMessage, GLMRequest, GLMTool, GLMUsage, ModelVisionMode } from '../../types';
 import { REPLAY_MARKER_MIME, parseFirstReplayMarker } from '../replay';
 import {
 	classifyGLMRequest,
@@ -178,6 +179,7 @@ export interface BeginCacheDiagnosticsOptions {
 	visionModelId?: string;
 	visionProxySource?: VisionProxySource;
 	visionStats?: VisionPipelineStats;
+	visionMode?: ModelVisionMode;
 }
 
 export interface CacheDiagnosticsDoneInfo {
@@ -197,6 +199,7 @@ export interface CacheDiagnosticsRun {
 
 export type ReplayMarkerReportStatus = 'reported' | 'failed' | 'skipped';
 export type PartReportStatus = ReplayMarkerReportStatus;
+export type ImageTokenSource = 'none' | 'provider' | 'unknown';
 export type ReportedResponsePartKind =
 	| 'notice'
 	| 'thinking'
@@ -225,6 +228,9 @@ export interface ContextUsageReportInfo {
 	reason?: 'cancelled' | 'stream-error';
 	providerUsageObserved: boolean;
 	providerCallbackCount: number;
+	nativeImageParts: number;
+	nativeImageBytes: number;
+	imageTokenSource: ImageTokenSource;
 	source?: ContextUsageSource;
 	promptTokenSource?: TokenCountSource;
 	completionTokenSource?: TokenCountSource;
@@ -489,7 +495,11 @@ class DefaultCacheDiagnosticsRecorder implements CacheDiagnosticsRecorder {
 				logger.info(message);
 			}
 		}
-		const visionTrace = formatVisionTrace(visionResolution, options.visionStats);
+		const visionTrace = formatVisionTrace(
+			visionResolution,
+			options.visionStats,
+			options.visionMode,
+		);
 		if (visionTrace) {
 			logger.info(formatRequestLogLine(requestKind, `[cache-trace #${requestId}] ${visionTrace}`));
 		}
@@ -786,6 +796,9 @@ function formatContextUsageReport(info: ContextUsageReportInfo): string {
 		`contextUsage status=${info.status}` +
 		` providerUsageObserved=${info.providerUsageObserved}` +
 		` providerCallbacks=${info.providerCallbackCount}` +
+		` nativeImageParts=${info.nativeImageParts}` +
+		` nativeImageBytes=${info.nativeImageBytes}` +
+		` imageTokenSource=${info.imageTokenSource}` +
 		source +
 		promptSource +
 		completionSource +
@@ -903,7 +916,7 @@ function formatError(error: unknown): string {
 }
 
 function sanitizeLogValue(value: string): string {
-	return value.replace(/\s+/g, ' ').slice(0, 200);
+	return redactGLMImageDataUrls(value).replace(/\s+/g, ' ').slice(0, 200);
 }
 
 function logUsage(
@@ -1021,6 +1034,7 @@ function getMessageText(message: vscode.LanguageModelChatRequestMessage): string
 function formatVisionTrace(
 	stats: VisionMessageStats,
 	pipelineStats: VisionPipelineStats | undefined,
+	visionMode: ModelVisionMode | undefined,
 ): string | undefined {
 	if (
 		stats.inputImageParts === 0 &&
@@ -1050,6 +1064,31 @@ function formatVisionTrace(
 		appendNumberIfNonZero(parts, 'failed', pipelineStats.failedImageMessages);
 		appendNumberIfNonZero(parts, 'markerChars', pipelineStats.markerVisionTextChars);
 		appendNumberIfNonZero(parts, 'invalidMarkerVision', pipelineStats.invalidMarkerVisionMetadata);
+		if (visionMode === 'native') {
+			parts.push(
+				`nativeParts=${pipelineStats.nativeImageParts}`,
+				`nativeMessages=${pipelineStats.nativeImageMessages}`,
+				`nativeBytesAfterResize=${pipelineStats.nativeImageBytesAfterResize}`,
+				`nativeBytes=${pipelineStats.nativeImageBytes}`,
+				`nativeBudgetOmittedParts=${pipelineStats.nativeBudgetOmittedParts}`,
+				`nativeResizeFailures=${pipelineStats.nativeResizeFailures}`,
+			);
+		} else {
+			appendNumberIfNonZero(parts, 'nativeParts', pipelineStats.nativeImageParts);
+			appendNumberIfNonZero(parts, 'nativeMessages', pipelineStats.nativeImageMessages);
+			appendNumberIfNonZero(
+				parts,
+				'nativeBytesAfterResize',
+				pipelineStats.nativeImageBytesAfterResize,
+			);
+			appendNumberIfNonZero(parts, 'nativeBytes', pipelineStats.nativeImageBytes);
+			appendNumberIfNonZero(
+				parts,
+				'nativeBudgetOmittedParts',
+				pipelineStats.nativeBudgetOmittedParts,
+			);
+			appendNumberIfNonZero(parts, 'nativeResizeFailures', pipelineStats.nativeResizeFailures);
+		}
 	} else {
 		appendNumberIfNonZero(parts, 'generated', stats.describedImageMessages);
 		appendNumberIfNonZero(parts, 'failed', stats.failedImageMessages);
@@ -1057,6 +1096,9 @@ function formatVisionTrace(
 	}
 
 	parts.push(`model=${visionModel}`);
+	if (visionMode) {
+		parts.push(`mode=${visionMode}`);
+	}
 	if (stats.visionProxySource) {
 		parts.push(`source=${stats.visionProxySource}`);
 	}
@@ -1734,21 +1776,22 @@ function summarizeMessage(
 		: ('none' as const);
 	const hasReasoningContent = message.reasoning_content !== undefined;
 	const hasEmptyReasoningContent = hasReasoningContent && reasoningChars === 0;
-	const imageDescriptionCount = countLiteral(message.content, '[Image Description:');
-	const unableImageCount = countLiteral(message.content, IMAGE_DESCRIPTION_UNAVAILABLE);
-	const urlCount = countRegex(message.content, /https?:\/\//g);
-	const codeFenceCount = countLiteral(message.content, '```');
-	const likelyPathCount = countLikelyPaths(message.content);
+	const contentText = getGLMContentText(message.content);
+	const imageDescriptionCount = countLiteral(contentText, '[Image Description:');
+	const unableImageCount = countLiteral(contentText, IMAGE_DESCRIPTION_UNAVAILABLE);
+	const urlCount = countRegex(contentText, /https?:\/\//g);
+	const codeFenceCount = countLiteral(contentText, '```');
+	const likelyPathCount = countLikelyPaths(contentText);
 
 	return {
 		index,
 		role: message.role,
 		hash: hashString(stableStringify(message)),
-		contentHash: hashString(message.content),
-		contentHeadHash: hashString(message.content.slice(0, HASH_WINDOW_CHARS)),
-		contentTailHash: hashString(message.content.slice(-HASH_WINDOW_CHARS)),
-		contentChars: message.content.length,
-		contentLines: countLines(message.content),
+		contentHash: hashString(contentText),
+		contentHeadHash: hashString(contentText.slice(0, HASH_WINDOW_CHARS)),
+		contentTailHash: hashString(contentText.slice(-HASH_WINDOW_CHARS)),
+		contentChars: contentText.length,
+		contentLines: countLines(contentText),
 		imageDescriptionCount,
 		unableImageCount,
 		urlCount,
@@ -1764,7 +1807,7 @@ function summarizeMessage(
 		missingPostToolReasoning: assistantAfterToolResult && !hasReasoningContent,
 		missingPostToolCallReasoning: afterToolResultKind === 'tool-call' && !hasReasoningContent,
 		missingPostToolFinalReasoning: afterToolResultKind === 'final' && !hasReasoningContent,
-		contentSections: index === 0 ? summarizeSystemPromptSections(message.content) : undefined,
+		contentSections: index === 0 ? summarizeSystemPromptSections(contentText) : undefined,
 	};
 }
 
@@ -1930,6 +1973,7 @@ function summarizeStats(messages: GLMMessage[], toolCount: number): CacheTraceSt
 	let followsToolResult = false;
 
 	for (const message of messages) {
+		const contentText = getGLMContentText(message.content);
 		if (message.role === 'user') {
 			userMessages += 1;
 		} else if (message.role === 'assistant') {
@@ -1940,33 +1984,33 @@ function summarizeStats(messages: GLMMessage[], toolCount: number): CacheTraceSt
 			systemMessages += 1;
 		}
 
-		totalContentChars += message.content.length;
-		if (message.content.length > LARGE_MESSAGE_CHARS) {
+		totalContentChars += contentText.length;
+		if (contentText.length > LARGE_MESSAGE_CHARS) {
 			largeMessages += 1;
 		}
 
-		const imageDescriptions = countLiteral(message.content, '[Image Description:');
+		const imageDescriptions = countLiteral(contentText, '[Image Description:');
 		if (imageDescriptions > 0) {
 			imageDescriptionMessages += 1;
 			imageDescriptionParts += imageDescriptions;
 		}
-		if (message.content.includes(IMAGE_DESCRIPTION_UNAVAILABLE)) {
+		if (contentText.includes(IMAGE_DESCRIPTION_UNAVAILABLE)) {
 			unableImageMessages += 1;
 		}
 
-		const messageUrlCount = countRegex(message.content, /https?:\/\//g);
+		const messageUrlCount = countRegex(contentText, /https?:\/\//g);
 		if (messageUrlCount > 0) {
 			urlMessages += 1;
 			urlCount += messageUrlCount;
 		}
 
-		const messageCodeFenceCount = countLiteral(message.content, '```');
+		const messageCodeFenceCount = countLiteral(contentText, '```');
 		if (messageCodeFenceCount > 0) {
 			codeFenceMessages += 1;
 			codeFenceCount += messageCodeFenceCount;
 		}
 
-		const messageLikelyPathCount = countLikelyPaths(message.content);
+		const messageLikelyPathCount = countLikelyPaths(contentText);
 		if (messageLikelyPathCount > 0) {
 			likelyPathMessages += 1;
 			likelyPathCount += messageLikelyPathCount;

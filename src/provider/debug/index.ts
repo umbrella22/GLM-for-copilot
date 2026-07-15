@@ -7,6 +7,7 @@ export type {
 	CacheDiagnosticsRecorder,
 	CacheDiagnosticsRun,
 	ContextUsageReportInfo,
+	ImageTokenSource,
 	PartReportStatus,
 	ReportedResponsePartKind,
 	ReplayMarkerReportInfo,

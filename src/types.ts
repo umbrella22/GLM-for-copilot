@@ -4,9 +4,25 @@
 
 // ---- API request/response types ----
 
+/** OpenAI-compatible multimodal text segment. */
+export interface GLMTextContentPart {
+	type: 'text';
+	text: string;
+}
+
+/** OpenAI-compatible image segment backed by a generated data URL. */
+export interface GLMImageContentPart {
+	type: 'image_url';
+	image_url: {
+		url: string;
+	};
+}
+
+export type GLMMessageContent = string | Array<GLMTextContentPart | GLMImageContentPart>;
+
 export interface GLMMessage {
 	role: 'system' | 'user' | 'assistant' | 'tool';
-	content: string;
+	content: GLMMessageContent;
 	tool_call_id?: string;
 	tool_calls?: GLMToolCall[];
 	reasoning_content?: string;
@@ -115,6 +131,9 @@ export type EndpointPreset =
 	| 'international-coding'
 	| 'international-standard'
 	| 'international-anthropic';
+
+/** How image attachments reach the model selected in Copilot. */
+export type ModelVisionMode = 'proxy' | 'native';
 
 export type CustomModelConfigEntry = string | CustomModelConfig;
 

@@ -26,7 +26,7 @@ Love GLM's price-performance but don't want to give up GitHub Copilot's agent mo
 
 - **Don't replace Copilot — power it up.** No new sidebar, no new chat UI to learn. Just a new model in the picker you already use.
 - **Agent mode, tool calling, instructions, MCP, skills — all of it still works.** Copilot's entire stack, now running on GLM.
-- **Vision where each model needs it.** For GLM-5.2 and GLM-5-Turbo, images are transparently described by GLM-4.6V-Flash first, then passed along as text. If GLM-4.6V-Flash is unavailable, the extension falls back to another Copilot/VS Code vision model.
+- **Vision where each model needs it.** GLM-4.6V-Flash receives images directly by default. GLM-5.2 and GLM-5-Turbo use the transparent Vision Proxy, which describes images with GLM-4.6V-Flash before passing text along. You can choose either mode per model.
 - **Estimated per-turn cost.** When the GLM API returns usage, the extension estimates the official list-price cost, reports it to Copilot usage metadata, writes it to logs, and shows the latest turn in the status bar.
 - **BYOK, pay GLM directly.** Your API key, your bill, your rate limits. Stored in the OS keychain, never on disk.
 
@@ -38,7 +38,7 @@ All three models show up alongside GPT-4o, Claude, and friends in Copilot Chat's
 
 ### Transparent Vision Proxy
 
-Drop a screenshot into chat and the automatic proxy asks GLM-4.6V-Flash to describe it before the selected GLM model receives the prompt. If GLM-4.6V-Flash is unavailable on the current endpoint or plan, the extension falls back to another installed Copilot/VS Code vision model. You can also force a VS Code model or a custom API endpoint from **GLM: Configure Vision Proxy**.
+When a model uses `proxy` mode, the automatic proxy asks GLM-4.6V-Flash to describe the screenshot before the selected model receives the prompt. If GLM-4.6V-Flash is unavailable on the current endpoint or plan, the extension falls back to another installed Copilot/VS Code vision model. You can also force a VS Code model or a custom API endpoint from **GLM: Configure Vision Proxy**. GLM-4.6V-Flash itself uses `native` mode by default and receives the original image directly.
 
 This keeps GLM-5.2 focused on coding/reasoning while GLM-4.6V-Flash handles multimodal extraction.
 
@@ -105,7 +105,7 @@ Install from the registry used by your editor:
 | **GLM-4.6V-Flash** | Multimodal questions, screenshots, visual context  |
 | **GLM-5-Turbo**    | Fast everyday coding, quick edits, cheap iteration |
 
-All three support optional thinking mode and tool calling. GLM-5.2 is the best fit for long-context or high-reasoning tasks; GLM-4.6V-Flash is used automatically as the first vision proxy for image attachments.
+All three support optional thinking mode and tool calling. GLM-5.2 is the best fit for long-context or high-reasoning tasks; GLM-4.6V-Flash receives images natively by default and is also the automatic Vision Proxy model for models configured with `proxy`.
 
 ## Settings
 
@@ -116,8 +116,9 @@ All three support optional thinking mode and tool calling. GLM-5.2 is the best f
 | `glm-copilot.apiMode`                        | `coding-plan`             | Endpoint preset mode when `baseUrl` is empty: `coding-plan` or `standard`                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `glm-copilot.maxTokens`                      | `0`                       | Max output tokens (`0` = no limit). Useful for cost control                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `glm-copilot.modelIdOverrides`               | prefilled official ID map | API model IDs to send for built-in or custom models. The GLM-4.6V-Flash override is also used by automatic vision proxy mode. Change only for compatible endpoints with different model names                                                                                                                                                                                                                                                                                                                                 |
-| `glm-copilot.customModels`                   | `[]`                      | Extra GLM-compatible models for the picker. Accepts string IDs or objects with `id`, optional `name`, token limits, `toolCalling`, and `thinking`. Use `contextWindowTokens` for models that publish one shared prompt + completion window; it derives the Copilot input budget and takes precedence over `maxInputTokens`. Custom IDs override built-ins. Images still go through the current Vision Proxy; custom models do not bypass it for native vision                                                                                                                                                                                                                                          |
-| `glm-copilot.debugMode`                      | `minimal`                 | Diagnostic mode: `minimal` for token usage only, `metadata` for privacy-preserving logs, or `verbose` for full request dumps and pipeline snapshots under extension global storage. Full dumps may include sensitive prompt text, tool schemas, file snippets, and image descriptions. Use `GLM: Open Request Dumps Folder` to open the dump location                                                                                                                                                                         |
+| `glm-copilot.modelVisionModes`               | `glm-4.6v-flash: native` | Per-model image routing. `proxy` describes images through the Vision Proxy before sending text to the selected model; `native` sends original image data directly to the selected API model. Native mode requires endpoint support, does not fall back to proxy, and resends image parts still present in chat history                                                                                                                                                                                                 |
+| `glm-copilot.customModels`                   | `[]`                      | Extra GLM-compatible models for the picker. Accepts string IDs or objects with `id`, optional `name`, token limits, `toolCalling`, and `thinking`. Use `contextWindowTokens` for models that publish one shared prompt + completion window; it derives the Copilot input budget and takes precedence over `maxInputTokens`. Custom IDs override built-ins. Configure each custom model's image routing separately with `modelVisionModes`                                                                                                                                                                                                                                          |
+| `glm-copilot.debugMode`                      | `minimal`                 | Diagnostic mode: `minimal` for token usage only, `metadata` for privacy-preserving logs, or `verbose` for full request dumps and pipeline snapshots under extension global storage. Full dumps may include sensitive prompt text, tool schemas, file snippets, and image descriptions, but native image bytes are replaced with MIME, size, and hash metadata. Use `GLM: Open Request Dumps Folder` to open the dump location                                                                                                                                                                         |
 | `glm-copilot.visionModel`                    | _(auto)_                  | VS Code vision model used as fallback when automatic GLM-4.6V-Flash vision is unavailable. Configure from `GLM: Configure Vision Proxy`; new saves use `vendor/id`, while legacy bare model IDs are still read                                                                                                                                                                                                                                                                                                                |
 | `glm-copilot.visionPrompt`                   | _(built-in)_              | Prompt used to describe image attachments                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `glm-copilot.experimental.stabilizeToolList` | `false`                   | Experimental. Tries to pre-activate VS Code/Copilot virtual tools so the GLM API `tools` parameter is more complete and stable across turns. May improve context-cache hit rate when enabled tools change between turns. Can increase input tokens because more function definitions may be included; cache-hit input tokens are cheaper but still count toward usage. Usually leave it off with 64 or fewer enabled tools unless the tool list still changes across turns; do not enable it with more than 128 enabled tools |
@@ -145,9 +146,19 @@ Example `settings.json` override for compatible API proxies:
     "glm-4.6v-flash": "your-glm-4.6v-flash-model-id",
     "glm-5-turbo": "your-glm-5-turbo-model-id",
     "team-coder": "provider-team-coder-id"
+  },
+  "glm-copilot.modelVisionModes": {
+    "glm-4.6v-flash": "native",
+    "team-coder": "proxy"
   }
 }
 ```
+
+### Image Input Modes
+
+`proxy` keeps the existing transparent Vision Proxy: a vision model turns image attachments into text, then the selected model receives that text. It works with text-only endpoints but adds a request and cannot preserve every visual detail.
+
+`native` sends the original image bytes to the selected API model. Use it only with a model and endpoint that support image input. Native requests fail directly rather than silently using the proxy, and image attachments still present in Copilot history are sent again on later turns. Native image bytes are never stored in replay markers, diagnostics, or request dumps.
 
 ## Troubleshooting
 

@@ -7,6 +7,7 @@ import {
 	getBaseUrl,
 	getCustomModels,
 	getEndpoint,
+	getModelVisionMode,
 	listProviderModels,
 	migrateLegacyEndpointSettings,
 } from '../src/config';
@@ -54,6 +55,28 @@ describe('configuration helpers', () => {
 		__setConfigurationValue('glm-copilot.baseUrl', 'https://proxy.example.com/v1');
 
 		expect(getBaseUrl()).toBe('https://proxy.example.com/v1');
+	});
+
+	it('defaults GLM-4.6V-Flash to native image input and other models to the proxy', () => {
+		expect(getModelVisionMode('glm-4.6v-flash')).toBe('native');
+		expect(getModelVisionMode('glm-5.2')).toBe('proxy');
+		expect(getModelVisionMode('custom-model')).toBe('proxy');
+	});
+
+	it('uses valid vision-mode overrides without changing model ID resolution', () => {
+		__setConfigurationValue('glm-copilot.modelIdOverrides', {
+			'glm-4.6v-flash': 'text-only-upstream-name',
+		});
+		__setConfigurationValue('glm-copilot.modelVisionModes', {
+			' glm-4.6v-flash ': 'proxy',
+			'team-coder': 'native',
+			ignored: 'unsupported',
+		});
+
+		expect(getApiModelId('glm-4.6v-flash')).toBe('text-only-upstream-name');
+		expect(getModelVisionMode('glm-4.6v-flash')).toBe('proxy');
+		expect(getModelVisionMode('team-coder')).toBe('native');
+		expect(getModelVisionMode('ignored')).toBe('proxy');
 	});
 });
 

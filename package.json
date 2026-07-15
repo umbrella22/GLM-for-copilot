@@ -198,6 +198,47 @@
             }
           }
         },
+        "glm-copilot.modelVisionModes": {
+          "type": "object",
+          "default": {
+            "glm-4.6v-flash": "native"
+          },
+          "markdownDescription": "%glm-copilot.config.modelVisionModes.description%",
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "proxy",
+              "native"
+            ],
+            "markdownDescription": "%glm-copilot.config.modelVisionModes.entry.description%"
+          },
+          "properties": {
+            "glm-5.2": {
+              "type": "string",
+              "enum": [
+                "proxy",
+                "native"
+              ],
+              "description": "%glm-copilot.config.modelVisionModes.entry.description%"
+            },
+            "glm-4.6v-flash": {
+              "type": "string",
+              "enum": [
+                "proxy",
+                "native"
+              ],
+              "description": "%glm-copilot.config.modelVisionModes.entry.description%"
+            },
+            "glm-5-turbo": {
+              "type": "string",
+              "enum": [
+                "proxy",
+                "native"
+              ],
+              "description": "%glm-copilot.config.modelVisionModes.entry.description%"
+            }
+          }
+        },
         "glm-copilot.customModels": {
           "type": "array",
           "default": [],
@@ -303,8 +344,8 @@
     "@types/vscode": "^1.116.0",
     "@vscode/vsce": "^3.9.2",
     "ovsx": "1.0.2",
-    "typescript": "^6.0.3",
-    "vite-plus": "^0.2.1",
+    "typescript": "^7.0.2",
+    "vite-plus": "^0.2.4",
     "vitest": "4.1.9"
   }
 }

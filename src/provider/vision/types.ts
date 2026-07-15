@@ -49,6 +49,13 @@ export interface VisionDescriber {
 export interface VisionResolutionStats {
 	inputImageParts: number;
 	inputImageMessages: number;
+	inputImageBytes: number;
+	nativeImageParts: number;
+	nativeImageMessages: number;
+	nativeImageBytesAfterResize: number;
+	nativeImageBytes: number;
+	nativeBudgetOmittedParts: number;
+	nativeResizeFailures: number;
 	currentImageMessages: number;
 	generatedImageMessages: number;
 	replayedImageMessages: number;

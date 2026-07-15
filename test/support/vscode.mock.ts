@@ -18,11 +18,22 @@ export class LanguageModelThinkingPart {
 	constructor(readonly value: string | string[]) {}
 }
 
+export class LanguageModelPromptTsxPart {
+	constructor(readonly value: unknown) {}
+}
+
 export class LanguageModelDataPart {
 	constructor(
 		readonly data: Uint8Array,
 		readonly mimeType: string,
 	) {}
+}
+
+export class CancellationError extends Error {
+	constructor() {
+		super('Canceled');
+		this.name = 'Canceled';
+	}
 }
 
 export class MarkdownString {
@@ -247,7 +258,9 @@ const vscode = {
 	LanguageModelChatMessageRole,
 	LanguageModelTextPart,
 	LanguageModelThinkingPart,
+	LanguageModelPromptTsxPart,
 	LanguageModelDataPart,
+	CancellationError,
 	MarkdownString,
 	LanguageModelToolCallPart,
 	LanguageModelToolResultPart,

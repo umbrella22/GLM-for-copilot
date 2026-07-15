@@ -1,10 +1,16 @@
-import type { GLMMessage, GLMRequest, GLMTool } from '../../types';
+import { getGLMContentText, isGLMContentPartArray, parseGLMImageDataUrl } from '../../glm-content';
+import type { GLMMessage, GLMMessageContent, GLMRequest, GLMTool } from '../../types';
 
 // ---- Anthropic Messages API types ----
 
 interface AnthropicContentBlock {
-	type: 'text' | 'tool_use' | 'tool_result';
+	type: 'text' | 'image' | 'tool_use' | 'tool_result';
 	text?: string;
+	source?: {
+		type: 'base64';
+		media_type: string;
+		data: string;
+	};
 	id?: string;
 	name?: string;
 	input?: Record<string, unknown>;
@@ -111,7 +117,7 @@ function extractSystem(messages: GLMMessage[]): string | undefined {
 	const parts: string[] = [];
 	for (const msg of messages) {
 		if (msg.role === 'system') {
-			parts.push(msg.content);
+			parts.push(getGLMContentText(msg.content));
 		}
 	}
 	return parts.length > 0 ? parts.join('\n\n') : undefined;
@@ -147,7 +153,7 @@ function convertMessages(messages: GLMMessage[]): AnthropicMessage[] {
 			const block: AnthropicContentBlock = {
 				type: 'tool_result',
 				tool_use_id: msg.tool_call_id,
-				content: msg.content,
+				content: getGLMContentText(msg.content),
 			};
 			appendContentBlock(result, 'user', block);
 			continue;
@@ -157,9 +163,7 @@ function convertMessages(messages: GLMMessage[]): AnthropicMessage[] {
 			const blocks: AnthropicContentBlock[] = [];
 
 			// Include text content if present
-			if (msg.content) {
-				blocks.push({ type: 'text', text: msg.content });
-			}
+			blocks.push(...convertContentBlocks(msg.content));
 
 			// Include reasoning content as text if present (Anthropic doesn't have a direct equivalent in messages)
 			// Note: reasoning_content from previous turns is typically omitted
@@ -189,11 +193,33 @@ function convertMessages(messages: GLMMessage[]): AnthropicMessage[] {
 
 		// Regular user/assistant messages
 		const role = msg.role as 'user' | 'assistant';
-		const block: AnthropicContentBlock = { type: 'text', text: msg.content };
-		appendContentBlock(result, role, block);
+		for (const block of convertContentBlocks(msg.content)) {
+			appendContentBlock(result, role, block);
+		}
 	}
 
 	return result;
+}
+
+function convertContentBlocks(content: GLMMessageContent): AnthropicContentBlock[] {
+	if (!isGLMContentPartArray(content)) {
+		return content ? [{ type: 'text', text: content }] : [];
+	}
+
+	return content.map((part) => {
+		if (part.type === 'text') {
+			return { type: 'text', text: part.text };
+		}
+		const image = parseGLMImageDataUrl(part.image_url.url);
+		return {
+			type: 'image',
+			source: {
+				type: 'base64',
+				media_type: image.mimeType,
+				data: image.data,
+			},
+		};
+	});
 }
 
 /**

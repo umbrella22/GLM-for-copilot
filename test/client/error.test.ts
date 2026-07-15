@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { GLMRequestError, createHttpError, createUserFacingError } from '../../src/client/error';
+import {
+	formatRequestError,
+	GLMRequestError,
+	createHttpError,
+	createUserFacingError,
+} from '../../src/client/error';
 import type { GLMRequest } from '../../src/types';
 
 const GLM_ANTHROPIC_BASE_URL = 'https://open.bigmodel.cn/api/anthropic';
@@ -23,6 +28,17 @@ function buildResponse(status: number, body: unknown, statusText = ''): Response
 }
 
 describe('createHttpError', () => {
+	it('redacts native image data URLs from request diagnostics', () => {
+		const payload = 'AQIDBA==';
+
+		const diagnostic = formatRequestError(
+			new Error(`gateway echoed data:image/png;base64,${payload}`),
+		);
+
+		expect(diagnostic).not.toContain(payload);
+		expect(diagnostic).toContain('[redacted native image data URL]');
+	});
+
 	it('extracts GLM business code and surfaces the server-side detail verbatim', async () => {
 		// Real-world payload captured from logs: HTTP 429 with business code 1308
 		// (5-hour usage cap with reset timestamp).

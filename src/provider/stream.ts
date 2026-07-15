@@ -179,6 +179,7 @@ export async function streamChatCompletion({
 	} finally {
 		cancelListener.dispose();
 		const outcome = createResponseOutcome({
+			prepared,
 			state,
 			startedAt,
 			startedAtMs,
@@ -430,6 +431,9 @@ function finalizeContextUsage(options: {
 		...reportResult,
 		providerUsageObserved: state.latestProviderUsage !== undefined,
 		providerCallbackCount: state.providerUsageCallbacks,
+		nativeImageParts: prepared.nativeImageParts,
+		nativeImageBytes: prepared.nativeImageBytes,
+		imageTokenSource: getImageTokenSource(prepared, state),
 		source: contextUsage.source,
 		promptTokenSource: contextUsage.promptTokenSource,
 		completionTokenSource: contextUsage.completionTokenSource,
@@ -453,10 +457,23 @@ function reportSkippedContextUsageIfNeeded(
 		reason,
 		providerUsageObserved: state.latestProviderUsage !== undefined,
 		providerCallbackCount: state.providerUsageCallbacks,
+		nativeImageParts: prepared.nativeImageParts,
+		nativeImageBytes: prepared.nativeImageBytes,
+		imageTokenSource: getImageTokenSource(prepared, state),
 		error,
 	};
 	state.contextUsageReport = report;
 	prepared.cacheDiagnostics.onContextUsageReport(report);
+}
+
+function getImageTokenSource(
+	prepared: PreparedChatRequest,
+	state: ResponseStreamState,
+): 'none' | 'provider' | 'unknown' {
+	if (prepared.nativeImageParts === 0) {
+		return 'none';
+	}
+	return state.latestProviderUsage ? 'provider' : 'unknown';
 }
 
 function updateCharsPerToken(promptChars: number, usage: GLMUsage, charsPerToken: number): number {
@@ -534,6 +551,7 @@ function getToolCallChars(state: ResponseStreamState): number {
 }
 
 function createResponseOutcome(options: {
+	prepared: PreparedChatRequest;
 	state: ResponseStreamState;
 	startedAt: string;
 	startedAtMs: number;
@@ -568,6 +586,9 @@ function createResponseOutcome(options: {
 			reason: skippedReason,
 			providerUsageObserved: options.state.latestProviderUsage !== undefined,
 			providerCallbackCount: options.state.providerUsageCallbacks,
+			nativeImageParts: options.prepared.nativeImageParts,
+			nativeImageBytes: options.prepared.nativeImageBytes,
+			imageTokenSource: getImageTokenSource(options.prepared, options.state),
 		},
 		replayMarker: options.state.replayMarkerReport ?? {
 			status: 'skipped',

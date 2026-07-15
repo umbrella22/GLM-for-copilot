@@ -5,9 +5,15 @@ import { join } from 'path';
 import vscode from 'vscode';
 import { getRequestDumpEnabled } from '../../config';
 import { LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../../consts';
+import {
+	getGLMContentText,
+	isGLMContentPartArray,
+	parseGLMImageDataUrl,
+	redactGLMImageDataUrls,
+} from '../../glm-content';
 import { safeStringify, toWellFormedString } from '../../json';
 import { logger } from '../../logger';
-import type { GLMMessage, GLMRequest } from '../../types';
+import type { GLMMessage, GLMRequest, ModelVisionMode } from '../../types';
 import { parseReplayMarkerData, REPLAY_MARKER_MIME, type ReplayMarkerSource } from '../replay';
 import {
 	classifyGLMRequest,
@@ -112,6 +118,7 @@ export interface DumpGLMRequestOptions {
 	visionModelId?: string;
 	visionProxySource?: VisionProxySource;
 	visionStats?: VisionResolutionStats;
+	visionMode?: ModelVisionMode;
 }
 
 export interface RequestDumpRun {
@@ -176,9 +183,9 @@ export function dumpProviderInput(options: DumpProviderInputOptions): void {
 }
 
 /**
- * Dump the FULL GLM request payload (messages + tools) to disk verbatim
- * when debugMode is `verbose`. No truncation, no hashing - you get the
- * exact JSON that will be sent to the GLM API (minus the auth header).
+ * Dump the GLM request payload (messages + tools) to disk when debugMode is
+ * `verbose`. Native image data URLs are redacted to MIME,
+ * byte length, and SHA-256; the actual HTTP request remains unchanged.
  *
  * Files land under `<dump root>/<conversationSegmentId>/` so marker replay and
  * cache-lineage changes are easy to inspect across provider calls:
@@ -222,12 +229,14 @@ export function dumpGLMRequest(
 			createPipelineSnapshot('resolved', request, options.resolvedMessages, options, context),
 		);
 
-		const requestJson = await writeJsonFile(paths.request, request, (value) =>
-			JSON.stringify(value, null, 2),
+		const requestJson = await writeJsonFile(
+			paths.request,
+			redactNativeImagesForDump(request),
+			(value) => JSON.stringify(value, null, 2),
 		);
 
 		if (msg0 && paths.msg0) {
-			await writeTextFile(paths.msg0, msg0.content);
+			await writeTextFile(paths.msg0, getGLMContentText(msg0.content));
 		}
 
 		await writeDumpObservation(
@@ -420,6 +429,40 @@ function serializeResponseOutcome(outcome: ResponseOutcomeInfo): object {
 	};
 }
 
+/**
+ * Persist only native-image metadata. The request itself is retained for the
+ * HTTP client, while dump files must never contain raw image bytes.
+ */
+function redactNativeImagesForDump(request: GLMRequest): object {
+	return {
+		...request,
+		messages: request.messages.map((message) => {
+			if (!isGLMContentPartArray(message.content)) {
+				return message;
+			}
+			return {
+				...message,
+				content: message.content.map((part) => {
+					if (part.type !== 'image_url') {
+						return part;
+					}
+					const image = parseGLMImageDataUrl(part.image_url.url);
+					const bytes = Buffer.from(image.data, 'base64');
+					return {
+						type: 'image_url',
+						image_url: {
+							url: '[redacted native image]',
+							mimeType: image.mimeType,
+							byteLength: bytes.byteLength,
+							sha256: hashBytes(bytes),
+						},
+					};
+				}),
+			};
+		}),
+	};
+}
+
 function serializeOutcomeError(error: unknown): { name: string; message: string } | undefined {
 	if (!error) {
 		return undefined;
@@ -427,12 +470,12 @@ function serializeOutcomeError(error: unknown): { name: string; message: string 
 	if (error instanceof Error) {
 		return {
 			name: error.name || 'Error',
-			message: error.message.replace(/\s+/g, ' ').slice(0, 200),
+			message: redactGLMImageDataUrls(error.message).replace(/\s+/g, ' ').slice(0, 200),
 		};
 	}
 	return {
 		name: typeof error,
-		message: String(error).replace(/\s+/g, ' ').slice(0, 200),
+		message: redactGLMImageDataUrls(String(error)).replace(/\s+/g, ' ').slice(0, 200),
 	};
 }
 
@@ -481,6 +524,7 @@ function createPipelineSnapshot(
 		vision:
 			stage === 'resolved'
 				? {
+						mode: options.visionMode ?? 'proxy',
 						modelId: options.visionModelId ?? null,
 						source: options.visionProxySource ?? null,
 						stats: options.visionStats ?? null,
@@ -803,7 +847,12 @@ function summarizeGLMSystemPrompt(messages: readonly GLMMessage[]): SystemPrompt
 		return createSystemPromptSummary(null, null, '', customizations);
 	}
 
-	return createSystemPromptSummary(0, message.role, message.content ?? '', customizations);
+	return createSystemPromptSummary(
+		0,
+		message.role,
+		getGLMContentText(message.content),
+		customizations,
+	);
 }
 
 function createSystemPromptSummary(
@@ -858,7 +907,7 @@ function summarizeGLMCustomizations(messages: readonly GLMMessage[]): Customizat
 	let latestUserHasCustomizationsUpdate = false;
 
 	for (const [index, message] of messages.entries()) {
-		const text = message.content ?? '';
+		const text = getGLMContentText(message.content);
 		customizationsUpdateCountInHistory += countLiteral(text, '<customizationsUpdate>');
 		if (message.role === 'user') {
 			latestUserMessageIndex = index;

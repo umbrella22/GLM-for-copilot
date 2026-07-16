@@ -124,11 +124,21 @@ describe('configuration helpers', () => {
 	it('applies global baseUrl only to models using the default route', () => {
 		__setConfigurationValue('glm-copilot.baseUrl', 'https://proxy.example.com/v1');
 
-		expect(resolveModelConnection('glm-5.2')).toMatchObject({
+		// [FORK] glm-5.2 now has a built-in defaultEndpointRoute ('china-anthropic'),
+		// so it no longer uses the 'default' route. Use glm-5-turbo (still
+		// default-route) as the example of a model that picks up the global baseUrl.
+		expect(resolveModelConnection('glm-5-turbo')).toMatchObject({
 			baseUrl: 'https://proxy.example.com/v1',
 			usesGlobalBaseUrlOverride: true,
 			apiMode: undefined,
 			pricingCurrency: undefined,
+		});
+		// [FORK] glm-5.2 has an explicit built-in route, so the global baseUrl
+		// override does NOT apply to it.
+		expect(resolveModelConnection('glm-5.2')).toMatchObject({
+			baseUrl: GLM_CN_ANTHROPIC_BASE_URL,
+			endpoint: 'china-anthropic',
+			usesGlobalBaseUrlOverride: false,
 		});
 		expect(resolveModelConnection('glm-5v-turbo')).toMatchObject({
 			baseUrl: GLM_CN_GENERAL_BASE_URL,

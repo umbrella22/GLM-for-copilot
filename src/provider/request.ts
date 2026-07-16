@@ -103,11 +103,18 @@ export async function prepareChatRequest({
 	);
 	const resolvedMessages = visionResolution.messages;
 	const glmMessages = convertMessages(resolvedMessages, isThinkingModel);
-	// [FORK] Inject the image-handling system instruction ONLY in mcp vision
-	// mode — that's the only mode where images reach the model as file-path
-	// prompts requiring MCP tool guidance. In proxy/native modes images are
-	// already converted to text/base64 before this point, so the instruction
-	// would be noise (and would break upstream's request-shape assertions).
+	// [FORK] Inject the image-handling system instruction in mcp vision mode
+	// UNCONDITIONALLY — every turn, whether or not this request carries images.
+	// Reason: prompt caching matches a byte-exact message PREFIX, and the system
+	// message sits at the very front of that prefix. If injection flipped on/off
+	// between image-bearing and text-only turns, the prefix would change and
+	// every flip would invalidate the cache for the WHOLE conversation. Keeping
+	// the instruction always-present makes it a permanent part of the cacheable
+	// prefix, so multi-turn conversations keep hitting cache regardless of which
+	// turns carry images. (The ~1KB instruction is itself cached, so its cost on
+	// pure-text turns is negligible.) proxy/native modes never inject: images
+	// are already converted to text/base64 there, and injecting would add noise
+	// and break upstream's request-shape assertions.
 	if (visionMode === 'mcp') {
 		injectImageToolGuidance(glmMessages);
 	}

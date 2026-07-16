@@ -315,7 +315,11 @@ async function buildModelRow(
 		connectionLabel,
 		visionMode,
 		visionModeLabel:
-			visionMode === 'native' ? t('manager.visionMode.native') : t('manager.visionMode.proxy'),
+			visionMode === 'native'
+				? t('manager.visionMode.native')
+				: visionMode === 'mcp' // [FORK] +mcp
+					? t('manager.visionMode.mcp')
+					: t('manager.visionMode.proxy'),
 		status,
 		isCustom: Boolean(custom),
 		isBuiltInOverride: Boolean(custom && MODELS.some((entry) => entry.id === model.id)),
@@ -609,7 +613,11 @@ function validateDraft(
 	if (!ALL_MODEL_ROUTES.includes(draft.endpointRoute)) {
 		throw new Error(t('manager.error.invalidEndpoint'));
 	}
-	if (draft.visionMode !== 'proxy' && draft.visionMode !== 'native') {
+	if (
+		draft.visionMode !== 'proxy' &&
+		draft.visionMode !== 'native' &&
+		draft.visionMode !== 'mcp' // [FORK] +mcp
+	) {
 		throw new Error(t('manager.error.invalidVisionMode'));
 	}
 	const apiMode =

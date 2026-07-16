@@ -204,4 +204,31 @@ export const MODELS: ModelDefinition[] = [
 		},
 		priceCategory: 'medium',
 	},
+	// [FORK] Built-in Claude-compatible text model. Same mechanism as glm-5.2
+	// etc.: declared in MODELS so it is always present (survives reset) without
+	// relying on modelManagement config (whose package.json default is NOT read
+	// at runtime by upstream's inspect chain).
+	// - picker/model id: glm-claude-opus-4.8
+	// - api model id sent to endpoint: claude-opus-4.8 (via defaultApiModelId)
+	// - default route: china-anthropic (Claude-compatible Anthropic endpoint)
+	// - text-only: imageInput false, visionMode mcp (images stripped to disk
+	//   for MCP tools, never base64 — the model can't see base64)
+	{
+		id: 'glm-claude-opus-4.8',
+		name: 'Claude Opus 4.8 (GLM bridge)',
+		family: 'claude',
+		version: 'opus-4.8',
+		detail: 'Claude-compatible text model behind the Anthropic endpoint',
+		maxInputTokens: 1_000_000,
+		maxOutputTokens: 131_072,
+		capabilities: {
+			toolCalling: GLM_TOOLS_LIMIT,
+			imageInput: false,
+			thinking: true,
+		},
+		requiresThinkingParam: true,
+		defaultApiModelId: 'claude-opus-4.8',
+		defaultEndpointRoute: 'china-anthropic',
+		defaultVisionMode: 'mcp',
+	},
 ];

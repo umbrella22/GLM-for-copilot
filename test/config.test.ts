@@ -79,7 +79,8 @@ describe('configuration helpers', () => {
 
 	it('defaults GLM-4.6V-Flash to native image input and other models to the proxy', () => {
 		expect(getModelVisionMode('glm-4.6v-flash')).toBe('native');
-		expect(getModelVisionMode('glm-5.2')).toBe('proxy');
+		// [FORK] glm-5.2 / glm-5-turbo default to 'mcp' (built-in defaultVisionMode).
+		expect(getModelVisionMode('glm-5.2')).toBe('mcp');
 		expect(getModelVisionMode('custom-model')).toBe('proxy');
 	});
 
@@ -162,9 +163,11 @@ describe('configuration helpers', () => {
 			protocol: 'anthropic',
 			credentialChannel: 'international-coding',
 		});
-		expect(() => resolveModelConnection('glm-5v-turbo')).toThrow(
-			'does not support the coding-plan connection route',
-		);
+		// [FORK] glm-5v-turbo route restriction removed: coding-plan is now
+		// accepted (Coding Plan works with 5V-Turbo in practice).
+		expect(resolveModelConnection('glm-5v-turbo')).toMatchObject({
+			endpoint: 'china-coding',
+		});
 		expect(getModelEndpointRoute('ignored')).toBe('default');
 	});
 
@@ -176,9 +179,10 @@ describe('configuration helpers', () => {
 			'glm-5v-turbo': 'china-coding',
 		});
 
-		expect(() => resolveModelConnection('glm-5v-turbo')).toThrow(
-			'does not support the coding-plan connection route',
-		);
+		// [FORK] glm-5v-turbo route restriction removed; coding-plan accepted.
+		expect(resolveModelConnection('glm-5v-turbo')).toMatchObject({
+			endpoint: 'china-coding',
+		});
 	});
 });
 

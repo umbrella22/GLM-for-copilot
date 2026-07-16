@@ -506,7 +506,12 @@ function resolveRouteEndpoint(
  */
 export function getApiModelId(vscodeModelId: string, resource?: vscode.Uri): string {
 	const override = getModelIdOverrides(resource)[vscodeModelId]?.trim();
-	return override || vscodeModelId;
+	if (override) {
+		return override;
+	}
+	// [FORK] Fall back to the built-in model's defaultApiModelId when defined
+	// (e.g. glm-claude-opus-4.8 -> claude-opus-4.8), before using the ID itself.
+	return findModelDefinition(vscodeModelId, resource)?.defaultApiModelId ?? vscodeModelId;
 }
 
 export function getModelIdOverrides(resource?: vscode.Uri): Record<string, string> {

@@ -154,29 +154,7 @@
           "additionalProperties": false,
           "markdownDescription": "%glm-copilot.config.modelManagement.description%",
           "default": {
-            "version": 1,
-            "models": {
-              "glm-5.2": {
-                "visionMode": "mcp"
-              },
-              "glm-5-turbo": {
-                "visionMode": "mcp"
-              },
-              "glm-claude-opus-4.8": {
-                "apiModelId": "claude-opus-4.8",
-                "endpointRoute": "china-anthropic",
-                "visionMode": "mcp"
-              }
-            },
-            "customModels": {
-              "glm-claude-opus-4.8": {
-                "name": "glm-claude-opus-4.8",
-                "maxInputTokens": 1000000,
-                "maxOutputTokens": 131072,
-                "toolCalling": true,
-                "thinking": true
-              }
-            }
+            "version": 1
           },
           "properties": {
             "version": {

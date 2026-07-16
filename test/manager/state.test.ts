@@ -66,10 +66,16 @@ describe('model manager state', () => {
 			status: { tone: 'success' },
 			draft: { endpointRoute: 'same-region-standard' },
 		});
+		// [FORK] glm-5v-turbo route restriction removed: all routes now allowed.
 		expect(model?.allowedRoutes.map((entry) => entry.value)).toEqual([
+			'default',
 			'same-region-standard',
+			'china-coding',
 			'china-standard',
+			'china-anthropic',
+			'international-coding',
 			'international-standard',
+			'international-anthropic',
 		]);
 		expect(state.defaultConnection.endpoint).toBe('china-coding');
 	});
@@ -503,23 +509,28 @@ describe('model manager state', () => {
 		});
 		const model = state.models.find((entry) => entry.id === 'glm-5v-turbo');
 		expect(model?.isBuiltInOverride).toBe(true);
+		// [FORK] glm-5v-turbo route restriction removed: all routes now allowed.
 		expect(model?.allowedRoutes.map((entry) => entry.value)).toEqual([
+			'default',
 			'same-region-standard',
+			'china-coding',
 			'china-standard',
+			'china-anthropic',
+			'international-coding',
 			'international-standard',
+			'international-anthropic',
 		]);
-		await expect(
-			saveManagedModel('global', undefined, 'glm-5v-turbo', {
-				name: 'Local GLM-5V',
-				apiModelId: 'glm-5v-turbo',
-				endpointRoute: 'china-coding',
-				visionMode: 'native',
-				contextWindowTokens: 200_000,
-				maxOutputTokens: 131_072,
-				toolCalling: true,
-				thinking: true,
-			}),
-		).rejects.toThrow('does not support');
+		// [FORK] china-coding route is now accepted (no longer rejected).
+		await saveManagedModel('global', undefined, 'glm-5v-turbo', {
+			name: 'Local GLM-5V',
+			apiModelId: 'glm-5v-turbo',
+			endpointRoute: 'china-coding',
+			visionMode: 'native',
+			contextWindowTokens: 200_000,
+			maxOutputTokens: 131_072,
+			toolCalling: true,
+			thinking: true,
+		});
 	});
 
 	it('shows legacy base URLs and custom models as editable effective values', async () => {
@@ -627,7 +638,8 @@ describe('model manager state', () => {
 		});
 		expect(state.models.find((model) => model.id === 'glm-5.2')).toMatchObject({
 			apiModelId: 'glm-5.2',
-			visionMode: 'proxy',
+			// [FORK] glm-5.2 built-in defaultVisionMode is now 'mcp'.
+			visionMode: 'mcp',
 			canReset: false,
 		});
 	});

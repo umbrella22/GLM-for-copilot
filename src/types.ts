@@ -234,6 +234,8 @@ export interface ModelDefinition {
 		thinking: boolean;
 	};
 	requiresThinkingParam: boolean;
+	/** [FORK] Default API model ID sent to the endpoint when no user override. */
+	defaultApiModelId?: string;
 	defaultEndpointRoute?: ModelEndpointRoute;
 	supportedApiModes?: readonly ApiMode[];
 	defaultVisionMode?: ModelVisionMode;

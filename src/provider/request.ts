@@ -103,12 +103,14 @@ export async function prepareChatRequest({
 	);
 	const resolvedMessages = visionResolution.messages;
 	const glmMessages = convertMessages(resolvedMessages, isThinkingModel);
-	// [FORK] Inject the image-handling system instruction so the model knows how
-	// to use MCP vision tools (read on demand, reuse prior analysis, etc.).
-	// Injected unconditionally (even without images) so the prompt cache prefix
-	// stays stable across turns. Only relevant in `mcp` vision mode, but cheap
-	// enough to always prepend when the instruction is non-empty.
-	injectImageToolGuidance(glmMessages);
+	// [FORK] Inject the image-handling system instruction ONLY in mcp vision
+	// mode — that's the only mode where images reach the model as file-path
+	// prompts requiring MCP tool guidance. In proxy/native modes images are
+	// already converted to text/base64 before this point, so the instruction
+	// would be noise (and would break upstream's request-shape assertions).
+	if (visionMode === 'mcp') {
+		injectImageToolGuidance(glmMessages);
+	}
 	const tools = prepareRequestTools(modelDef?.capabilities.toolCalling, options);
 
 	const baseRequest: GLMRequest = {

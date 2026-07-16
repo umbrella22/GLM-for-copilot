@@ -76,8 +76,10 @@ describe('model metadata helpers', () => {
 	});
 
 	it('publishes built-in shared windows as Copilot input plus output budgets', () => {
+		// [FORK] MODELS now includes glm-claude-opus-4.8 (1M input + 131072 output)
+		// and glm-5v-turbo no longer has supportedApiModes (route unlocked).
 		expect(MODELS.map((model) => model.maxInputTokens + model.maxOutputTokens)).toEqual([
-			1_000_000, 131_072, 200_000, 200_000,
+			1_000_000, 131_072, 200_000, 200_000, 1_131_072,
 		]);
 		expect(MODELS[1].maxOutputTokens).toBe(32_768);
 		expect(toChatInfo(MODELS[0], true).maxInputTokens).toBe(868_928);
@@ -85,9 +87,18 @@ describe('model metadata helpers', () => {
 		expect(MODELS[2]).toMatchObject({
 			id: 'glm-5v-turbo',
 			defaultEndpointRoute: 'same-region-standard',
-			supportedApiModes: ['standard'],
 			defaultVisionMode: 'native',
 			capabilities: { imageInput: true, thinking: true },
+		});
+		// [FORK] glm-5v-turbo route restriction removed
+		expect(MODELS[2].supportedApiModes).toBeUndefined();
+		// [FORK] new built-in glm-claude-opus-4.8
+		expect(MODELS[4]).toMatchObject({
+			id: 'glm-claude-opus-4.8',
+			defaultApiModelId: 'claude-opus-4.8',
+			defaultEndpointRoute: 'china-anthropic',
+			defaultVisionMode: 'mcp',
+			capabilities: { imageInput: false, thinking: true },
 		});
 	});
 

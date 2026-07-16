@@ -226,27 +226,28 @@ describe('request preparation', () => {
 		]);
 	});
 
-	it('rejects an unsupported GLM-5V-Turbo Coding Plan route before reading a key', async () => {
+	it('[FORK] accepts a GLM-5V-Turbo Coding Plan route (restriction removed)', async () => {
 		__setConfigurationValue('glm-copilot.modelEndpointOverrides', {
 			'glm-5v-turbo': 'china-coding',
 		});
 		const getApiKey = vi.fn().mockResolvedValue('coding-plan-key');
 
-		await expect(
-			prepareChatRequest({
-				authManager: { getApiKey } as unknown as AuthManager,
-				globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
-				modelInfo: { id: 'glm-5v-turbo' } as vscode.LanguageModelChatInformation,
-				segment,
-				messages: [userMessage([new vscode.LanguageModelTextPart('Hello')])],
-				options: {} as vscode.ProvideLanguageModelChatResponseOptions,
-				token,
-				cacheDiagnostics: createCacheDiagnosticsRecorder(),
-				getVisionDescriber: async () => undefined,
-			}),
-		).rejects.toThrow('does not support the coding-plan connection route');
+		const prepared = await prepareChatRequest({
+			authManager: { getApiKey } as unknown as AuthManager,
+			globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
+			modelInfo: { id: 'glm-5v-turbo' } as vscode.LanguageModelChatInformation,
+			segment,
+			messages: [userMessage([new vscode.LanguageModelTextPart('Hello')])],
+			options: {} as vscode.ProvideLanguageModelChatResponseOptions,
+			token,
+			cacheDiagnostics: createCacheDiagnosticsRecorder(),
+			getVisionDescriber: async () => undefined,
+		});
 
-		expect(getApiKey).not.toHaveBeenCalled();
+		// [FORK] Previously this threw 'does not support the coding-plan route';
+		// the fork removed the supportedApiModes restriction on glm-5v-turbo.
+		expect(getApiKey).toHaveBeenCalledWith('china-coding', undefined);
+		expect(prepared.connection.endpoint).toBe('china-coding');
 		expect(resizeImage).not.toHaveBeenCalled();
 	});
 

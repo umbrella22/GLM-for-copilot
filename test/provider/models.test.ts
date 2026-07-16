@@ -98,7 +98,9 @@ describe('model metadata helpers', () => {
 			defaultApiModelId: 'claude-opus-4.8',
 			defaultEndpointRoute: 'china-anthropic',
 			defaultVisionMode: 'mcp',
-			capabilities: { imageInput: false, thinking: true },
+			// [FORK] imageInput true so Copilot allows image attachment; visionMode
+			// mcp then strips images to disk for MCP tools (model itself is text-only).
+			capabilities: { imageInput: true, thinking: true },
 		});
 	});
 

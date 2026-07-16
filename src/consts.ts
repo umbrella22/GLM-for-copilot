@@ -204,15 +204,14 @@ export const MODELS: ModelDefinition[] = [
 		},
 		priceCategory: 'medium',
 	},
-	// [FORK] Built-in Claude-compatible text model. Same mechanism as glm-5.2
-	// etc.: declared in MODELS so it is always present (survives reset) without
-	// relying on modelManagement config (whose package.json default is NOT read
-	// at runtime by upstream's inspect chain).
+	// [FORK] Built-in Claude-compatible text model. Declared in MODELS so it is
+	// always present (survives reset) without relying on modelManagement config.
 	// - picker/model id: glm-claude-opus-4.8
 	// - api model id sent to endpoint: claude-opus-4.8 (via defaultApiModelId)
 	// - default route: china-anthropic (Claude-compatible Anthropic endpoint)
-	// - text-only: imageInput false, visionMode mcp (images stripped to disk
-	//   for MCP tools, never base64 — the model can't see base64)
+	// - imageInput MUST be true so Copilot allows image attachment; visionMode
+	//   'mcp' then strips images to disk for MCP tools (the model itself is
+	//   text-only and never sees base64).
 	{
 		id: 'glm-claude-opus-4.8',
 		name: 'Claude Opus 4.8 (GLM bridge)',
@@ -223,7 +222,7 @@ export const MODELS: ModelDefinition[] = [
 		maxOutputTokens: 131_072,
 		capabilities: {
 			toolCalling: GLM_TOOLS_LIMIT,
-			imageInput: false,
+			imageInput: true,
 			thinking: true,
 		},
 		requiresThinkingParam: true,

@@ -126,7 +126,9 @@ export const MODELS: ModelDefinition[] = [
 		},
 		requiresThinkingParam: true,
 		defaultEndpointRoute: 'same-region-standard',
-		supportedApiModes: ['standard'],
+		// [FORK] removed `supportedApiModes: ['standard']` so glm-5v-turbo can use
+		// all routes including Coding Plan. The author's Coding Plan works with
+		// this model in practice; official restriction expected to lift.
 		defaultVisionMode: 'native',
 		pricing: {
 			CNY: {

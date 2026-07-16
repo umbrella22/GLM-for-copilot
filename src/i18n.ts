@@ -409,6 +409,10 @@ const zh: Translations = {
 	'extension.welcomeFailed': '欢迎引导加载异常',
 	'extension.openRequestDumpsFolderFailed':
 		'打开请求 dump 目录失败，请运行 "GLM: 显示日志" 查看详情。',
+	'command.resetToDefaults.confirm': // [FORK]
+		'将 GLM Copilot 的插件配置重置为默认值？这将清除你的用户级覆盖（模型管理、图片处理方式、MCP 服务、提示词模板、工具列表稳定化等）。工作区/工作区文件夹级别的配置不会被清除。API Key 不会被清除。',
+	'command.resetToDefaults.confirmYes': '重置', // [FORK]
+	'command.resetToDefaults.done': '已重置 {0} 项 GLM Copilot 配置为默认值。', // [FORK]
 };
 
 const en: Translations = {
@@ -854,6 +858,10 @@ const en: Translations = {
 	'extension.welcomeFailed': 'Failed to show GLM welcome prompt',
 	'extension.openRequestDumpsFolderFailed':
 		'Failed to open request dumps folder. Run "GLM: Show Logs" for details.',
+	'command.resetToDefaults.confirm': // [FORK]
+		'Reset GLM Copilot settings to defaults? This clears your user-level overrides (model management, image handling, MCP servers, prompt templates, stabilize tool list). Workspace and workspace-folder scoped settings are not affected. API keys are not cleared.',
+	'command.resetToDefaults.confirmYes': 'Reset', // [FORK]
+	'command.resetToDefaults.done': 'Reset {0} GLM Copilot setting(s) to defaults.', // [FORK]
 };
 
 /**

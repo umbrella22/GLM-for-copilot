@@ -8,6 +8,7 @@
   "glm-copilot.command.openSettings": "GLM: Open Settings",
   "glm-copilot.command.showLogs": "GLM: Show Logs",
   "glm-copilot.command.openRequestDumpsFolder": "GLM: Open Request Dumps Folder",
+  "glm-copilot.command.resetToDefaults": "GLM: Reset to Defaults",
   "glm-copilot.walkthrough.title": "GLM for Copilot Chat",
   "glm-copilot.walkthrough.description": "Set up GLM models in Copilot Chat.",
   "glm-copilot.walkthrough.setApiKey.title": "Manage GLM models and connections",

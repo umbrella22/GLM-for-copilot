@@ -8,6 +8,7 @@
   "glm-copilot.command.openSettings": "GLM: 打开设置",
   "glm-copilot.command.showLogs": "GLM: 显示日志",
   "glm-copilot.command.openRequestDumpsFolder": "GLM: 打开请求 Dump 目录",
+  "glm-copilot.command.resetToDefaults": "GLM: 重置为默认设置",
   "glm-copilot.walkthrough.title": "GLM for Copilot Chat",
   "glm-copilot.walkthrough.description": "在 Copilot Chat 中配置 GLM 模型。",
   "glm-copilot.walkthrough.setApiKey.title": "管理 GLM 模型与连接",

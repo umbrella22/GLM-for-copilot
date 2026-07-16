@@ -93,6 +93,10 @@
       {
         "command": "glm-copilot.openRequestDumpsFolder",
         "title": "%glm-copilot.command.openRequestDumpsFolder%"
+      },
+      {
+        "command": "glm-copilot.resetToDefaults",
+        "title": "%glm-copilot.command.resetToDefaults%"
       }
     ],
     "walkthroughs": [
@@ -332,7 +336,7 @@
         },
         "glm-copilot.experimental.stabilizeToolList": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "markdownDescription": "%glm-copilot.config.experimental.stabilizeToolList.description%",
           "tags": [
             "experimental"

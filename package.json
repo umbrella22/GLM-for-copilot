@@ -162,15 +162,15 @@
               "glm-5-turbo": {
                 "visionMode": "mcp"
               },
-              "glm5.2-vscode": {
+              "glm-claude-opus-4.8": {
                 "apiModelId": "claude-opus-4.8",
                 "endpointRoute": "china-anthropic",
                 "visionMode": "mcp"
               }
             },
             "customModels": {
-              "glm5.2-vscode": {
-                "name": "glm5.2-vscode",
+              "glm-claude-opus-4.8": {
+                "name": "glm-claude-opus-4.8",
                 "maxInputTokens": 1000000,
                 "maxOutputTokens": 131072,
                 "toolCalling": true,

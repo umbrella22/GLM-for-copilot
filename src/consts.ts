@@ -83,6 +83,11 @@ export const MODELS: ModelDefinition[] = [
 		},
 		requiresThinkingParam: true,
 		supportsReasoningEffort: true,
+		// [FORK] default to mcp vision mode: images are stripped to disk and read
+		// by MCP tools, not via the built-in proxy. Upstream's effective-config
+		// resolution does not read package.json `default`, so this must be set
+		// on the model definition itself for the fallback path to return 'mcp'.
+		defaultVisionMode: 'mcp',
 		pricing: {
 			CNY: { cacheHitInput: 2, cacheMissInput: 8, output: 28 },
 			USD: { cacheHitInput: 0.26, cacheMissInput: 1.4, output: 4.4 },
@@ -171,6 +176,8 @@ export const MODELS: ModelDefinition[] = [
 			thinking: true,
 		},
 		requiresThinkingParam: true,
+		// [FORK] default to mcp vision mode (same rationale as glm-5.2 above).
+		defaultVisionMode: 'mcp',
 		pricing: {
 			CNY: {
 				cacheHitInput: 1.2,

@@ -152,6 +152,12 @@
           "default": {
             "version": 1,
             "models": {
+              "glm-5.2": {
+                "visionMode": "mcp"
+              },
+              "glm-5-turbo": {
+                "visionMode": "mcp"
+              },
               "glm5.2-vscode": {
                 "apiModelId": "claude-opus-4.8",
                 "endpointRoute": "china-anthropic",

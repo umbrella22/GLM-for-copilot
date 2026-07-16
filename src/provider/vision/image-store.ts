@@ -88,9 +88,11 @@ export async function storeImage(
  */
 const DEFAULT_IMAGE_STORED_PROMPT =
 	'[{0} attached at local file: {1}]\n' +
-	'This image cannot be displayed inline; read it with an image-capable MCP tool. ' +
+	'This image cannot be displayed inline; process it with an image-capable MCP tool. ' +
 	'The file name is a content hash — if you have already analyzed this path in this ' +
-	'conversation, reuse that analysis unless you need new detail or the image has changed.';
+	'conversation, reuse that analysis unless you need new detail, the image has changed, ' +
+	'or the requested output type differs from the prior analysis (see the output-type match ' +
+	'rule in the system image-handling instruction). ';
 
 /**
  * Build a human-readable text prompt that tells the model an image was

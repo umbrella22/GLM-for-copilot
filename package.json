@@ -442,7 +442,7 @@
           "scope": "application",
           "markdownDescription": "%glm-copilot.config.mcp.servers.description%",
           "additionalProperties": {
-            "oneOf": [
+            "anyOf": [
               {
                 "type": "object",
                 "required": [
@@ -450,6 +450,7 @@
                   "label",
                   "command"
                 ],
+                "additionalProperties": false,
                 "properties": {
                   "type": {
                     "type": "string",
@@ -472,6 +473,17 @@
                   "args": {
                     "type": "array",
                     "items": {
+                      "type": "string"
+                    }
+                  },
+                  "cwd": {
+                    "type": "string",
+                    "description": "Working directory to launch the stdio process in (stdio only)."
+                  },
+                  "env": {
+                    "type": "object",
+                    "description": "Environment variables for the stdio process (excluding injected auth keys). String values only.",
+                    "additionalProperties": {
                       "type": "string"
                     }
                   },
@@ -499,6 +511,7 @@
                   "label",
                   "url"
                 ],
+                "additionalProperties": false,
                 "properties": {
                   "type": {
                     "type": "string",
@@ -518,6 +531,13 @@
                   "url": {
                     "type": "string"
                   },
+                  "headers": {
+                    "type": "object",
+                    "description": "Extra request headers for the http server (excluding the injected Authorization header). String values only.",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
                   "injectApiKey": {
                     "type": "boolean"
                   },
@@ -529,6 +549,71 @@
                       "international-coding",
                       "international-standard"
                     ]
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "description": "Partial override of a built-in server id (e.g. only `url` or only `env`). No field is required; the built-in base fills the gaps at merge time. All known fields are allowed, unknown ones are rejected. A standalone (user-defined) id should use one of the complete shapes above instead.",
+                "additionalProperties": false,
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "stdio",
+                      "http"
+                    ]
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "detail": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "command": {
+                    "type": "string"
+                  },
+                  "args": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "cwd": {
+                    "type": "string"
+                  },
+                  "env": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "injectApiKey": {
+                    "type": "boolean"
+                  },
+                  "credentialChannel": {
+                    "type": "string",
+                    "enum": [
+                      "china-coding",
+                      "china-standard",
+                      "international-coding",
+                      "international-standard"
+                    ]
+                  },
+                  "authEnvKey": {
+                    "type": "string"
                   }
                 }
               }

@@ -237,7 +237,8 @@
                     "type": "string",
                     "enum": [
                       "proxy",
-                      "native"
+                      "native",
+                      "mcp"
                     ],
                     "description": "%glm-copilot.config.modelManagement.visionMode.description%"
                   }
@@ -374,6 +375,24 @@
           ],
           "default": "manual",
           "markdownDescription": "%glm-copilot.config.mcp.imageCleanupMode.description%"
+        },
+        "glm-copilot.mcp.imageCapableTools": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": [
+            "ui_to_artifact",
+            "extract_text_from_screenshot",
+            "diagnose_error_screenshot",
+            "understand_technical_diagram",
+            "analyze_data_visualization",
+            "ui_diff_check",
+            "image_analysis"
+          ],
+          "scope": "application",
+          "markdownDescription": "%glm-copilot.config.mcp.imageCapableTools.description%"
         },
         "glm-copilot.mcp.servers": {
           "type": "object",

@@ -26,7 +26,7 @@
   "glm-copilot.config.modelManagement.models.description": "Per-model API ID, official endpoint route, and image input mode overrides. Record keys are Copilot model IDs.",
   "glm-copilot.config.modelManagement.apiModelId.description": "Model ID sent to the selected API endpoint.",
   "glm-copilot.config.modelManagement.endpointRoute.description": "Official connection route for this model. GLM-5V-Turbo supports Standard API routes only.",
-  "glm-copilot.config.modelManagement.visionMode.description": "Image input mode: `proxy` sends a text description from the Vision Proxy; `native` resizes and sends image data directly under the 2.5 MiB binary context budget.",
+  "glm-copilot.config.modelManagement.visionMode.description": "Image input mode: `proxy` sends a text description from the Vision Proxy; `native` resizes and sends image data directly under the 2.5 MiB binary context budget; `mcp` stores images to disk and leaves a file-path prompt, letting an image-capable MCP tool (e.g. the official zai-mcp-server) read them by path — best for text-only models where base64 would waste context.",
   "glm-copilot.config.modelManagement.customModels.description": "Custom model definitions keyed by their canonical Copilot model ID. Model routes and image modes remain under `models`.",
   "glm-copilot.config.modelManagement.customModels.tombstone.description": "Removes an inherited custom model at this configuration scope.",
   "glm-copilot.config.modelManagement.customModels.id.description": "Optional legacy-compatible ID. The containing record key is authoritative.",
@@ -85,5 +85,6 @@
   "glm-copilot.config.mcp.imageCleanupMode.description": "Controls how locally stored MCP-vision images are cleaned up. **Manual**: images are kept until you run \"GLM: Clean Up Stored Images\". **7-day TTL**: images whose last-referenced time is older than 7 days are deleted automatically on activation. Reusing an image (re-sending or replaying a conversation that references it) refreshes its timer, so actively-used images survive.",
   "glm-copilot.config.mcp.imageCleanupMode.manual.label": "Manual",
   "glm-copilot.config.mcp.imageCleanupMode.ttl-7d.label": "7-day TTL",
+  "glm-copilot.config.mcp.imageCapableTools.description": "Allowlist of MCP tool names recognized as image-capable for the `mcp` vision mode. The `mcp` mode strips images to disk and relies on one of these tools to read them back; if no listed tool is available, the request falls back to the vision proxy. Defaults cover the official zai-mcp-server vision tools. Add custom MCP tool names (short name like `my_image_tool` or fully-qualified `mcp__<server>__<tool>`) to recognize third-party vision tools. No heuristic matching is done — a tool must be listed here to count.",
   "glm-copilot.config.mcp.servers.description": "GLM official MCP servers are built-in (use the per-server checkboxes above to enable/disable). This object is for **advanced config only**: override fields (e.g. point a URL at a proxy) or add your own custom servers. Built-in server `enabled` here is ignored — use the checkboxes. API keys are injected from the stored key, never stored here."
 }

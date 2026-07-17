@@ -143,11 +143,22 @@ export async function storeImage(
  * (JPEG/PNG, <= MCP_DOWNSTREAM_MAX_BYTES).
  *
  * Steps:
- *   1. Detect the true MIME via magic bytes (ignore the declared mime, which
- *      is often `image/png` for unknown types and would mislead downstream).
- *   2. If already JPEG/PNG and within the size budget, keep as-is.
- *   3. Otherwise, ask VS Code to resize/convert. Re-detect the output mime
- *      and verify the result is JPEG/PNG and within budget; reject if not.
+ *   1. Detect the true MIME via magic bytes. [FORK] PR #15 Finding 6: the
+ *      caller-declared MIME is NO LONGER trusted for the direct-path
+ *      decision — arbitrary bytes could declare `image/png` and bypass
+ *      validation, only to fail at the downstream MCP. Only a positive magic-
+ *      byte identification counts as a safe direct path.
+ *   2. If magic-byte detection confirms JPEG/PNG and the size is within
+ *      budget, keep as-is.
+ *   3. Otherwise, ask VS Code to resize/convert. Re-detect the output MIME
+ *      via magic bytes (the resize output's declared MIME is also not
+ *      trusted); verify the result is JPEG/PNG and within budget; reject
+ *      otherwise.
+ *
+ * The `declaredMimeType` parameter is kept ONLY as a conversion hint passed
+ * to `resizeImage` (the VS Code resize command needs SOME input MIME to
+ * attempt transcoding when magic bytes are unrecognizable). It never
+ * participates in the direct-path decision.
  *
  * Returns `undefined` when normalization cannot satisfy the envelope.
  */
@@ -164,23 +175,35 @@ async function normalizeImageForDownstream(
 	// resizeImage's cancellation checks pass through cleanly.
 	const effectiveToken = token ?? neverCancelledToken();
 
-	const detected = detectImageMimeType(data) ?? declaredMimeType;
-	const isAccepted = MCP_DOWNSTREAM_ACCEPTED_MIME.has(detected);
+	// [FORK] PR #15 Finding 6: direct path requires a POSITIVE magic-byte
+	// identification. Unrecognizable bytes (detectImageMimeType returns
+	// undefined) must NOT fall back to the declared MIME for the direct path,
+	// because arbitrary payloads could declare image/png and ship unchanged to
+	// disk, where the downstream MCP would reject them.
+	const detected = detectImageMimeType(data);
+	const isAccepted = detected !== undefined && MCP_DOWNSTREAM_ACCEPTED_MIME.has(detected);
 	const withinBudget = data.byteLength <= MCP_DOWNSTREAM_MAX_BYTES;
 
 	if (isAccepted && withinBudget) {
-		return { data, mimeType: detected };
+		// detected is narrowed to the accepted set here.
+		return { data, mimeType: detected as string };
 	}
 
 	// Need conversion and/or resize. resizeImage delegates to VS Code's
 	// `_chat.resizeImage`, which handles both dimension and format conversion.
+	// The declared MIME is passed in as the conversion INPUT hint only.
 	try {
-		const resized = await resizeImage(data, detected, effectiveToken);
+		const resized = await resizeImage(data, declaredMimeType, effectiveToken);
 		if (effectiveToken.isCancellationRequested) {
 			return undefined;
 		}
-		const finalMime = detectImageMimeType(resized.data) ?? resized.mimeType;
+		// [FORK] PR #15 Finding 6: re-detect the output MIME via magic bytes
+		// rather than trusting resized.mimeType. resizeImage may report the
+		// INPUT mime when it could not actually transcode (resizeFailed: true),
+		// so we independently verify the bytes on disk.
+		const finalMime = detectImageMimeType(resized.data);
 		if (
+			finalMime !== undefined &&
 			MCP_DOWNSTREAM_ACCEPTED_MIME.has(finalMime) &&
 			resized.data.byteLength <= MCP_DOWNSTREAM_MAX_BYTES
 		) {

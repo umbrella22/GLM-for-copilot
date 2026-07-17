@@ -43,8 +43,9 @@ describe('buildServerDefinitions', () => {
 		expect(stdio.label).toBe('My Server');
 		expect(stdio.command).toBe('node');
 		expect(stdio.args).toEqual(['server.js', '--port']);
-		// Version is derived from command+args so VS Code can detect config edits.
-		expect(stdio.version).toBe('node:server.js,--port');
+		// Version is derived from command+args+env+cwd so VS Code can detect any
+		// config edit. With empty env and no cwd the suffix is `{}:`.
+		expect(stdio.version).toBe('node:server.js,--port:{}:');
 	});
 
 	it('builds an http definition with label/uri and a url-derived version', () => {
@@ -57,7 +58,8 @@ describe('buildServerDefinitions', () => {
 		expect(def).toBeInstanceOf(vscode.McpHttpServerDefinition);
 		const http = def as vscode.McpHttpServerDefinition;
 		expect(http.label).toBe('Remote');
-		expect(http.version).toBe('https://example.com/mcp');
+		// Version is derived from url+headers; with empty headers the suffix is `:{}`.
+		expect(http.version).toBe('https://example.com/mcp:{}');
 	});
 
 	it('uses empty args array when args is omitted on stdio', () => {
@@ -152,6 +154,67 @@ describe('buildServerDefinitions', () => {
 			expect(built[0]?.config.command).toBe('first');
 			expect(built[1]?.config.command).toBe('second');
 		});
+
+		// [FORK] PR #15 Finding 5: the earlier single-shot disambiguation did
+		// not re-check the generated suffix for collisions. This is the exact
+		// counter-example from the review.
+		it('disambiguates a second-order collision where the generated suffix matches a literal label', () => {
+			// id `a` label "X"            -> label "X"
+			// id `c` label "X (b)"        -> label "X (b)" (literal, no collision yet)
+			// id `b` label "X"            -> first try "X (b)" -> COLLIDES with c's literal label
+			//                             -> second try "X (b-1)" -> unique
+			// Ordering matters: a and c are processed before b so seenLabels
+			// already contains "X (b)" when b is disambiguated.
+			const map: McpServerConfigMap = {
+				a: httpConfig({ label: 'X', url: 'https://a.example.com' }),
+				c: httpConfig({ label: 'X (b)', url: 'https://c.example.com' }),
+				b: httpConfig({ label: 'X', url: 'https://b.example.com' }),
+			};
+			const built = buildServerDefinitions(map);
+			const labels = built.map((entry) => entry.definition.label);
+			// All three must be distinct (the bug produced a duplicate "X (b)").
+			expect(new Set(labels).size).toBe(3);
+			expect(labels).toContain('X');
+			expect(labels).toContain('X (b)');
+			expect(labels).toContain('X (b-1)');
+		});
+
+		it('keeps extending the suffix until unique across many collisions', () => {
+			// Two servers with the SAME id suffix would both need (b) -> (b-1)
+			// etc., but ids are unique keys so that cannot happen. Instead this
+			// case exercises: a literal "X (b)" label collides with the
+			// generated suffix for id `b`, forcing b to (b-1); a third id `c`
+			// server with label "X" gets (c) which is unique on first try.
+			const map: McpServerConfigMap = {
+				a: httpConfig({ label: 'X', url: 'https://a' }),
+				literal: httpConfig({ label: 'X (b)', url: 'https://lit' }),
+				b: httpConfig({ label: 'X', url: 'https://b' }),
+				c: httpConfig({ label: 'X', url: 'https://c' }),
+			};
+			const built = buildServerDefinitions(map);
+			const labels = built.map((entry) => entry.definition.label);
+			expect(new Set(labels).size).toBe(labels.length);
+			// b's generated "X (b)" collides with literal -> "X (b-1)";
+			// c's generated "X (c)" is unique immediately.
+			expect(labels).toEqual(['X', 'X (b)', 'X (b-1)', 'X (c)']);
+		});
+
+		it('forces repeated -N extension when two servers share the same id-suffix root', () => {
+			// Construct a scenario where the loop must advance N more than once:
+			// pre-register literal labels that block every earlier candidate.
+			// id `b` wants "X"; literal labels occupy "X (b)" and "X (b-1)".
+			const map: McpServerConfigMap = {
+				a: httpConfig({ label: 'X', url: 'https://a' }),
+				lit1: httpConfig({ label: 'X (b)', url: 'https://lit1' }),
+				lit2: httpConfig({ label: 'X (b-1)', url: 'https://lit2' }),
+				b: httpConfig({ label: 'X', url: 'https://b' }),
+			};
+			const built = buildServerDefinitions(map);
+			const labels = built.map((entry) => entry.definition.label);
+			expect(new Set(labels).size).toBe(labels.length);
+			// b: "X (b)" taken -> "X (b-1)" taken -> "X (b-2)" unique.
+			expect(labels).toContain('X (b-2)');
+		});
 	});
 
 	describe('built-in servers sanity check', () => {
@@ -172,6 +235,87 @@ describe('buildServerDefinitions', () => {
 			expect(byId.get('web-search-prime')).toBeInstanceOf(vscode.McpHttpServerDefinition);
 			expect(byId.get('web-reader')).toBeInstanceOf(vscode.McpHttpServerDefinition);
 			expect(byId.get('zread')).toBeInstanceOf(vscode.McpHttpServerDefinition);
+		});
+	});
+
+	describe('env / cwd / headers forwarding (PR #15 Finding 3)', () => {
+		it('forwards user-provided env into the stdio definition env', () => {
+			const map: McpServerConfigMap = {
+				srv: stdioConfig({ env: { NODE_ENV: 'production', DEBUG: '1' } }),
+			};
+			const built = buildServerDefinitions(map);
+			const def = built[0]?.definition as vscode.McpStdioServerDefinition;
+			expect(def.env).toEqual({ NODE_ENV: 'production', DEBUG: '1' });
+		});
+
+		it('passes an empty env object when env is omitted (still injectable later)', () => {
+			const map: McpServerConfigMap = { srv: stdioConfig() };
+			const built = buildServerDefinitions(map);
+			const def = built[0]?.definition as vscode.McpStdioServerDefinition;
+			expect(def.env).toEqual({});
+		});
+
+		it('forwards user-provided cwd as a Uri into the stdio definition', () => {
+			const map: McpServerConfigMap = {
+				srv: stdioConfig({ cwd: '/srv/app' }),
+			};
+			const built = buildServerDefinitions(map);
+			const def = built[0]?.definition as vscode.McpStdioServerDefinition;
+			expect(def.cwd).toBeDefined();
+			expect(def.cwd?.fsPath).toContain('srv');
+		});
+
+		it('omits cwd when cwd is not configured', () => {
+			const map: McpServerConfigMap = { srv: stdioConfig() };
+			const built = buildServerDefinitions(map);
+			const def = built[0]?.definition as vscode.McpStdioServerDefinition;
+			expect(def.cwd).toBeUndefined();
+		});
+
+		it('forwards user-provided headers into the http definition', () => {
+			const map: McpServerConfigMap = {
+				srv: httpConfig({ headers: { 'X-Custom': 'val', Accept: 'application/json' } }),
+			};
+			const built = buildServerDefinitions(map);
+			const def = built[0]?.definition as vscode.McpHttpServerDefinition;
+			expect(def.headers).toEqual({ 'X-Custom': 'val', Accept: 'application/json' });
+		});
+
+		it('passes an empty headers object when headers is omitted', () => {
+			const map: McpServerConfigMap = { srv: httpConfig() };
+			const built = buildServerDefinitions(map);
+			const def = built[0]?.definition as vscode.McpHttpServerDefinition;
+			expect(def.headers).toEqual({});
+		});
+
+		it('includes env in the version so env edits trigger a tool refresh', () => {
+			const v1 = buildServerDefinitions({
+				srv: stdioConfig({ env: { A: '1' } }),
+			})[0]?.definition.version;
+			const v2 = buildServerDefinitions({
+				srv: stdioConfig({ env: { A: '2' } }),
+			})[0]?.definition.version;
+			expect(v1).not.toBe(v2);
+		});
+
+		it('includes headers in the version so header edits trigger a refresh', () => {
+			const v1 = buildServerDefinitions({
+				srv: httpConfig({ headers: { H: '1' } }),
+			})[0]?.definition.version;
+			const v2 = buildServerDefinitions({
+				srv: httpConfig({ headers: { H: '2' } }),
+			})[0]?.definition.version;
+			expect(v1).not.toBe(v2);
+		});
+
+		it('produces a stable version for equal env maps regardless of key order', () => {
+			const v1 = buildServerDefinitions({
+				srv: stdioConfig({ env: { A: '1', B: '2' } }),
+			})[0]?.definition.version;
+			const v2 = buildServerDefinitions({
+				srv: stdioConfig({ env: { B: '2', A: '1' } }),
+			})[0]?.definition.version;
+			expect(v1).toBe(v2);
 		});
 	});
 });

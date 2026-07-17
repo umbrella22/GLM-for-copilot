@@ -437,9 +437,13 @@ async function stripImagesForMcpMode(
 					messageIndex,
 					partIndex,
 					part: new vscode.LanguageModelTextPart(
-						// Prepend a newline so the image-path prompt is never
-						// concatenated to adjacent text without a separator.
-						'\n' + buildImagePromptText(filePath, imageOrdinal, imageCount),
+						// [FORK] PR #15 Finding 7: wrap the image-path prompt in newlines on
+						// BOTH sides. convert.ts merges adjacent text parts by
+						// concatenation, so a prompt with only a leading newline would
+						// still be glued to the FOLLOWING text part
+						// ("...prompt textafter-image"). Trailing newline keeps the
+						// semantic boundary on both sides.
+						'\n' + buildImagePromptText(filePath, imageOrdinal, imageCount) + '\n',
 					),
 				});
 			} else {
@@ -450,7 +454,11 @@ async function stripImagesForMcpMode(
 				replacements.push({
 					messageIndex,
 					partIndex,
-					part: new vscode.LanguageModelTextPart('\n' + IMAGE_DESCRIPTION_UNAVAILABLE),
+					part: new vscode.LanguageModelTextPart(
+						// [FORK] PR #15 F7: symmetric leading+trailing newline, same
+						// rationale as the success path above.
+						'\n' + IMAGE_DESCRIPTION_UNAVAILABLE + '\n',
+					),
 				});
 			}
 			imageOrdinal += 1;

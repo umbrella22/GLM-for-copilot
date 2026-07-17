@@ -416,6 +416,10 @@ const zh: Translations = {
 	'command.cleanupStoredImages.failed': '清理已存储图片失败，请运行 “GLM: 显示日志” 查看详情。', // [FORK]
 	'vision.mcp.conflict.toolCallingDisabled': // [FORK]
 		'当前模型的图片处理方式为 “MCP 工具”，但工具调用已被禁用。MCP 图片模式依赖工具调用读取本地图片，二者不能同时关闭。请打开 “GLM: 管理模型与连接” 启用此模型的工具调用，或将图片处理方式改为 “视觉代理 / 原生图片”。',
+	'vision.mcp.fallbackToProxy': // [FORK] PR #15 F2
+		'当前会话未检测到可用的图片 MCP 工具，已自动回退到视觉代理模式处理本请求的图片。如需使用 MCP 图片模式，请在设置中启用一个支持图片的 MCP 工具（如官方 zai-mcp-server 的 image_analysis），或通过 “glm-copilot.mcp.imageCapableTools” 添加自定义视觉工具名。',
+	'vision.mcp.conflict.noImageTool': // [FORK] PR #15 F2
+		'当前模型的图片处理方式为 “MCP 工具”，但本会话没有可用的图片 MCP 工具，且未配置视觉代理。MCP 图片模式需要一个能读取本地图片的 MCP 工具。请：（1）启用一个支持图片的 MCP 工具（如官方 zai-mcp-server 的 image_analysis）；或（2）配置视觉代理（在 “GLM: 管理模型与连接” 中设置视觉代理模型）；或（3）若你的模型支持原生图片，将图片处理方式改为 “原生图片”。',
 };
 
 const en: Translations = {
@@ -869,6 +873,10 @@ const en: Translations = {
 		'Failed to clean up stored images. Run "GLM: Show Logs" for details.', // [FORK]
 	'vision.mcp.conflict.toolCallingDisabled': // [FORK]
 		'This model\'s vision mode is "MCP tool", but tool calling is disabled. MCP vision mode relies on tool calls to read local image files, so the two cannot be combined with tool calling off. Open "GLM: Manage Models and Connections" to enable tool calling for this model, or switch its vision mode to "Vision proxy / Native image".',
+	'vision.mcp.fallbackToProxy': // [FORK] PR #15 F2
+		'No image-capable MCP tool is available in this session; this request\'s images are being handled by the vision proxy instead. To use MCP image mode, enable an image-capable MCP tool (e.g. the official zai-mcp-server\'s image_analysis), or add your custom vision tool name via "glm-copilot.mcp.imageCapableTools".',
+	'vision.mcp.conflict.noImageTool': // [FORK] PR #15 F2
+		'This model\'s vision mode is "MCP tool", but no image-capable MCP tool is available in this session and no vision proxy is configured. MCP image mode needs an MCP tool that can read local image files. Either (1) enable an image-capable MCP tool (e.g. the official zai-mcp-server\'s image_analysis); (2) configure a vision proxy (set a vision proxy model under "GLM: Manage Models and Connections"); or (3) if your model supports native images, switch its vision mode to "Native image".',
 };
 
 /**

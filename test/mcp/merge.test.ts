@@ -72,17 +72,18 @@ describe('mergeMcpServers — built-in servers', () => {
 
 	it('merges user field overrides onto the built-in base, field by field', () => {
 		// User overrides only the URL of web-reader; built-in defaults for other
-		// fields (label, detail, credentialChannel, injectApiKey) must survive.
+		// NON-AUTH fields must survive. Auth fields (injectApiKey /
+		// credentialChannel) are cleared because the target address changed —
+		// see the dedicated trust-reset suite below. This assertion now covers
+		// only the preserved cosmetic fields.
 		const original = BUILTIN_MCP_SERVERS['web-reader'];
 		const userConfig: McpServerConfigMap = {
 			'web-reader': { type: 'http', label: 'Web Reader', url: 'https://proxy.example.com' },
 		};
 		const merged = mergeMcpServers(userConfig);
 		expect(merged['web-reader']?.url).toBe('https://proxy.example.com');
-		// Built-in fields preserved (not clobbered by the partial override).
+		// Built-in cosmetic fields preserved (not clobbered by the partial override).
 		expect(merged['web-reader']?.detail).toBe(original.detail);
-		expect(merged['web-reader']?.credentialChannel).toBe(original.credentialChannel);
-		expect(merged['web-reader']?.injectApiKey).toBe(original.injectApiKey);
 	});
 
 	it('keeps built-in servers intact when the user config has no override for them', () => {
@@ -176,13 +177,141 @@ describe('mergeMcpServers — user-defined servers', () => {
 			zread: { type: 'http', label: 'Fake Zread', url: 'https://evil.example.com' },
 		};
 		const merged = mergeMcpServers(userConfig);
-		// Built-in URL is overridden by the user's URL (field-level merge),
-		// but injectApiKey/credentialChannel from the built-in are preserved.
+		// Built-in URL is overridden by the user's URL (field-level merge).
+		// [F1] Because the target address changed, inherited auth settings are
+		// cleared by default (trust no longer applies to the new address).
 		expect(merged.zread?.url).toBe('https://evil.example.com');
-		expect(merged.zread?.injectApiKey).toBe(true);
-		expect(merged.zread?.credentialChannel).toBe('china-coding');
+		expect(merged.zread?.injectApiKey).toBeUndefined();
+		expect(merged.zread?.credentialChannel).toBeUndefined();
 		// And it is NOT added as a separate user-defined entry.
 		expect(Object.keys(merged).filter((id) => id === 'zread')).toHaveLength(1);
+	});
+});
+
+describe('mergeMcpServers — trust-reset on target-address override (PR #15 Finding 1)', () => {
+	beforeEach(() => {
+		__clearConfigurationValues();
+	});
+
+	afterEach(() => {
+		__clearConfigurationValues();
+	});
+
+	it('clears injectApiKey when a built-in http url is overridden (no fresh opt-in)', () => {
+		// The headline scenario from PR #15 F1: user points `web-reader` at a
+		// different host (enterprise proxy / third-party). Without a fresh
+		// explicit opt-in, the GLM key must NOT be sent to the new address.
+		const userConfig: McpServerConfigMap = {
+			'web-reader': { type: 'http', label: 'Web Reader', url: 'https://proxy.example.com' },
+		};
+		const merged = mergeMcpServers(userConfig);
+		expect(merged['web-reader']?.url).toBe('https://proxy.example.com');
+		expect(merged['web-reader']?.injectApiKey).toBeUndefined();
+		expect(merged['web-reader']?.credentialChannel).toBeUndefined();
+		// wantsApiKeyInjection should now refuse (undefined !== true).
+		expect(merged['web-reader']?.injectApiKey === true).toBe(false);
+	});
+
+	it('clears injectApiKey when a built-in stdio command is overridden', () => {
+		// Same risk on stdio: a different `command` launches a different process
+		// that would receive the injected env var. No opt-in -> no injection.
+		const userConfig: McpServerConfigMap = {
+			'zai-mcp-server': {
+				type: 'stdio',
+				label: 'ZAI MCP Server',
+				command: 'node',
+				args: ['custom-server.js'],
+			},
+		};
+		const merged = mergeMcpServers(userConfig);
+		expect(merged['zai-mcp-server']?.command).toBe('node');
+		expect(merged['zai-mcp-server']?.injectApiKey).toBeUndefined();
+		expect(merged['zai-mcp-server']?.credentialChannel).toBeUndefined();
+	});
+
+	it('keeps injection when override re-declares injectApiKey: true (fresh opt-in)', () => {
+		// The user explicitly expressed fresh consent to send the key to the
+		// new address. Injection stays on (credentialChannel cleared unless also
+		// re-declared, falling back to the workspace default channel).
+		const userConfig: McpServerConfigMap = {
+			'web-reader': {
+				type: 'http',
+				label: 'Web Reader',
+				url: 'https://trusted-internal.example.com',
+				injectApiKey: true,
+			},
+		};
+		const merged = mergeMcpServers(userConfig);
+		expect(merged['web-reader']?.url).toBe('https://trusted-internal.example.com');
+		expect(merged['web-reader']?.injectApiKey).toBe(true);
+		expect(merged['web-reader']?.credentialChannel).toBeUndefined();
+	});
+
+	it('keeps credentialChannel when override re-declares it together with opt-in', () => {
+		const userConfig: McpServerConfigMap = {
+			'web-reader': {
+				type: 'http',
+				label: 'Web Reader',
+				url: 'https://trusted.example.com',
+				injectApiKey: true,
+				credentialChannel: 'international-coding',
+			},
+		};
+		const merged = mergeMcpServers(userConfig);
+		expect(merged['web-reader']?.injectApiKey).toBe(true);
+		expect(merged['web-reader']?.credentialChannel).toBe('international-coding');
+	});
+
+	it('does NOT clear auth when only args change (same command, same target host)', () => {
+		// args are parameters to the SAME command/target; they cannot redirect
+		// credentials to a different recipient, so trust stays intact.
+		const userConfig: McpServerConfigMap = {
+			'zai-mcp-server': {
+				type: 'stdio',
+				label: 'ZAI MCP Server',
+				args: ['-y', '@z_ai/mcp-server@0.9.9'],
+			},
+		};
+		const merged = mergeMcpServers(userConfig);
+		expect(merged['zai-mcp-server']?.args).toEqual(['-y', '@z_ai/mcp-server@0.9.9']);
+		expect(merged['zai-mcp-server']?.injectApiKey).toBe(true);
+		expect(merged['zai-mcp-server']?.credentialChannel).toBe('china-coding');
+	});
+
+	it('does NOT clear auth when a non-target field is overridden', () => {
+		// Overriding label/detail keeps the official endpoint; trust preserved.
+		const userConfig: McpServerConfigMap = {
+			'web-reader': { type: 'http', label: 'Custom Label', detail: 'my own' },
+		};
+		const merged = mergeMcpServers(userConfig);
+		expect(merged['web-reader']?.label).toBe('Custom Label');
+		expect(merged['web-reader']?.injectApiKey).toBe(true);
+		expect(merged['web-reader']?.credentialChannel).toBe('china-coding');
+	});
+
+	it('clears auth when target is overridden with blank injectApiKey: false explicitly', () => {
+		// Explicit `injectApiKey: false` is still NOT true -> treated as no opt-in.
+		const userConfig: McpServerConfigMap = {
+			'web-reader': {
+				type: 'http',
+				label: 'Web Reader',
+				url: 'https://proxy.example.com',
+				injectApiKey: false,
+			},
+		};
+		const merged = mergeMcpServers(userConfig);
+		expect(merged['web-reader']?.injectApiKey).toBeUndefined();
+	});
+
+	it('does not affect built-in servers that have no user override', () => {
+		// Servers the user never touched keep their first-party auth intact.
+		const userConfig: McpServerConfigMap = {
+			'web-reader': { type: 'http', label: 'Web Reader', url: 'https://proxy.example.com' },
+		};
+		const merged = mergeMcpServers(userConfig);
+		expect(merged['web-search-prime']?.injectApiKey).toBe(true);
+		expect(merged['web-search-prime']?.credentialChannel).toBe('china-coding');
+		expect(merged.zread?.injectApiKey).toBe(true);
 	});
 });
 

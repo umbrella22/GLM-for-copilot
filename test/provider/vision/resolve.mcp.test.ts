@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { resolveImageMessages } from '../../../src/provider/vision/resolve';
 import { initImageStore } from '../../../src/provider/vision/image-store';
 import { IMAGE_DESCRIPTION_UNAVAILABLE } from '../../../src/provider/vision/consts';
+import { convertMessages } from '../../../src/provider/convert';
 import { __resetCommandState } from '../../support/vscode.mock';
 
 const token = {
@@ -133,16 +134,72 @@ describe('resolveImageMessages — mcp mode order preservation (PR #14 review #8
 		expect(extractText(content[1])).toMatch(/\.png/);
 	});
 
-	it('keeps the leading newline separator so the path is not merged into adjacent text', async () => {
-		// PR #14 review #8 also asked for a clear separator: "请分析这张图" + image
-		// must NOT become "请分析这张图[Image attached ...]".
+	it('wraps the path prompt in leading AND trailing newlines (PR #15 F7)', async () => {
+		// The replacement text must start AND end with a newline. convert.ts
+		// merges adjacent text parts by concatenation, so a trailing-newline-
+		// less prompt would be glued to a following text part.
 		const messages = [userMessage([new vscode.LanguageModelTextPart('请分析这张图'), pngPart()])];
 		const result = await resolveImageMessages(messages, token, unusedDescriber, 'mcp');
 		const content = result.messages[0]!.content as readonly unknown[];
 		const pathText = extractText(content[1]);
-		// The replacement text must start with a newline so it is visually and
-		// logically separated from any preceding text in the same message.
 		expect(pathText.startsWith('\n')).toBe(true);
+		// [F7] Trailing newline so the FOLLOWING text part is not glued on.
+		expect(pathText.endsWith('\n')).toBe(true);
+	});
+
+	it('keeps a clear separator on BOTH sides through the full convert pipeline (PR #15 F7)', async () => {
+		// The real regression from PR #15 F7: after convertMessages merges
+		// adjacent text parts, a prompt lacking a trailing newline would
+		// produce "...process it with an image-capable MCP tool.after-image".
+		// Verify the FINAL GLM message string keeps both boundaries.
+		const messages = [
+			userMessage([
+				new vscode.LanguageModelTextPart('before-image'),
+				pngPart(),
+				new vscode.LanguageModelTextPart('after-image'),
+			]),
+		];
+		const result = await resolveImageMessages(messages, token, unusedDescriber, 'mcp');
+		const glm = convertMessages(result.messages, false);
+		// Exactly one user message survived (content is non-empty).
+		const userMsg = glm.find((m) => m.role === 'user');
+		expect(userMsg).toBeDefined();
+		const contentStr = typeof userMsg!.content === 'string' ? userMsg!.content : '';
+		// The leading text survives.
+		expect(contentStr).toContain('before-image');
+		// The trailing text survives.
+		expect(contentStr).toContain('after-image');
+		// CRITICAL (the F7 bug): without a leading newline, before-image and the
+		// prompt would merge as "before-image[Image attached...]". Without a
+		// trailing newline, the prompt's final sentence and after-image would
+		// merge as "...MCP tool.after-image". Both boundaries must be newlines.
+		expect(contentStr).toMatch(/before-image\n+\[Image/);
+		expect(contentStr).toMatch(/after-image$/);
+		// The prompt's trailing text and after-image MUST be separated by a
+		// newline (the bug produced "tool. after-image" with no separator, or
+		// worse, "tool.after-image" glued directly).
+		expect(contentStr).toMatch(/\nafter-image$/);
+		// And explicitly: no direct glue between the prompt body and after-image.
+		expect(contentStr).not.toMatch(/tool\. ?after-image/);
+		expect(contentStr).not.toMatch(/\.after-image/);
+	});
+
+	it('wraps the unavailable marker in leading AND trailing newlines (PR #15 F7)', async () => {
+		// Same symmetric-separator rule applies to the unavailable fallback.
+		registerFailingResize();
+		const messages = [
+			userMessage([
+				new vscode.LanguageModelTextPart('before'),
+				gifPart(),
+				new vscode.LanguageModelTextPart('after'),
+			]),
+		];
+		const result = await resolveImageMessages(messages, token, unusedDescriber, 'mcp');
+		const content = result.messages[0]!.content as readonly unknown[];
+		const markerText = extractText(content[1]);
+		expect(markerText.startsWith('\n')).toBe(true);
+		expect(markerText.endsWith('\n')).toBe(true);
+		expect(markerText).toContain(IMAGE_DESCRIPTION_UNAVAILABLE);
 	});
 
 	it('handles multiple images in one message with "Image n of m" labels', async () => {

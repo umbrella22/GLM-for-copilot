@@ -183,6 +183,71 @@ describe('storeImage — size budget enforcement (PR #14 review #10)', () => {
 	});
 });
 
+/**
+ * [FORK] PR #15 Finding 6: unrecognizable bytes must NOT be saved as PNG/JPEG
+ * just because the caller declared an image MIME. The earlier `?? declaredMimeType`
+ * fallback let arbitrary payloads bypass validation by declaring image/png,
+ * only to fail later at the downstream MCP. Now the direct path requires a
+ * POSITIVE magic-byte identification; unrecognizable bytes must be transcoded
+ * and re-verified, or rejected.
+ */
+describe('storeImage — strict magic-byte direct path (PR #15 F6)', () => {
+	/** Bytes that are NOT a recognized image format (random ASCII payload). */
+	function unknownBytes(size = 32): Uint8Array {
+		const data = new Uint8Array(size);
+		// Deliberately NOT a PNG/JPEG/GIF/WEBP magic prefix.
+		data.fill(0x41); // 'A' repeated
+		return data;
+	}
+
+	it('rejects unknown bytes that DECLARE image/png when resize is unavailable', async () => {
+		// The headline F6 bug: unknown payload + declared image/png + <5MiB
+		// used to pass the direct path and ship as .png. Now it must be
+		// rejected because magic bytes do not confirm PNG.
+		vscode.commands.registerCommand('_chat.resizeImage', () => undefined);
+		const path = await storeImage(unknownBytes(), 'image/png', token);
+		expect(path).toBeUndefined();
+	});
+
+	it('rejects unknown bytes that DECLARE image/jpeg when resize is unavailable', async () => {
+		vscode.commands.registerCommand('_chat.resizeImage', () => undefined);
+		const path = await storeImage(unknownBytes(), 'image/jpeg', token);
+		expect(path).toBeUndefined();
+	});
+
+	it('rejects unknown bytes even when resize ALSO returns unrecognizable output', async () => {
+		// resize echoes the same unknown bytes back (conversion failed silently):
+		// re-detection via magic bytes fails, so reject.
+		vscode.commands.registerCommand('_chat.resizeImage', () => unknownBytes());
+		const path = await storeImage(unknownBytes(), 'image/png', token);
+		expect(path).toBeUndefined();
+	});
+
+	it('accepts unknown bytes ONLY when resize actually transcodes to valid JPEG', async () => {
+		// The declared image/png is used as the conversion INPUT hint; resize
+		// produces real JPEG bytes whose magic prefix is then re-verified.
+		vscode.commands.registerCommand('_chat.resizeImage', () => jpegBytes());
+		const path = await storeImage(unknownBytes(), 'image/png', token);
+		expect(path).toBeDefined();
+		expect(path).toMatch(/\.jpg$/);
+	});
+
+	it('still trusts positive magic-byte detection for genuine PNG', async () => {
+		// Sanity: the strict check did not break the happy path for real PNGs.
+		vscode.commands.registerCommand('_chat.resizeImage', () => undefined);
+		const path = await storeImage(pngBytes(), 'image/png', token);
+		expect(path).toBeDefined();
+		expect(path).toMatch(/\.png$/);
+	});
+
+	it('still trusts positive magic-byte detection even when declared mime is WRONG', async () => {
+		// Real PNG bytes declared as image/jpeg: magic bytes win, saved as .png.
+		vscode.commands.registerCommand('_chat.resizeImage', () => undefined);
+		const path = await storeImage(pngBytes(), 'image/jpeg', token);
+		expect(path).toMatch(/\.png$/);
+	});
+});
+
 describe('getImageCleanupMode', () => {
 	it('defaults to manual when nothing is configured', () => {
 		__clearConfigurationValues();

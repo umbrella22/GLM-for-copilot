@@ -85,6 +85,8 @@ export class ThemeIcon {
  *   new McpHttpServerDefinition(label, uri, headers, version)
  */
 export class McpStdioServerDefinition {
+	cwd?: Uri;
+
 	constructor(
 		readonly label: string,
 		readonly command: string,

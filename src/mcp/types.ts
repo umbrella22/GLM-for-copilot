@@ -26,8 +26,13 @@ export interface McpServerConfig {
 	/** Transport type. */
 	type: McpServerType;
 
-	/** Human-readable display label shown in the model picker and panels. */
-	label: string;
+	/**
+	 * Human-readable display label shown in the model picker and panels.
+	 *
+	 * REQUIRED for user-defined (standalone) servers. Optional for built-in
+	 * overrides — when omitted, the built-in label is kept (field-level merge).
+	 */
+	label?: string;
 
 	/** Short description of what this server provides (tools / resources). */
 	detail?: string;
@@ -43,10 +48,33 @@ export interface McpServerConfig {
 	/** Command-line arguments for `command`. stdio only. */
 	args?: string[];
 
+	/**
+	 * Working directory to launch the stdio process in. stdio only.
+	 * [FORK] PR #15 Finding 3: previously dropped by sanitizeServerConfig;
+	 * now forwarded to the VS Code McpStdioServerDefinition.
+	 */
+	cwd?: string;
+
+	/**
+	 * Environment variables for the stdio process (excluding injected auth
+	 * keys, which are merged in at resolve time). stdio only.
+	 * [FORK] PR #15 Finding 3: previously dropped by sanitizeServerConfig;
+	 * now forwarded to the VS Code McpStdioServerDefinition.
+	 */
+	env?: Record<string, string>;
+
 	// ---- http-only fields ----
 
 	/** HTTP endpoint URI of the remote MCP server. http only. */
 	url?: string;
+
+	/**
+	 * Extra request headers for the http server (excluding the injected
+	 * Authorization header, which is merged in at resolve time). http only.
+	 * [FORK] PR #15 Finding 3: previously dropped by sanitizeServerConfig;
+	 * now forwarded to the VS Code McpHttpServerDefinition.
+	 */
+	headers?: Record<string, string>;
 
 	// ---- auth injection hints ----
 
@@ -85,3 +113,12 @@ export interface McpServerConfig {
 
 /** Map of server id → config, matching the `glm-copilot.mcp.servers` object shape. */
 export type McpServerConfigMap = Record<string, McpServerConfig>;
+
+/**
+ * [FORK] PR #15 Finding 3: a user-provided entry in `glm-copilot.mcp.servers`
+ * can be EITHER a complete standalone server definition (for a user-defined
+ * id) OR a partial override (for a built-in id, e.g. just `{ "url": "..." }`).
+ * `Partial<McpServerConfig>` captures both — standalone entries are a
+ * superset of the partial shape. The merge layer fills gaps for built-in ids.
+ */
+export type RawUserMcpServerMap = Record<string, Partial<McpServerConfig>>;

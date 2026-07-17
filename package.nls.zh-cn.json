@@ -26,7 +26,7 @@
   "glm-copilot.config.modelManagement.models.description": "按模型覆盖 API ID、官方 Endpoint 路由和图片输入模式；对象键是 Copilot 模型 ID。",
   "glm-copilot.config.modelManagement.apiModelId.description": "实际发送到所选 API Endpoint 的模型 ID。",
   "glm-copilot.config.modelManagement.endpointRoute.description": "此模型使用的官方连接路由。GLM-5V-Turbo 仅支持标准 API 路由。",
-  "glm-copilot.config.modelManagement.visionMode.description": "图片输入模式：`proxy` 使用视觉代理生成文字描述；`native` 在 2.5 MiB 二进制上下文预算内缩放并直接发送图片数据。",
+  "glm-copilot.config.modelManagement.visionMode.description": "图片输入模式：`proxy` 使用视觉代理生成文字描述；`native` 在 2.5 MiB 二进制上下文预算内缩放并直接发送图片数据；`mcp` 将图片存储到磁盘并在会话中保留文件路径提示，由支持图片的 MCP 工具（如官方 zai-mcp-server）按路径读取——适合文本模型，避免 base64 浪费上下文。",
   "glm-copilot.config.modelManagement.customModels.description": "以规范 Copilot 模型 ID 为键的自定义模型定义；连接路由和图片模式仍保存在 `models`。",
   "glm-copilot.config.modelManagement.customModels.tombstone.description": "在当前配置作用域删除继承的自定义模型。",
   "glm-copilot.config.modelManagement.customModels.id.description": "兼容旧配置的可选 ID；外层对象键才是模型的规范身份。",
@@ -85,5 +85,6 @@
   "glm-copilot.config.mcp.imageCleanupMode.description": "控制本地存储的 MCP 图片如何清理。**手动**：图片保留至你运行“GLM: 清理已存储的图片”。**7 天 TTL**：最近引用时间超过 7 天的图片会在插件激活时自动删除。复用图片（再次发送或重放引用该图片的会话）会刷新其计时器，因此活跃使用的图片不会被删。",
   "glm-copilot.config.mcp.imageCleanupMode.manual.label": "手动",
   "glm-copilot.config.mcp.imageCleanupMode.ttl-7d.label": "7 天 TTL",
+  "glm-copilot.config.mcp.imageCapableTools.description": "`mcp` 图片模式下被识别为“支持图片”的 MCP 工具名白名单。`mcp` 模式会把图片存储到磁盘，依赖此名单中的某个工具来读取；若名单中的工具都不可用，本请求会回退到视觉代理。默认值涵盖官方 zai-mcp-server 的视觉工具。可添加自定义 MCP 工具名（短名如 `my_image_tool`，或全限定名 `mcp__<server>__<tool>`）以识别第三方视觉工具。不做启发式匹配——工具必须在此名单中才会被计入。",
   "glm-copilot.config.mcp.servers.description": "GLM 官方 MCP 服务已内置（启用/禁用请使用上方各服务的勾选框）。此配置项仅供**高级用途**：覆盖字段（如让 URL 走代理）或新增自己的自定义服务。内置服务的 `enabled` 在此不生效——请使用勾选框。API Key 从已保存的密钥注入，不会存储在此处。"
 }

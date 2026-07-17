@@ -33,6 +33,7 @@ import { classifyGLMRequest, shouldForceThinkingNone, type RequestKind } from '.
 import type { ConversationSegment } from './segment';
 import { collectTrailingToolResultIds, prepareRequestTools } from './tools/request';
 import { resolveImageMessages, type VisionDescriber } from './vision';
+import { hasImageCapableTool, readImageCapableTools } from './vision/image-capable-tools';
 
 export interface PreparedChatRequest {
 	client: GLMClient;
@@ -96,22 +97,56 @@ export async function prepareChatRequest({
 	const visionMode = getModelVisionMode(modelInfo.id, configurationResource);
 	const tools = prepareRequestTools(modelDef?.capabilities.toolCalling, options);
 
-	// [FORK] Detect the mcp vision mode + no-available-tools conflict BEFORE
-	// touching images. mcp mode strips images to disk and relies on an
-	// image-capable MCP tool to read them back; if the model has tool calling
-	// disabled (capabilities.toolCalling falsy) OR the user disabled tools in
-	// the chat configureTools panel (options.tools empty), the stripped images
-	// would be silently lost with no way for the model to recover them.
-	// Refuse the request with a clear notice instead. Pure-text requests are
-	// unaffected — the check only fires when there are image parts to lose.
-	if (visionMode === 'mcp' && (!tools || tools.length === 0)) {
+	// [FORK] MCP vision mode guard (PR #15 Finding 2).
+	//
+	// MCP mode strips images to disk and leaves a file-path prompt, relying on
+	// an image-capable MCP tool to read them back. The earlier guard only
+	// checked "any tool exists", so a session with only ordinary tools (search,
+	// terminal, edits) would pass, images would be stripped, and the model
+	// would have no reader — a silent loss.
+	//
+	// Now we check for an ACTUAL image-capable tool against an allowlist. When
+	// the request carries images but no image-capable tool is available, we
+	// must NOT silently strip. Resolution order:
+	//   1. tool calling off entirely -> throw the original conflict error
+	//      (images can never reach a tool in this session)
+	//   2. tools exist but none is image-capable -> try to fall back to the
+	//      vision proxy so images are still described; NEVER fall back to
+	//      native — that would inject base64 into a text-only model context,
+	//      which is exactly what mcp mode was chosen to avoid
+	//   3. no proxy available either -> throw a clear error telling the user
+	//      the three ways out (enable a vision MCP tool / configure a proxy /
+	//      switch to native if the model supports it)
+	//
+	// Pure-text requests skip all of this — the branches only fire when there
+	// are image parts to lose.
+	let effectiveVisionMode = visionMode;
+	let mcpFallbackNotice: string | undefined;
+	if (visionMode === 'mcp') {
 		const hasImages = messages.some((m) =>
 			(m.content as readonly vscode.LanguageModelInputPart[]).some(
 				(p) => p instanceof vscode.LanguageModelDataPart && p.mimeType.startsWith('image/'),
 			),
 		);
 		if (hasImages) {
-			throw new Error(t('vision.mcp.conflict.toolCallingDisabled'));
+			const toolCallingOff = !tools || tools.length === 0;
+			const hasVisionTool =
+				!toolCallingOff && hasImageCapableTool(options, readImageCapableTools());
+			if (!hasVisionTool) {
+				if (toolCallingOff) {
+					// Case 1: no tools at all — nothing can read the image under any mode.
+					throw new Error(t('vision.mcp.conflict.toolCallingDisabled'));
+				}
+				// Case 2: tools exist but none is image-capable. Try proxy fallback.
+				const proxyDescriber = await getVisionDescriber();
+				if (proxyDescriber) {
+					effectiveVisionMode = 'proxy';
+					mcpFallbackNotice = t('vision.mcp.fallbackToProxy');
+				} else {
+					// Case 3: no vision MCP tool AND no proxy — refuse with guidance.
+					throw new Error(t('vision.mcp.conflict.noImageTool'));
+				}
+			}
 		}
 	}
 
@@ -119,7 +154,7 @@ export async function prepareChatRequest({
 		messages,
 		token,
 		getVisionDescriber,
-		visionMode,
+		effectiveVisionMode,
 	);
 	const resolvedMessages = visionResolution.messages;
 	const glmMessages = convertMessages(resolvedMessages, isThinkingModel);
@@ -135,7 +170,11 @@ export async function prepareChatRequest({
 	// pure-text turns is negligible.) proxy/native modes never inject: images
 	// are already converted to text/base64 there, and injecting would add noise
 	// and break upstream's request-shape assertions.
-	if (visionMode === 'mcp') {
+	// Use effectiveVisionMode so a request that fell back from mcp to proxy
+	// does NOT get the mcp image-tool guidance injected (proxy already
+	// described the images as text; the guidance would be noise + would
+	// break prompt-cache prefix stability across mcp/fallback turns).
+	if (effectiveVisionMode === 'mcp') {
 		injectImageToolGuidance(glmMessages);
 	}
 
@@ -190,7 +229,7 @@ export async function prepareChatRequest({
 		visionModelId: visionResolution.visionModelId,
 		visionProxySource: visionResolution.visionProxySource,
 		visionStats: visionResolution.stats,
-		visionMode,
+		visionMode: effectiveVisionMode,
 		connection,
 	});
 
@@ -207,7 +246,7 @@ export async function prepareChatRequest({
 		visionModelId: visionResolution.visionModelId,
 		visionProxySource: visionResolution.visionProxySource,
 		visionStats: visionResolution.stats,
-		visionMode,
+		visionMode: effectiveVisionMode,
 		connection,
 	});
 
@@ -225,9 +264,14 @@ export async function prepareChatRequest({
 		modelDefinition: modelDef,
 		pricingCurrency: connection.pricingCurrency ?? getPricingCurrencyForBaseUrl(baseUrl),
 		visionMarkerTextChars: visionResolution.stats.markerVisionTextChars || undefined,
-		initialResponseNotice: visionResolution.initialResponseNotice,
+		// [FORK] Surface the mcp->proxy fallback notice alongside any notice
+		// produced by vision resolution (e.g. proxy missing). Both are shown to
+		// the user so they understand why the effective mode differed.
+		initialResponseNotice: mcpFallbackNotice ?? visionResolution.initialResponseNotice,
 		requestDump,
-		visionMode,
+		// Report the EFFECTIVE mode so downstream (segment tracing, request
+		// dumps, stats) reflects what actually ran, not what was configured.
+		visionMode: effectiveVisionMode,
 		nativeImageParts: visionResolution.stats.nativeImageParts,
 		nativeImageBytes: visionResolution.stats.nativeImageBytes,
 		connection,

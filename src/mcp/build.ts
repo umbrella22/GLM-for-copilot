@@ -53,18 +53,41 @@ function buildOne(
 	// [FORK] Disambiguate duplicate labels by appending the stable config id.
 	// This keeps the first label readable and makes collisions explicit
 	// instead of silently misrouting to the wrong server.
-	const label = seenLabels.has(baseLabel) ? `${baseLabel} (${id})` : baseLabel;
+	//
+	// [FORK] PR #15 Finding 5: the earlier single-shot disambiguation only
+	// checked whether `baseLabel` was taken, then appended `(id)` without
+	// re-checking that the result was also unique. Counter-example:
+	//   id `a` label "X", id `c` label "X (b)", id `b` label "X"
+	// -> the third server's `X (b)` collides with the second one's literal
+	// label, and VS Code's `find(label)` resolves both to whichever registered
+	// first. Now we LOOP until the candidate is unique within this collection.
+	const suffixId = sanitizeLabelSuffix(id);
+	const label = disambiguateLabel(baseLabel, suffixId, seenLabels);
 	if (config.type === 'stdio') {
 		const command = config.command?.trim();
 		if (!command) {
 			return undefined;
 		}
 		const args = config.args ?? [];
-		// `version` set to a stable value derived from config so that VS Code
-		// can detect when the server definition changed (e.g. command/args
-		// edited via UI) and prompt a tool refresh.
-		const version = `${config.command}:${args.join(',')}`;
-		return new vscode.McpStdioServerDefinition(label, command, args, {}, version);
+		// [FORK] PR #15 Finding 3: forward user-provided env so stdio servers
+		// actually receive it (previously buildOne always passed `{}`, silently
+		// dropping the env field the user configured). The auth key is merged
+		// into this same env at resolve time.
+		const env: Record<string, string> = { ...config.env };
+		// `version` is derived from every field that affects HOW the server runs
+		// (command, args, env, cwd) so VS Code can detect any config edit and
+		// prompt a tool refresh. Including env here means editing env also
+		// triggers a refresh, which is the desired behavior.
+		const version = `${config.command}:${args.join(',')}:${stableStringify(env)}:${config.cwd ?? ''}`;
+		const definition = new vscode.McpStdioServerDefinition(label, command, args, env, version);
+		// [FORK] PR #15 Finding 3: cwd is a Uri-typed instance property (NOT a
+		// constructor parameter per the VS Code API), so assign it post-construction.
+		// An empty/whitespace cwd is ignored so the process inherits the editor's.
+		const cwd = config.cwd?.trim();
+		if (cwd) {
+			definition.cwd = vscode.Uri.file(cwd);
+		}
+		return definition;
 	}
 	if (config.type === 'http') {
 		const url = config.url?.trim();
@@ -77,10 +100,67 @@ function buildOne(
 		} catch {
 			return undefined;
 		}
-		const version = url;
-		return new vscode.McpHttpServerDefinition(label, uri, {}, version);
+		// [FORK] PR #15 Finding 3: forward user-provided headers so http servers
+		// actually receive them. The Authorization header is merged in at
+		// resolve time.
+		const headers: Record<string, string> = { ...config.headers };
+		const version = `${url}:${stableStringify(headers)}`;
+		return new vscode.McpHttpServerDefinition(label, uri, headers, version);
 	}
 	return undefined;
+}
+
+/**
+ * [FORK] Deterministic JSON-ish serialization for embedding a small object
+ * into a version string. Keys are sorted so two logically-equal maps with
+ * different insertion order produce the same version. Only used on env /
+ * headers maps (flat string→string), never on nested structures.
+ */
+function stableStringify(record: Readonly<Record<string, string>>): string {
+	const keys = Object.keys(record).sort();
+	if (keys.length === 0) {
+		return '{}';
+	}
+	return '{' + keys.map((k) => `${k}=${record[k]}`).join(',') + '}';
+}
+
+/**
+ * [FORK] PR #15 Finding 5: produce a label that is unique within `seenLabels`.
+ *
+ * - If `baseLabel` is free, use it as-is (happy path, keeps labels readable).
+ * - Otherwise append ` (<suffixId>)` where suffixId is the sanitized config id.
+ * - If THAT is also taken (the counter-example from the review: a later server
+ *   has a literal label of the form "X (b)" that collides with the generated
+ *   suffix), keep appending `-<n>` until unique. The result is guaranteed
+ *   unique by construction, so VS Code's label-based `find` always resolves
+ *   to the intended server.
+ */
+function disambiguateLabel(
+	baseLabel: string,
+	suffixId: string,
+	seenLabels: ReadonlySet<string>,
+): string {
+	if (!seenLabels.has(baseLabel)) {
+		return baseLabel;
+	}
+	let candidate = `${baseLabel} (${suffixId})`;
+	let attempt = 1;
+	while (seenLabels.has(candidate)) {
+		candidate = `${baseLabel} (${suffixId}-${attempt})`;
+		attempt += 1;
+	}
+	return candidate;
+}
+
+/**
+ * [FORK] Sanitize a config id for inclusion in a generated label suffix.
+ * Strips characters that would be confusing or unsafe inside a parenthesized
+ * label (whitespace, parens, control chars). Falls back to a stable placeholder
+ * when nothing usable remains.
+ */
+function sanitizeLabelSuffix(id: string): string {
+	const cleaned = id.replace(/[^a-zA-Z0-9_\-.]/g, '').trim();
+	return cleaned.length > 0 ? cleaned : 'server';
 }
 
 /**

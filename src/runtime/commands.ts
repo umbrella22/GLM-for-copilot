@@ -2,6 +2,7 @@ import vscode from 'vscode';
 import { CREDENTIAL_CHANNELS, formatCredentialChannel } from '../auth';
 import {
 	inspectEffectiveModelManagementConfiguration,
+	mergeModelManagementConfigurations,
 	resolveDefaultConnection,
 	saveModelManagementConfiguration,
 } from '../config';
@@ -129,30 +130,25 @@ async function applyCodingPlanPreset(): Promise<void> {
 	//    into the user-global config and so do not leak into other projects.
 	//    `globalValue` already includes Global-scope legacy translation, so
 	//    legacy user settings are still preserved.
-	//    Built imperatively (not with conditional spreads) so optional fields
-	//    stay absent when their source is absent — conditional spreads trip
-	//    unicorn/no-useless-fallback-in-spread.
+	//    The merge reuses the shared null-prototype helper so arbitrary existing
+	//    model ids — including the legitimate '__proto__' id — survive as own
+	//    data properties instead of hitting a plain object's `__proto__` setter.
 	try {
 		const resource = getActiveWorkspaceFolderResource();
 		const current: ModelManagementConfigurationV1 = inspectEffectiveModelManagementConfiguration(
 			resource,
 		).globalValue ?? { version: 1 };
-		// Clone existing models (may be undefined) into a fresh record we can mutate.
-		const models: NonNullable<ModelManagementConfigurationV1['models']> = {};
-		for (const [id, profile] of Object.entries(current.models ?? {})) {
-			models[id] = { ...profile };
-		}
-		const glm52 = models['glm-5.2'] ?? {};
-		models['glm-5.2'] = { ...glm52, endpointRoute: 'china-anthropic', visionMode: 'mcp' };
-		const glm5turbo = models['glm-5-turbo'] ?? {};
-		models['glm-5-turbo'] = { ...glm5turbo, visionMode: 'mcp' };
-		const merged: ModelManagementConfigurationV1 = { version: 1, models };
-		if (current.defaultConnection) {
-			merged.defaultConnection = current.defaultConnection;
-		}
-		if (current.customModels) {
-			merged.customModels = current.customModels;
-		}
+		// Coding Plan overrides only. 'glm-5.2' / 'glm-5-turbo' are known-safe
+		// keys, so a plain literal is fine for the PRESET; arbitrary existing
+		// ids ride on `current` and are merged by the null-prototype helper.
+		const preset: ModelManagementConfigurationV1 = {
+			version: 1,
+			models: {
+				'glm-5.2': { endpointRoute: 'china-anthropic', visionMode: 'mcp' },
+				'glm-5-turbo': { visionMode: 'mcp' },
+			},
+		};
+		const merged = mergeModelManagementConfigurations(current, preset);
 		await saveModelManagementConfiguration(merged, target);
 		written += 1;
 	} catch (error) {

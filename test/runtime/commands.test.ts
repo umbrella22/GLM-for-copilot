@@ -311,4 +311,34 @@ describe('runtime commands — applyCodingPlanPreset (FORK)', () => {
 		) as { defaultConnection?: { baseUrl?: string } };
 		expect(mm?.defaultConnection?.baseUrl).toBe('https://user.example.com');
 	});
+
+	it('preserves a legitimate "__proto__" model id as an own property (F3)', async () => {
+		// '__proto__' is a valid canonical model id in this repo. Seed it via
+		// JSON.parse so it lands as an OWN data property — an object literal
+		// { __proto__: ... } would hit the setter and fail to seed. The preset
+		// must preserve it end-to-end (previously a plain {} build dropped it).
+		const seeded = JSON.parse('{"version":1,"models":{"__proto__":{"visionMode":"native"}}}');
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			seeded,
+			ConfigurationTarget.Global,
+		);
+		__setWarningMessageButton('Apply');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.applyCodingPlanPreset');
+
+		const mm = __getConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			ConfigurationTarget.Global,
+		) as { models?: Record<string, { visionMode?: string; endpointRoute?: string }> };
+		expect(mm?.models).toBeDefined();
+		// __proto__ survives as an own data property end-to-end.
+		expect(Object.prototype.hasOwnProperty.call(mm?.models, '__proto__')).toBe(true);
+		expect(mm?.models?.['__proto__']).toMatchObject({ visionMode: 'native' });
+		// Preset still applies on the known-safe keys.
+		expect(mm?.models?.['glm-5.2']).toMatchObject({
+			endpointRoute: 'china-anthropic',
+			visionMode: 'mcp',
+		});
+	});
 });

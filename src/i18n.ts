@@ -409,6 +409,10 @@ const zh: Translations = {
 	'extension.welcomeFailed': '欢迎引导加载异常',
 	'extension.openRequestDumpsFolderFailed':
 		'打开请求 dump 目录失败，请运行 "GLM: 显示日志" 查看详情。',
+	'command.applyCodingPlanPreset.confirm': // [FORK]
+		'为 GLM Coding Plan 套餐应用推荐配置？这将写入用户级覆盖：GLM-5.2 走国内 Anthropic 线路 + MCP 图片模式，GLM-5-Turbo 走 MCP 图片模式，启用 4 个内置 MCP 服务，并启用工具列表稳定化。仅影响用户级配置，工作区配置不变。',
+	'command.applyCodingPlanPreset.confirmYes': '应用', // [FORK]
+	'command.applyCodingPlanPreset.done': '已为 GLM Coding Plan 套餐应用推荐配置（{0} 项写入）。', // [FORK]
 	'command.cleanupStoredImages.confirm': // [FORK]
 		'删除所有已存储的 MCP 图片？此操作不可撤销；其他正在进行的会话或将来重放的历史会话可能仍会引用这些图片。',
 	'command.cleanupStoredImages.confirmYes': '删除', // [FORK]
@@ -865,6 +869,11 @@ const en: Translations = {
 	'extension.welcomeFailed': 'Failed to show GLM welcome prompt',
 	'extension.openRequestDumpsFolderFailed':
 		'Failed to open request dumps folder. Run "GLM: Show Logs" for details.',
+	'command.applyCodingPlanPreset.confirm': // [FORK]
+		'Apply the recommended setup for the GLM Coding Plan subscription? This writes user-level overrides: GLM-5.2 on the domestic Anthropic route + MCP vision mode, GLM-5-Turbo on MCP vision mode, all 4 built-in MCP servers enabled, and stabilize tool list enabled. Only user-scope configuration is affected; workspace settings are untouched.',
+	'command.applyCodingPlanPreset.confirmYes': 'Apply', // [FORK]
+	'command.applyCodingPlanPreset.done':
+		'Applied the recommended setup for the GLM Coding Plan subscription ({0} item(s) written).', // [FORK]
 	'command.cleanupStoredImages.confirm': // [FORK]
 		'Delete all stored MCP images? This cannot be undone; other ongoing or future-replayed conversations may still reference these files.',
 	'command.cleanupStoredImages.confirmYes': 'Delete', // [FORK]

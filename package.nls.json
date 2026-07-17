@@ -8,6 +8,7 @@
   "glm-copilot.command.openSettings": "GLM: Open Settings",
   "glm-copilot.command.showLogs": "GLM: Show Logs",
   "glm-copilot.command.openRequestDumpsFolder": "GLM: Open Request Dumps Folder",
+  "glm-copilot.command.applyCodingPlanPreset": "GLM: Apply Recommended Setup for GLM Coding Plan",
   "glm-copilot.command.cleanupStoredImages": "GLM: Clean Up Stored Images",
   "glm-copilot.walkthrough.title": "GLM for Copilot Chat",
   "glm-copilot.walkthrough.description": "Set up GLM models in Copilot Chat.",

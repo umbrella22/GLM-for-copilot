@@ -389,7 +389,7 @@
             "understand_technical_diagram",
             "analyze_data_visualization",
             "ui_diff_check",
-            "image_analysis"
+            "analyze_image"
           ],
           "scope": "application",
           "markdownDescription": "%glm-copilot.config.mcp.imageCapableTools.description%"

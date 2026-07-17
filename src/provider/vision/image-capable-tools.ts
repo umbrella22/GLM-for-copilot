@@ -5,7 +5,7 @@ import { CONFIG_SECTION } from '../../consts';
  * [FORK] Image-capable MCP tool detection (PR #15 Finding 2).
  *
  * MCP vision mode strips images to disk and leaves a file-path prompt in the
- * conversation, relying on an image-capable MCP tool (e.g. `image_analysis`,
+ * conversation, relying on an image-capable MCP tool (e.g. `analyze_image`,
  * `extract_text_from_screenshot`) to read them back. The earlier guard in
  * `request.ts` only checked "ANY tool exists", so a session with only ordinary
  * tools (web search, terminal, edits) would pass the guard, images would be
@@ -41,7 +41,7 @@ export const DEFAULT_IMAGE_CAPABLE_TOOLS: readonly string[] = [
 	'understand_technical_diagram',
 	'analyze_data_visualization',
 	'ui_diff_check',
-	'image_analysis',
+	'analyze_image',
 ];
 
 /**
@@ -65,17 +65,32 @@ export function readImageCapableTools(): Set<string> {
 }
 
 /**
- * Whether a tool name refers to an image-capable MCP tool.
+ * [FORK] Whether a tool name refers to an image-capable MCP tool.
  *
  * Matching is name-based and tolerant of the MCP name-prefix conventions used
  * by different VS Code versions:
- *   - Exact match: `image_analysis`
- *   - Suffix match: `mcp__zai-mcp-server__image_analysis` (the fully-qualified
- *     MCP tool name format) — matches when the allowlist entry equals the
- *     segment after the last `__`.
+ *   - Exact match: `analyze_image`
+ *   - Qualified match: `mcp_<server>_<tool>` (the fully-qualified MCP tool id
+ *     format produced by VS Code's McpPrefixGenerator, see
+ *     vscode/src/vs/workbench/contrib/mcp/common/mcpServer.ts) — matches when
+ *     the name starts with the `mcp_` prefix and ends with `_<shortName>`.
  *
- * This lets users write short names in the allowlist regardless of how VS Code
- * qualifies the tool name at runtime.
+ * CRITICAL: VS Code uses SINGLE underscores throughout the qualified id:
+ *   `McpToolName.Prefix = 'mcp_'`  (mcpTypes.ts)
+ *   `id = idPrefix + toolName`  where idPrefix = `mcp_` + safeServerName + `_`
+ * So `mcp_zai-mcp-server_analyze_image` is the real runtime id. An earlier
+ * version of this function looked for a `__` (double-underscore) separator,
+ * which NEVER appears in real MCP ids, so every MCP vision tool was missed
+ * and the F2 guard always fell back to the vision proxy. See the VS Code
+ * McpPrefixGenerator unit tests (mcpPrefixGenerator.test.ts) for the format.
+ *
+ * The `mcp_` start-anchor is required so that a non-MCP tool whose name
+ * happens to end with `_<allowlistEntry>` (e.g. a hypothetical built-in
+ * `foo_ui_to_artifact`) is NOT misclassified. Only MCP tools carry the
+ * `mcp_` prefix (McpToolName.Prefix is MCP-exclusive in VS Code).
+ *
+ * This lets users write short names in the allowlist regardless of how VS
+ * Code qualifies the tool name at runtime.
  */
 export function isImageCapableTool(toolName: string, allowlist: ReadonlySet<string>): boolean {
 	if (typeof toolName !== 'string' || toolName.length === 0) {
@@ -84,11 +99,16 @@ export function isImageCapableTool(toolName: string, allowlist: ReadonlySet<stri
 	if (allowlist.has(toolName)) {
 		return true;
 	}
-	// Suffix match: `mcp__<server>__<tool>` -> `<tool>`.
-	const lastSeparator = toolName.lastIndexOf('__');
-	if (lastSeparator >= 0 && lastSeparator + 2 < toolName.length) {
-		const shortName = toolName.slice(lastSeparator + 2);
-		return allowlist.has(shortName);
+	// Qualified MCP match: `mcp_<server>_<tool>`.
+	// The `mcp_` prefix is the anchor that proves this is an MCP tool id;
+	// combined with endsWith('_<shortName>') it uniquely identifies the tool
+	// regardless of how many underscores the server name contains.
+	if (toolName.startsWith('mcp_')) {
+		for (const shortName of allowlist) {
+			if (toolName.endsWith('_' + shortName)) {
+				return true;
+			}
+		}
 	}
 	return false;
 }

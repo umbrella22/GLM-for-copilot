@@ -478,7 +478,7 @@ describe('request preparation — mcp vision mode entry guard (PR #14 review #4)
 			modelInfo: { id: 'team-tools' } as vscode.LanguageModelChatInformation,
 			segment,
 			messages: [userMessage([pngImagePart()])],
-			options: buildOptions({ tools: [tool('image_analysis')] }),
+			options: buildOptions({ tools: [tool('analyze_image')] }),
 			token,
 			cacheDiagnostics: createCacheDiagnosticsRecorder(),
 			getVisionDescriber: async () => ({ id: 'unused', source: 'auto', describe: vi.fn() }),
@@ -583,9 +583,10 @@ describe('request preparation — mcp vision mode entry guard (PR #14 review #4)
 			).rejects.toThrowError(/no image-capable MCP tool|没有可用的图片 MCP 工具/i);
 		});
 
-		it('recognizes fully-qualified MCP tool names (mcp__<server>__<tool>)', async () => {
-			// VS Code may qualify MCP tool names with a server prefix. The
-			// allowlist matches the short name, so this must still count as
+		it('recognizes fully-qualified MCP tool names (mcp_<server>_<tool>)', async () => {
+			// VS Code qualifies MCP tool ids with a single-underscore prefix
+			// (McpToolName.Prefix='mcp_' + safeServerName + '_' + toolName).
+			// The allowlist matches the short name, so this must still count as
 			// image-capable and run in mcp mode.
 			__setConfigurationValue('glm-copilot.customModels', ['team-tools']);
 			__setConfigurationValue('glm-copilot.modelVisionModes', { 'team-tools': 'mcp' });
@@ -596,7 +597,7 @@ describe('request preparation — mcp vision mode entry guard (PR #14 review #4)
 				modelInfo: { id: 'team-tools' } as vscode.LanguageModelChatInformation,
 				segment,
 				messages: [userMessage([imagePart()])],
-				options: buildOptions({ tools: [tool('mcp__zai-mcp-server__image_analysis')] }),
+				options: buildOptions({ tools: [tool('mcp_zai-mcp-server_analyze_image')] }),
 				token,
 				cacheDiagnostics: createCacheDiagnosticsRecorder(),
 				getVisionDescriber: async () => undefined, // unused: should stay in mcp

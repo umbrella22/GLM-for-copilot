@@ -18,7 +18,9 @@ import {
 	__setConfigurationValueAtScope,
 	__setQuickPickSelectionLabel,
 	__setWarningMessageButton,
+	__setWorkspaceFolders,
 	ConfigurationTarget,
+	Uri,
 	__getWindowMessages,
 } from '../support/vscode.mock';
 
@@ -175,5 +177,138 @@ describe('runtime commands — applyCodingPlanPreset (FORK)', () => {
 		});
 		// Custom models preserved.
 		expect(mm?.customModels?.['my-team-model']).toBeDefined();
+	});
+
+	it('does not promote workspace-scoped models to the user-global config (F1)', async () => {
+		// A model that exists ONLY at Workspace scope must not be baked into the
+		// user-global override when the preset is applied. Before the F1 fix the
+		// command read `.effective` (Global+Workspace+Folder merge) and promoted
+		// it; now it reads `.globalValue` (user scope only).
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			{ version: 1, models: { 'workspace-only-model': { visionMode: 'native' } } },
+			ConfigurationTarget.Workspace,
+		);
+		__setWarningMessageButton('Apply');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.applyCodingPlanPreset');
+
+		const mm = __getConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			ConfigurationTarget.Global,
+		) as { models?: Record<string, unknown> };
+		const models = mm?.models ?? {};
+		// Workspace-only model is NOT promoted to Global.
+		expect(Object.prototype.hasOwnProperty.call(models, 'workspace-only-model')).toBe(false);
+		// Preset overrides are still applied at Global.
+		expect(models['glm-5.2']).toMatchObject({
+			endpointRoute: 'china-anthropic',
+			visionMode: 'mcp',
+		});
+	});
+
+	it('does not promote a workspace defaultConnection.baseUrl to Global (F1)', async () => {
+		// Field-level cross-scope merge: Global has {endpoint}, Workspace has a
+		// different {baseUrl}. Only Global's fields may reach the user-global write.
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			{ version: 1, defaultConnection: { endpoint: 'china-standard' } },
+			ConfigurationTarget.Global,
+		);
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			{ version: 1, defaultConnection: { baseUrl: 'https://workspace-only.example.com' } },
+			ConfigurationTarget.Workspace,
+		);
+		__setWarningMessageButton('Apply');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.applyCodingPlanPreset');
+
+		const mm = __getConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			ConfigurationTarget.Global,
+		) as { defaultConnection?: { endpoint?: string; baseUrl?: string } };
+		expect(mm?.defaultConnection?.endpoint).toBe('china-standard');
+		// Workspace baseUrl is NOT promoted to Global.
+		expect(Object.prototype.hasOwnProperty.call(mm?.defaultConnection ?? {}, 'baseUrl')).toBe(
+			false,
+		);
+	});
+
+	it('does not promote workspace-folder-scoped custom models to Global (F1)', async () => {
+		// Single-folder workspace so getActiveWorkspaceFolderResource() resolves to
+		// it (no active text editor). A custom model seeded ONLY at folder scope
+		// must not be promoted to the user-global override.
+		const folder = Uri.file('/proj/folder');
+		__setWorkspaceFolders([folder]);
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			{
+				version: 1,
+				customModels: { 'folder-team-model': { id: 'folder-team-model', thinking: true } },
+			},
+			ConfigurationTarget.WorkspaceFolder,
+			folder,
+		);
+		__setWarningMessageButton('Apply');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.applyCodingPlanPreset');
+
+		const mm = __getConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			ConfigurationTarget.Global,
+		) as { customModels?: Record<string, unknown> };
+		expect(Object.prototype.hasOwnProperty.call(mm?.customModels ?? {}, 'folder-team-model')).toBe(
+			false,
+		);
+	});
+
+	it('does not promote a workspace customModels tombstone to Global (F1)', async () => {
+		// Workspace sets customModels[<id>] = null (tombstone) while Global still
+		// defines that model. The workspace tombstone must NOT delete the model at
+		// the user-global scope (which would affect every other project).
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			{
+				version: 1,
+				customModels: { 'existing-global-model': { id: 'existing-global-model', thinking: true } },
+			},
+			ConfigurationTarget.Global,
+		);
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			{ version: 1, customModels: { 'existing-global-model': null } },
+			ConfigurationTarget.Workspace,
+		);
+		__setWarningMessageButton('Apply');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.applyCodingPlanPreset');
+
+		const mm = __getConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			ConfigurationTarget.Global,
+		) as { customModels?: Record<string, unknown> };
+		// Global model is still defined — the workspace tombstone did not propagate.
+		expect(mm?.customModels?.['existing-global-model']).toBeDefined();
+	});
+
+	it('preserves Global-scope legacy settings when reading user-scope only (F1)', async () => {
+		// A legacy Global baseUrl (no canonical modelManagement) must still be
+		// translated into the user-global defaultConnection: `globalValue` includes
+		// Global-scope legacy translation, only the Workspace/Folder layers drop out.
+		__setConfigurationValueAtScope(
+			'glm-copilot.baseUrl',
+			'https://user.example.com',
+			ConfigurationTarget.Global,
+		);
+		__setWarningMessageButton('Apply');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.applyCodingPlanPreset');
+
+		const mm = __getConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			ConfigurationTarget.Global,
+		) as { defaultConnection?: { baseUrl?: string } };
+		expect(mm?.defaultConnection?.baseUrl).toBe('https://user.example.com');
 	});
 });

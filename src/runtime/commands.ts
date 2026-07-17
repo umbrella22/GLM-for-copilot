@@ -121,16 +121,22 @@ async function applyCodingPlanPreset(): Promise<void> {
 	const errors: string[] = []; // [FORK] collect failures for diagnostics
 	const target = vscode.ConfigurationTarget.Global;
 
-	// 1. Merge Coding Plan model overrides onto the effective modelManagement
-	//    config and save the result at user scope. Reading effective first
-	//    preserves any existing user overrides (e.g. custom models) instead
-	//    of clobbering them.
+	// 1. Merge Coding Plan model overrides onto the USER-scope modelManagement
+	//    config only, then save at user scope. Reading `.globalValue` (NOT the
+	//    merged `.effective`) ensures workspace/folder overrides — a project-
+	//    specific baseUrl, a workspace model route/vision override, a folder
+	//    custom model, or a folder customModels tombstone — are NOT promoted
+	//    into the user-global config and so do not leak into other projects.
+	//    `globalValue` already includes Global-scope legacy translation, so
+	//    legacy user settings are still preserved.
 	//    Built imperatively (not with conditional spreads) so optional fields
 	//    stay absent when their source is absent — conditional spreads trip
 	//    unicorn/no-useless-fallback-in-spread.
 	try {
 		const resource = getActiveWorkspaceFolderResource();
-		const current = inspectEffectiveModelManagementConfiguration(resource).effective;
+		const current: ModelManagementConfigurationV1 = inspectEffectiveModelManagementConfiguration(
+			resource,
+		).globalValue ?? { version: 1 };
 		// Clone existing models (may be undefined) into a fresh record we can mutate.
 		const models: NonNullable<ModelManagementConfigurationV1['models']> = {};
 		for (const [id, profile] of Object.entries(current.models ?? {})) {

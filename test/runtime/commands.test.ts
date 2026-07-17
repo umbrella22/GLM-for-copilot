@@ -16,6 +16,7 @@ import {
 	__resetCommandState,
 	__setConfigurationValue,
 	__setConfigurationValueAtScope,
+	__setConfigurationUpdateFailure,
 	__setQuickPickSelectionLabel,
 	__setWarningMessageButton,
 	__setWorkspaceFolders,
@@ -23,6 +24,7 @@ import {
 	Uri,
 	__getWindowMessages,
 } from '../support/vscode.mock';
+import { t } from '../../src/i18n';
 
 // Mock cleanupAllStoredImages so the cleanup command can be tested without
 // initializing the real image store. The spy records the call count.
@@ -340,5 +342,91 @@ describe('runtime commands — applyCodingPlanPreset (FORK)', () => {
 			endpointRoute: 'china-anthropic',
 			visionMode: 'mcp',
 		});
+	});
+
+	it('reports a partial failure when one MCP checkbox fails (F2)', async () => {
+		const [failingId] = Object.keys(BUILTIN_MCP_SERVERS);
+		const totalOps = 2 + Object.keys(BUILTIN_MCP_SERVERS).length;
+		__setConfigurationUpdateFailure(
+			`glm-copilot.mcp.${failingId}.enabled`,
+			ConfigurationTarget.Global,
+		);
+		__setWarningMessageButton('Apply');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.applyCodingPlanPreset');
+
+		const msgs = __getWindowMessages();
+		// warning[0] is the modal confirm; the partial-failure warning comes
+		// after it and must include the failing key and the success/total ratio.
+		const partial = msgs.warning.find(
+			(m) => m.includes(`mcp.${failingId}.enabled`) && m.includes(`${totalOps - 1}/${totalOps}`),
+		);
+		expect(partial).toBeDefined();
+		// The misleading success info and any error must NOT fire.
+		expect(msgs.information.length).toBe(0);
+		expect(msgs.error.length).toBe(0);
+		// Non-failing MCP ids still wrote.
+		const cfg = vscode.workspace.getConfiguration('glm-copilot');
+		for (const id of Object.keys(BUILTIN_MCP_SERVERS)) {
+			if (id === failingId) continue;
+			expect(cfg.get(`mcp.${id}.enabled`)).toBe(true);
+		}
+	});
+
+	it('reports a partial failure when the modelManagement write fails (F2)', async () => {
+		const totalOps = 2 + Object.keys(BUILTIN_MCP_SERVERS).length;
+		__setConfigurationUpdateFailure('glm-copilot.modelManagement', ConfigurationTarget.Global);
+		__setWarningMessageButton('Apply');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.applyCodingPlanPreset');
+
+		const msgs = __getWindowMessages();
+		// modelManagement failed but stabilizeToolList + all MCP succeeded.
+		const partial = msgs.warning.find(
+			(m) => m.includes('modelManagement') && m.includes(`${totalOps - 1}/${totalOps}`),
+		);
+		expect(partial).toBeDefined();
+		expect(msgs.information.length).toBe(0);
+	});
+
+	it('reports a total failure (error) when every write fails (F2)', async () => {
+		const totalOps = 2 + Object.keys(BUILTIN_MCP_SERVERS).length;
+		// Fail every sub-op: modelManagement, stabilizeToolList, all MCP checkboxes.
+		__setConfigurationUpdateFailure('glm-copilot.modelManagement', ConfigurationTarget.Global);
+		__setConfigurationUpdateFailure(
+			'glm-copilot.experimental.stabilizeToolList',
+			ConfigurationTarget.Global,
+		);
+		for (const id of Object.keys(BUILTIN_MCP_SERVERS)) {
+			__setConfigurationUpdateFailure(`glm-copilot.mcp.${id}.enabled`, ConfigurationTarget.Global);
+		}
+		__setWarningMessageButton('Apply');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.applyCodingPlanPreset');
+
+		const msgs = __getWindowMessages();
+		// Total failure -> error message with 0/totalOps and the joined reasons.
+		expect(msgs.error.length).toBe(1);
+		expect(msgs.error[0]).toContain(`0/${totalOps}`);
+		expect(msgs.error[0]).toContain('modelManagement');
+		// Only the modal confirm warning fired; no success info, no partial warning.
+		expect(msgs.warning.length).toBe(1);
+		expect(msgs.information.length).toBe(0);
+	});
+});
+
+describe('runtime commands — applyCodingPlanPreset i18n (FORK)', () => {
+	it('renders partial and failed messages without leftover placeholders (F2)', () => {
+		// Guards against positional-arg misuse: t() maps {N} -> args[N] with no
+		// skipping, so a mismatched template would leave a literal {N} behind.
+		const partial = t('command.applyCodingPlanPreset.partial', 5, 6, 'mcp.x.enabled: boom');
+		expect(partial).not.toMatch(/\{\d\}/);
+		expect(partial).toContain('5/6');
+		expect(partial).toContain('mcp.x.enabled');
+
+		const failed = t('command.applyCodingPlanPreset.failed', 0, 6, 'modelManagement: boom');
+		expect(failed).not.toMatch(/\{\d\}/);
+		expect(failed).toContain('0/6');
+		expect(failed).toContain('modelManagement');
 	});
 });

@@ -178,13 +178,20 @@ async function applyCodingPlanPreset(): Promise<void> {
 		}
 	}
 
-	// [FORK] If everything failed, surface the actual reasons instead of a
-	// silent "0 items written" that hides the root cause.
+	// [FORK] Surface partial failures explicitly. Earlier only a total failure
+	// (written === 0) was reported, so a partial failure fell through to the
+	// success message and the failing keys lived only in the log.
 	const totalOps = 2 + Object.keys(BUILTIN_MCP_SERVERS).length;
-	if (written === 0 && errors.length > 0) {
-		void vscode.window.showErrorMessage(
-			`Apply preset failed (0/${totalOps}). Reasons:\n${errors.join('\n')}`,
-		);
+	if (errors.length > 0) {
+		if (written === 0) {
+			void vscode.window.showErrorMessage(
+				t('command.applyCodingPlanPreset.failed', written, totalOps, errors.join('\n')),
+			);
+		} else {
+			void vscode.window.showWarningMessage(
+				t('command.applyCodingPlanPreset.partial', written, totalOps, errors.join('\n')),
+			);
+		}
 		return;
 	}
 	void vscode.window.showInformationMessage(t('command.applyCodingPlanPreset.done', written));

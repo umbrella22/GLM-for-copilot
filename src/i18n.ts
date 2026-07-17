@@ -413,6 +413,10 @@ const zh: Translations = {
 		'为 GLM Coding Plan 套餐应用推荐配置？这将写入用户级覆盖：GLM-5.2 走国内 Anthropic 线路 + MCP 图片模式，GLM-5-Turbo 走 MCP 图片模式，启用 4 个内置 MCP 服务，并启用工具列表稳定化。仅影响用户级配置，工作区配置不变。',
 	'command.applyCodingPlanPreset.confirmYes': '应用', // [FORK]
 	'command.applyCodingPlanPreset.done': '已为 GLM Coding Plan 套餐应用推荐配置（{0} 项写入）。', // [FORK]
+	'command.applyCodingPlanPreset.partial': // [FORK]
+		'已为 GLM Coding Plan 套餐部分应用推荐配置（{0}/{1} 项写入）。失败项：\n{2}',
+	'command.applyCodingPlanPreset.failed': // [FORK]
+		'应用 GLM Coding Plan 推荐配置失败（{0}/{1} 项写入）。原因：\n{2}',
 	'command.cleanupStoredImages.confirm': // [FORK]
 		'删除所有已存储的 MCP 图片？此操作不可撤销；其他正在进行的会话或将来重放的历史会话可能仍会引用这些图片。',
 	'command.cleanupStoredImages.confirmYes': '删除', // [FORK]
@@ -874,6 +878,10 @@ const en: Translations = {
 	'command.applyCodingPlanPreset.confirmYes': 'Apply', // [FORK]
 	'command.applyCodingPlanPreset.done':
 		'Applied the recommended setup for the GLM Coding Plan subscription ({0} item(s) written).', // [FORK]
+	'command.applyCodingPlanPreset.partial': // [FORK]
+		'Applied the GLM Coding Plan recommended setup partially ({0}/{1} item(s) written). Failures:\n{2}',
+	'command.applyCodingPlanPreset.failed': // [FORK]
+		'Failed to apply the GLM Coding Plan recommended setup ({0}/{1} item(s) written). Reasons:\n{2}',
 	'command.cleanupStoredImages.confirm': // [FORK]
 		'Delete all stored MCP images? This cannot be undone; other ongoing or future-replayed conversations may still reference these files.',
 	'command.cleanupStoredImages.confirmYes': 'Delete', // [FORK]

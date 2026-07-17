@@ -91,6 +91,139 @@ describe('runtime commands — cleanupStoredImages (FORK)', () => {
 	});
 });
 
+describe('runtime commands — resetToDefaults (FORK)', () => {
+	beforeEach(() => {
+		__clearConfigurationValues();
+		__resetCommandState();
+		cleanupAllStoredImagesMock.mockClear();
+	});
+
+	it('does nothing when the user dismisses the confirmation dialog', async () => {
+		__setWarningMessageButton(undefined);
+		// Pre-set some values to prove they are NOT cleared on cancel.
+		__setConfigurationValue('glm-copilot.mcp.imageCleanupMode', 'ttl-7d');
+		__setConfigurationValue('glm-copilot.mcp.zread.enabled', true);
+
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetToDefaults');
+
+		// Values untouched because the user cancelled.
+		const cfg = vscode.workspace.getConfiguration('glm-copilot');
+		expect(cfg.get('mcp.imageCleanupMode')).toBe('ttl-7d');
+		expect(cfg.get('mcp.zread.enabled')).toBe(true);
+	});
+
+	it('clears all fork-relevant keys including visionPrompt when confirmed', async () => {
+		__setWarningMessageButton('Reset');
+		// Set values across every category resetToDefaults should clear.
+		__setConfigurationValue('glm-copilot.mcp.imageCleanupMode', 'ttl-7d');
+		__setConfigurationValue('glm-copilot.mcp.zread.enabled', true);
+		__setConfigurationValue('glm-copilot.imageHandlingPrompt', 'custom');
+		__setConfigurationValue('glm-copilot.imageStoredPrompt', 'custom');
+		__setConfigurationValue('glm-copilot.visionPrompt', 'custom');
+		__setConfigurationValue('glm-copilot.experimental.stabilizeToolList', true);
+
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetToDefaults');
+
+		const cfg = vscode.workspace.getConfiguration('glm-copilot');
+		// imageCleanupMode must be in the reset list (regression guard: an
+		// earlier version missed it).
+		expect(cfg.get('mcp.imageCleanupMode')).toBeUndefined();
+		// All four built-in server toggles cleared.
+		for (const id of Object.keys(BUILTIN_MCP_SERVERS)) {
+			expect(cfg.get(`mcp.${id}.enabled`), `mcp.${id}.enabled should be cleared`).toBeUndefined();
+		}
+		expect(cfg.get('imageHandlingPrompt')).toBeUndefined();
+		expect(cfg.get('imageStoredPrompt')).toBeUndefined();
+		// visionPrompt must be in the reset list (regression guard: this port
+		// intentionally adds it — without it, a vision-prompt override would
+		// survive "reset to defaults" while imageHandlingPrompt/imageStoredPrompt
+		// do not, leaving an inconsistent footprint).
+		expect(cfg.get('visionPrompt')).toBeUndefined();
+		expect(cfg.get('experimental.stabilizeToolList')).toBeUndefined();
+	});
+
+	it('reports the full cleared count on success', async () => {
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetToDefaults');
+		const messages = __getWindowMessages().information;
+		// The done message includes the cleared count: 10 keys + modelManagement
+		// = 11. Guards against the reset list silently shrinking.
+		expect(messages.join(' ')).toMatch(/11/);
+	});
+
+	it('reports a partial failure when one key fails (F2)', async () => {
+		const totalOps = 11; // 10 keys + modelManagement
+		__setConfigurationUpdateFailure('glm-copilot.visionPrompt', ConfigurationTarget.Global);
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetToDefaults');
+
+		const msgs = __getWindowMessages();
+		// Partial-failure warning must include the failing key and the ratio.
+		const partial = msgs.warning.find(
+			(m) => m.includes('visionPrompt') && m.includes(`${totalOps - 1}/${totalOps}`),
+		);
+		expect(partial).toBeDefined();
+		// The misleading success info and any error must NOT fire.
+		expect(msgs.information.length).toBe(0);
+		expect(msgs.error.length).toBe(0);
+	});
+
+	it('reports a total failure (error) when every reset fails (F2)', async () => {
+		const totalOps = 11; // 10 keys + modelManagement
+		// Fail every per-key reset, then the modelManagement write.
+		const failingKeys = [
+			'experimental.stabilizeToolList',
+			'mcp.servers',
+			'mcp.imageCleanupMode',
+			'imageHandlingPrompt',
+			'imageStoredPrompt',
+			'visionPrompt',
+			'modelManagement',
+		];
+		for (const key of failingKeys) {
+			__setConfigurationUpdateFailure(`glm-copilot.${key}`, ConfigurationTarget.Global);
+		}
+		for (const id of Object.keys(BUILTIN_MCP_SERVERS)) {
+			__setConfigurationUpdateFailure(`glm-copilot.mcp.${id}.enabled`, ConfigurationTarget.Global);
+		}
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetToDefaults');
+
+		const msgs = __getWindowMessages();
+		// Total failure -> error message with 0/totalOps.
+		expect(msgs.error.length).toBe(1);
+		expect(msgs.error[0]).toContain(`0/${totalOps}`);
+		// Only the modal confirm warning fired; no success info, no partial warning.
+		expect(msgs.warning.length).toBe(1);
+		expect(msgs.information.length).toBe(0);
+	});
+});
+
+describe('runtime commands — resetToDefaults i18n (FORK)', () => {
+	it('renders partial, failed, and done messages without leftover placeholders (F2)', () => {
+		// Guards against positional-arg misuse: t() maps {N} -> args[N] with no
+		// skipping, so a mismatched template would leave a literal {N} behind.
+		const partial = t('command.resetToDefaults.partial', 10, 11, 'visionPrompt: boom');
+		expect(partial).not.toMatch(/\{\d\}/);
+		expect(partial).toContain('10/11');
+		expect(partial).toContain('visionPrompt');
+
+		const failed = t('command.resetToDefaults.failed', 0, 11, 'modelManagement: boom');
+		expect(failed).not.toMatch(/\{\d\}/);
+		expect(failed).toContain('0/11');
+		expect(failed).toContain('modelManagement');
+
+		const done = t('command.resetToDefaults.done', 11);
+		expect(done).not.toMatch(/\{\d\}/);
+		expect(done).toContain('11');
+	});
+});
+
 describe('runtime commands — applyCodingPlanPreset (FORK)', () => {
 	beforeEach(() => {
 		__clearConfigurationValues();

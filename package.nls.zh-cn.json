@@ -8,6 +8,7 @@
   "glm-copilot.command.openSettings": "GLM: 打开设置",
   "glm-copilot.command.showLogs": "GLM: 显示日志",
   "glm-copilot.command.openRequestDumpsFolder": "GLM: 打开请求 Dump 目录",
+  "glm-copilot.command.resetToDefaults": "GLM: 重置为默认设置",
   "glm-copilot.command.applyCodingPlanPreset": "GLM: 为 GLM Coding Plan 套餐应用推荐配置",
   "glm-copilot.command.cleanupStoredImages": "GLM: 清理已存储的图片",
   "glm-copilot.walkthrough.title": "GLM for Copilot Chat",

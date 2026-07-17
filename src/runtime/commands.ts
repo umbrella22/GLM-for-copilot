@@ -3,10 +3,12 @@ import { CREDENTIAL_CHANNELS, formatCredentialChannel } from '../auth';
 import {
 	inspectEffectiveModelManagementConfiguration,
 	mergeModelManagementConfigurations,
+	resetModelManagementConfiguration,
 	resolveDefaultConnection,
 	saveModelManagementConfiguration,
 } from '../config';
 import { CONFIG_SECTION } from '../consts';
+import { MCP_CONFIG_KEY } from '../mcp/consts';
 import { BUILTIN_MCP_SERVERS } from '../mcp/builtin';
 import { resolveCredentialChannelApiKeyUrl } from '../endpoint';
 import { cleanupAllStoredImages } from '../provider/vision/image-store';
@@ -26,6 +28,10 @@ export function registerCommands(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('glm-copilot.openSettings', () =>
 			vscode.commands.executeCommand('workbench.action.openSettings', 'glm-copilot'),
 		),
+		// [FORK] Reset GLM Copilot settings to the fork's package.json defaults.
+		// Useful for migration or for undoing applyCodingPlanPreset: clears user
+		// overrides so the defaults take effect. API keys are NOT cleared.
+		vscode.commands.registerCommand('glm-copilot.resetToDefaults', resetToDefaults),
 		// [FORK] One-click preset for GLM Coding Plan subscription users.
 		// Writes user-scope overrides (NOT built-in model definitions) so the
 		// built-in defaults stay aligned with upstream, and Coding Plan users
@@ -68,6 +74,85 @@ async function openRequestDumpsFolder(context: vscode.ExtensionContext): Promise
 		logger.warn('Failed to open request dumps folder', error);
 		void vscode.window.showErrorMessage(t('extension.openRequestDumpsFolderFailed'));
 	}
+}
+
+/**
+ * [FORK] Reset fork-relevant settings to their package.json defaults by
+ * clearing user-scope overrides. Workspace/workspace-folder overrides are
+ * left untouched (those may carry legitimate team or project settings).
+ *
+ * Resets: modelManagement, stabilizeToolList, mcp.servers + per-server
+ * toggles, imageCleanupMode, imageHandlingPrompt, imageStoredPrompt,
+ * visionPrompt. API keys are NOT cleared.
+ *
+ * This is the inverse of `applyCodingPlanPreset` (which writes the subset
+ * modelManagement + stabilizeToolList + per-server toggles), and additionally
+ * restores the fork's image-handling / vision prompt templates.
+ */
+async function resetToDefaults(): Promise<void> {
+	const confirm = await vscode.window.showWarningMessage(
+		t('command.resetToDefaults.confirm'),
+		{ modal: true },
+		t('command.resetToDefaults.confirmYes'),
+	);
+	if (confirm !== t('command.resetToDefaults.confirmYes')) {
+		return;
+	}
+
+	let cleared = 0;
+	const errors: string[] = []; // [FORK] collect failures for diagnostics
+	const target = vscode.ConfigurationTarget.Global;
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+	const keysToReset = [
+		'experimental.stabilizeToolList',
+		MCP_CONFIG_KEY,
+		'mcp.zai-mcp-server.enabled',
+		'mcp.web-search-prime.enabled',
+		'mcp.web-reader.enabled',
+		'mcp.zread.enabled',
+		'mcp.imageCleanupMode',
+		'imageHandlingPrompt',
+		'imageStoredPrompt',
+		'visionPrompt',
+	];
+
+	for (const key of keysToReset) {
+		try {
+			await config.update(key, undefined, target);
+			cleared += 1;
+		} catch (error) {
+			logger.warn(`Failed to reset "${key}"`, error);
+			errors.push(`${key}: ${toErrorMessage(error)}`);
+		}
+	}
+
+	// modelManagement uses its own reset helper (handles the versioned shape).
+	try {
+		await resetModelManagementConfiguration(target);
+		cleared += 1;
+	} catch (error) {
+		logger.warn('Failed to reset modelManagement', error);
+		errors.push(`modelManagement: ${toErrorMessage(error)}`);
+	}
+
+	// [FORK] Surface partial failures explicitly (mirrors applyCodingPlanPreset).
+	// Earlier only a total failure (cleared === 0) was reported, so a partial
+	// failure fell through to the success message and the failing keys lived
+	// only in the log.
+	const totalOps = keysToReset.length + 1; // +1 for modelManagement
+	if (errors.length > 0) {
+		if (cleared === 0) {
+			void vscode.window.showErrorMessage(
+				t('command.resetToDefaults.failed', cleared, totalOps, errors.join('\n')),
+			);
+		} else {
+			void vscode.window.showWarningMessage(
+				t('command.resetToDefaults.partial', cleared, totalOps, errors.join('\n')),
+			);
+		}
+		return;
+	}
+	void vscode.window.showInformationMessage(t('command.resetToDefaults.done', cleared));
 }
 
 /**

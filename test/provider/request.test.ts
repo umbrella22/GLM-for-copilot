@@ -1,9 +1,13 @@
 import * as vscode from 'vscode';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { AuthManager } from '../../src/auth';
 import { convertToAnthropicRequest } from '../../src/client/anthropic';
 import { createCacheDiagnosticsRecorder } from '../../src/provider/debug';
 import { prepareChatRequest } from '../../src/provider/request';
+import { initImageStore } from '../../src/provider/vision/image-store'; // [FORK] mcp mode persists images
 import type { VisionDescriber } from '../../src/provider/vision';
 import {
 	IMAGE_DESCRIPTION_PREFIX,
@@ -332,5 +336,164 @@ describe('request preparation', () => {
 		expect(prepared.visionMode).toBe('proxy');
 		expect(prepared.nativeImageParts).toBe(0);
 		expect(prepared.request.messages[0]?.content).toContain('a screenshot description');
+	});
+});
+
+// [FORK] mcp vision mode entry guard (PR #14 review #4): the mcp + no-tools +
+// has-images conflict is checked BEFORE image processing in prepareChatRequest,
+// so images are never silently lost when MCP tools are unavailable.
+describe('request preparation — mcp vision mode entry guard (PR #14 review #4)', () => {
+	// This block exercises all four quadrants of the (tools × images) matrix
+	// for a model in mcp vision mode.
+
+	let resizeImage: ReturnType<typeof vi.fn>;
+	let tmpRoot: string;
+
+	beforeEach(async () => {
+		__clearConfigurationValues();
+		__resetCommandState();
+		resizeImage = vi.fn((data: unknown) => data);
+		vscode.commands.registerCommand('_chat.resizeImage', resizeImage);
+		// mcp mode persists images via initImageStore; use a real tmp dir so
+		// storeImage does not fall back to the unavailable marker.
+		tmpRoot = await mkdtemp(join(tmpdir(), 'glm-request-mcp-test-'));
+		await initImageStore(vscode.Uri.file(tmpRoot));
+	});
+
+	afterEach(async () => {
+		await rm(tmpRoot, { recursive: true, force: true });
+	});
+
+	function buildOptions(overrides: {
+		tools?: vscode.LanguageModelChatTool[];
+	}): vscode.ProvideLanguageModelChatResponseOptions {
+		return {
+			tools: overrides.tools,
+			modelConfiguration: { reasoningEffort: 'max' },
+		} as vscode.ProvideLanguageModelChatResponseOptions;
+	}
+
+	it('THROWS when mcp mode + tool calling disabled + request carries images', async () => {
+		// team-no-tools is a custom model with toolCalling: false. In mcp mode,
+		// images cannot be read back by any tool, so the request must be refused.
+		__setConfigurationValue('glm-copilot.customModels', [
+			{ id: 'team-no-tools', toolCalling: false, thinking: false },
+		]);
+		__setConfigurationValue('glm-copilot.modelVisionModes', { 'team-no-tools': 'mcp' });
+
+		await expect(
+			prepareChatRequest({
+				authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
+				globalStorageUri: vscode.Uri.file(tmpRoot),
+				modelInfo: { id: 'team-no-tools' } as vscode.LanguageModelChatInformation,
+				segment,
+				messages: [userMessage([imagePart([7, 8, 9])])],
+				options: buildOptions({ tools: [tool('search')] }),
+				token,
+				cacheDiagnostics: createCacheDiagnosticsRecorder(),
+				getVisionDescriber: async () => ({ id: 'unused', source: 'auto', describe: vi.fn() }),
+			}),
+		).rejects.toThrowError(/vision mode|MCP tool|tool calling/i);
+	});
+
+	it('does NOT throw when mcp mode + tool calling disabled + pure-text request', async () => {
+		// Same model, same mode, but no images: the guard only fires when there
+		// are image parts to lose. Pure-text requests must proceed normally.
+		__setConfigurationValue('glm-copilot.customModels', [
+			{ id: 'team-no-tools', toolCalling: false, thinking: false },
+		]);
+		__setConfigurationValue('glm-copilot.modelVisionModes', { 'team-no-tools': 'mcp' });
+
+		const prepared = await prepareChatRequest({
+			authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
+			globalStorageUri: vscode.Uri.file(tmpRoot),
+			modelInfo: { id: 'team-no-tools' } as vscode.LanguageModelChatInformation,
+			segment,
+			messages: [userMessage([new vscode.LanguageModelTextPart('just text')])],
+			options: buildOptions({ tools: [tool('search')] }),
+			token,
+			cacheDiagnostics: createCacheDiagnosticsRecorder(),
+			getVisionDescriber: async () => ({ id: 'unused', source: 'auto', describe: vi.fn() }),
+		});
+
+		expect(prepared.visionMode).toBe('mcp');
+		expect(prepared.request.tools).toBeUndefined();
+		// The user's text must survive somewhere in the converted messages
+		// (alongside the mcp-mode system image-handling instruction).
+		expect(JSON.stringify(prepared.request.messages)).toContain('just text');
+	});
+
+	it('THROWS when mcp mode + tools available in capability but user emptied options.tools', async () => {
+		// team-tools has toolCalling enabled, but the user disabled tools in the
+		// chat configureTools panel (options.tools is an empty array). The guard
+		// checks the EFFECTIVE tools list, not the capability flag.
+		__setConfigurationValue('glm-copilot.customModels', ['team-tools']);
+		__setConfigurationValue('glm-copilot.modelVisionModes', { 'team-tools': 'mcp' });
+
+		await expect(
+			prepareChatRequest({
+				authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
+				globalStorageUri: vscode.Uri.file(tmpRoot),
+				modelInfo: { id: 'team-tools' } as vscode.LanguageModelChatInformation,
+				segment,
+				messages: [userMessage([imagePart([7, 8, 9])])],
+				options: buildOptions({ tools: [] }),
+				token,
+				cacheDiagnostics: createCacheDiagnosticsRecorder(),
+				getVisionDescriber: async () => ({ id: 'unused', source: 'auto', describe: vi.fn() }),
+			}),
+		).rejects.toThrowError(/vision mode|MCP tool|tool calling/i);
+	});
+
+	it('does NOT throw when mcp mode + tools present + request carries images', async () => {
+		// Happy path: mcp mode with a working tool, images get stripped to disk
+		// and the file-path prompt replaces the image part.
+		__setConfigurationValue('glm-copilot.customModels', ['team-tools']);
+		__setConfigurationValue('glm-copilot.modelVisionModes', { 'team-tools': 'mcp' });
+
+		const prepared = await prepareChatRequest({
+			authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
+			globalStorageUri: vscode.Uri.file(tmpRoot),
+			modelInfo: { id: 'team-tools' } as vscode.LanguageModelChatInformation,
+			segment,
+			messages: [userMessage([imagePart([7, 8, 9])])],
+			options: buildOptions({ tools: [tool('analyze_image')] }),
+			token,
+			cacheDiagnostics: createCacheDiagnosticsRecorder(),
+			getVisionDescriber: async () => ({ id: 'unused', source: 'auto', describe: vi.fn() }),
+		});
+
+		expect(prepared.visionMode).toBe('mcp');
+		// Image was stripped to a file-path text prompt somewhere in the
+		// converted messages (alongside the mcp-mode system instruction).
+		// Path separators may be single or doubled (JSON-escaped) depending on OS.
+		const serialized = JSON.stringify(prepared.request.messages);
+		expect(serialized).toMatch(/mcp-images[\\/]+[a-f0-9]+\.png/);
+		expect(serialized).not.toMatch(/data:image/);
+	});
+
+	it('does not fire for native/proxy modes even when tool calling is disabled', async () => {
+		// Sanity: the guard is mcp-specific. team-no-tools in native mode with
+		// images must NOT throw (native mode has its own image handling).
+		__setConfigurationValue('glm-copilot.customModels', [
+			{ id: 'team-no-tools', toolCalling: false, thinking: false },
+		]);
+		__setConfigurationValue('glm-copilot.modelVisionModes', { 'team-no-tools': 'native' });
+
+		const prepared = await prepareChatRequest({
+			authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
+			globalStorageUri: vscode.Uri.file(tmpRoot),
+			modelInfo: { id: 'team-no-tools' } as vscode.LanguageModelChatInformation,
+			segment,
+			messages: [userMessage([imagePart([7, 8, 9])])],
+			options: buildOptions({ tools: [tool('search')] }),
+			token,
+			cacheDiagnostics: createCacheDiagnosticsRecorder(),
+			getVisionDescriber: async () => ({ id: 'unused', source: 'auto', describe: vi.fn() }),
+		});
+
+		// native mode kept the image as base64; no guard error.
+		expect(prepared.visionMode).toBe('native');
+		expect(JSON.stringify(prepared.request.messages[0]?.content)).toMatch(/data:image/);
 	});
 });

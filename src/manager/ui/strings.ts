@@ -26,6 +26,8 @@ export interface ModelManagerStrings {
 	visionProxyHint: string;
 	nativeImages: string;
 	nativeBudgetHint: string;
+	mcpImages: string; // [FORK] mcp mode label
+	mcpBudgetHint: string; // [FORK] mcp mode hint
 	contextWindow: string;
 	maxOutput: string;
 	toolCalling: string;
@@ -115,6 +117,8 @@ export function getModelManagerStrings(): ModelManagerStrings {
 		visionProxyHint: t('manager.visionMode.proxyHint'),
 		nativeImages: t('manager.visionMode.native'),
 		nativeBudgetHint: t('manager.visionMode.nativeHint'),
+		mcpImages: t('manager.visionMode.mcp'), // [FORK]
+		mcpBudgetHint: t('manager.visionMode.mcpHint'), // [FORK]
 		contextWindow: t('manager.field.contextWindow'),
 		maxOutput: t('manager.field.maxOutput'),
 		toolCalling: t('manager.field.toolCalling'),

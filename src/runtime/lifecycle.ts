@@ -6,6 +6,8 @@ import { registerActionUrls } from './actions';
 import { seedChatLanguageModelDefaults } from './chat-language-models';
 import { registerCommands } from './commands';
 import { initializeDiagnostics } from './diagnostics';
+import { initImageStore } from '../provider/vision/image-store';
+import { registerMcp } from './mcp';
 import { registerProvider } from './provider';
 import { showWelcomeIfNeeded } from './welcome';
 
@@ -20,6 +22,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	try {
 		const provider = await registerProvider(context);
 		activeProvider = provider;
+
+		// [FORK] Initialize the image store used by MCP vision mode to persist
+		// user-sent images to disk, so MCP vision tools can read them by path.
+		await initImageStore(context.globalStorageUri);
+
+		// [FORK] Register the MCP server definition provider. Done in a separate
+		// try/catch so a failure here never blocks model chat activation —
+		// users still get GLM models even if MCP registration breaks.
+		try {
+			registerMcp(context, provider.authManager);
+		} catch (mcpError) {
+			logger.warn('MCP provider registration failed; model chat still available', mcpError);
+		}
 
 		void showWelcomeIfNeeded(context, provider).catch((error) => {
 			logger.warn(t('extension.welcomeFailed'), error);

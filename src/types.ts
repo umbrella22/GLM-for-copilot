@@ -153,8 +153,18 @@ export interface ResolvedModelConnection {
 	usesGlobalBaseUrlOverride: boolean;
 }
 
-/** How image attachments reach the model selected in Copilot. */
-export type ModelVisionMode = 'proxy' | 'native';
+/**
+ * How image attachments reach the model selected in Copilot.
+ *
+ * - `proxy`: built-in GLM-4.6V-Flash transparent proxy converts images to text.
+ * - `native`: images are resized and sent as base64 directly to the API model.
+ * - `mcp` [FORK]: images are stripped from the request and persisted to disk;
+ *   a short text prompt with the file path is left in their place so an
+ *   image-capable MCP tool can read them by path. Designed for text-only
+ *   models (e.g. a Claude-compatible text model behind the Anthropic endpoint)
+ *   where injecting base64 would waste context without any benefit.
+ */
+export type ModelVisionMode = 'proxy' | 'native' | 'mcp'; // [FORK] +mcp
 
 export type CustomModelConfigEntry = string | CustomModelConfig;
 

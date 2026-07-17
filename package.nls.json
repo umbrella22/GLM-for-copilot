@@ -8,6 +8,7 @@
   "glm-copilot.command.openSettings": "GLM: Open Settings",
   "glm-copilot.command.showLogs": "GLM: Show Logs",
   "glm-copilot.command.openRequestDumpsFolder": "GLM: Open Request Dumps Folder",
+  "glm-copilot.command.cleanupStoredImages": "GLM: Clean Up Stored Images",
   "glm-copilot.walkthrough.title": "GLM for Copilot Chat",
   "glm-copilot.walkthrough.description": "Set up GLM models in Copilot Chat.",
   "glm-copilot.walkthrough.setApiKey.title": "Manage GLM models and connections",
@@ -74,5 +75,15 @@
   "glm-copilot.config.customModels.toolCalling.description": "Whether this custom model supports tool calling. Defaults to true.",
   "glm-copilot.config.customModels.thinking.description": "Whether this custom model supports thinking mode. Defaults to true.",
   "glm-copilot.config.visionModel.description": "Compatibility setting managed by the Vision Proxy view in [Model Manager](command:glm-copilot.setVisionModel). Stores the selected VS Code vision model as `vendor/id` when that source is active. In automatic mode, GLM-4.6V-Flash is tried first and this VS Code model is used as fallback. Legacy bare model IDs are read for compatibility.",
-  "glm-copilot.config.visionPrompt.description": "Prompt sent to the vision proxy model when describing image attachments before forwarding them to GLM.\n\n[Open Vision Proxy in Model Manager](command:glm-copilot.setVisionModel)"
+  "glm-copilot.config.visionPrompt.description": "Prompt sent to the vision proxy model when describing image attachments before forwarding them to GLM.\n\n[Open Vision Proxy in Model Manager](command:glm-copilot.setVisionModel)",
+  "glm-copilot.config.imageHandlingPrompt.description": "System-level instruction prepended to every request. Tells the model how to handle attached images: read them on demand via an image-capable MCP tool, reuse prior analysis across turns (with a one-line digest), be honest when an image is missing or unclear, and ask for a fresh screenshot when needed. Injected unconditionally (even without images) to keep the prompt cache prefix stable. The model chooses which tool to call.",
+  "glm-copilot.config.imageStoredPrompt.description": "Per-image prompt inserted into the conversation when an image is stored as a local file; tells the model where the file is and to reuse any prior analysis of it. Supports placeholders: `{0}` = label (e.g. \"Image\" or \"Image 2 of 3\"), `{1}` = file path.",
+  "glm-copilot.config.mcp.zai-mcp-server.enabled.description": "GLM official aggregated MCP server. Transport: stdio (`npx -y @z_ai/mcp-server@0.1.4`). Includes vision and other capabilities. Disabled by default — enable it via \"GLM: Apply Recommended Setup for GLM Coding Plan\" or this checkbox.",
+  "glm-copilot.config.mcp.web-search-prime.enabled.description": "GLM official web search MCP server. Transport: http. Disabled by default.",
+  "glm-copilot.config.mcp.web-reader.enabled.description": "GLM official web content fetch MCP server. Transport: http. Disabled by default.",
+  "glm-copilot.config.mcp.zread.enabled.description": "GLM official deep-read MCP server. Transport: http. Disabled by default.",
+  "glm-copilot.config.mcp.imageCleanupMode.description": "Controls how locally stored MCP-vision images are cleaned up. **Manual**: images are kept until you run \"GLM: Clean Up Stored Images\". **7-day TTL**: images whose last-referenced time is older than 7 days are deleted automatically on activation. Reusing an image (re-sending or replaying a conversation that references it) refreshes its timer, so actively-used images survive.",
+  "glm-copilot.config.mcp.imageCleanupMode.manual.label": "Manual",
+  "glm-copilot.config.mcp.imageCleanupMode.ttl-7d.label": "7-day TTL",
+  "glm-copilot.config.mcp.servers.description": "GLM official MCP servers are built-in (use the per-server checkboxes above to enable/disable). This object is for **advanced config only**: override fields (e.g. point a URL at a proxy) or add your own custom servers. Built-in server `enabled` here is ignored — use the checkboxes. API keys are injected from the stored key, never stored here."
 }

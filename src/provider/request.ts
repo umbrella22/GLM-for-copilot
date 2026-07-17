@@ -12,6 +12,7 @@ import { isOfficialGLMBaseUrl } from '../endpoint';
 import { t } from '../i18n';
 import type {
 	ApiMode,
+	GLMMessage,
 	GLMRequest,
 	ModelDefinition,
 	ModelVisionMode,
@@ -93,6 +94,26 @@ export async function prepareChatRequest({
 	const maxTokens = getMaxTokens();
 	const apiModelId = getApiModelId(modelInfo.id, configurationResource);
 	const visionMode = getModelVisionMode(modelInfo.id, configurationResource);
+	const tools = prepareRequestTools(modelDef?.capabilities.toolCalling, options);
+
+	// [FORK] Detect the mcp vision mode + no-available-tools conflict BEFORE
+	// touching images. mcp mode strips images to disk and relies on an
+	// image-capable MCP tool to read them back; if the model has tool calling
+	// disabled (capabilities.toolCalling falsy) OR the user disabled tools in
+	// the chat configureTools panel (options.tools empty), the stripped images
+	// would be silently lost with no way for the model to recover them.
+	// Refuse the request with a clear notice instead. Pure-text requests are
+	// unaffected — the check only fires when there are image parts to lose.
+	if (visionMode === 'mcp' && (!tools || tools.length === 0)) {
+		const hasImages = messages.some((m) =>
+			(m.content as readonly vscode.LanguageModelInputPart[]).some(
+				(p) => p instanceof vscode.LanguageModelDataPart && p.mimeType.startsWith('image/'),
+			),
+		);
+		if (hasImages) {
+			throw new Error(t('vision.mcp.conflict.toolCallingDisabled'));
+		}
+	}
 
 	const visionResolution = await resolveImageMessages(
 		messages,
@@ -102,7 +123,21 @@ export async function prepareChatRequest({
 	);
 	const resolvedMessages = visionResolution.messages;
 	const glmMessages = convertMessages(resolvedMessages, isThinkingModel);
-	const tools = prepareRequestTools(modelDef?.capabilities.toolCalling, options);
+	// [FORK] Inject the image-handling system instruction in mcp vision mode
+	// UNCONDITIONALLY — every turn, whether or not this request carries images.
+	// Reason: prompt caching matches a byte-exact message PREFIX, and the system
+	// message sits at the very front of that prefix. If injection flipped on/off
+	// between image-bearing and text-only turns, the prefix would change and
+	// every flip would invalidate the cache for the WHOLE conversation. Keeping
+	// the instruction always-present makes it a permanent part of the cacheable
+	// prefix, so multi-turn conversations keep hitting cache regardless of which
+	// turns carry images. (The ~1KB instruction is itself cached, so its cost on
+	// pure-text turns is negligible.) proxy/native modes never inject: images
+	// are already converted to text/base64 there, and injecting would add noise
+	// and break upstream's request-shape assertions.
+	if (visionMode === 'mcp') {
+		injectImageToolGuidance(glmMessages);
+	}
 
 	const baseRequest: GLMRequest = {
 		model: apiModelId,
@@ -197,4 +232,82 @@ export async function prepareChatRequest({
 		nativeImageBytes: visionResolution.stats.nativeImageBytes,
 		connection,
 	};
+}
+
+// ---- [FORK] Image-handling system instruction injection ----
+
+/**
+ * Default value for the image handling system instruction. Keep in sync with
+ * `glm-copilot.imageHandlingPrompt.default` in package.json.
+ */
+const DEFAULT_IMAGE_HANDLING_INSTRUCTION =
+	'[Image Handling]\n' +
+	'Attached images are stored as local files; their paths appear in the conversation as "[Image attached at local file: <path>]". ' +
+	'You cannot see images inline — they must be processed through an image-capable MCP tool. ' +
+	'The file name is a content hash, so the same path always refers to the same image.\n\n' +
+	'Before processing an image, decide whether you can reuse an existing analysis or must process it again. ' +
+	'The decision has TWO dimensions, checked in this order:\n\n' +
+	'(1) Output-type match (PRIMARY). Every image task has an output type — what the user wants back. ' +
+	"Common output types (non-exhaustive; infer from the user's goal, not from keywords): " +
+	'understand/describe (what is in this image), convert/generate (turn this UI into code, prompt, or spec), ' +
+	'compare (design vs implementation, find differences), extract (text/code/error from a screenshot), ' +
+	'diagnose (error screenshot, stack trace), or general/uncertain. ' +
+	"Reusing a prior analysis is valid only when the current task's output type MATCHES the output type that analysis was produced for. " +
+	"If the user's requested output type differs from what the prior analysis/digest supports — " +
+	'for example you previously described the image (understand) and now the user asks you to replicate it into code (convert/generate) — ' +
+	'you MUST NOT reuse the description; choose the tool best matched to the new output type and process the image again, ' +
+	'even if you already know the image contents well. ' +
+	'The trigger is the output type changing, NOT the image changing and NOT missing detail.\n\n' +
+	'(2) Information sufficiency within the same output type (SECONDARY). Only when the output type matches, then reuse unless one of:\n' +
+	'(a) it has not been processed for this output type in this conversation;\n' +
+	'(b) the current question needs detail the prior analysis did not cover; or\n' +
+	'(c) the image may have changed since (for example, the user edited the UI and re-captured it).\n' +
+	'When in doubt about output type, treat it as not-yet-processed and process with the most appropriate tool.\n\n' +
+	"For the FIRST analysis of an image (no prior analysis exists), choose the tool best matched to the task's output type directly — " +
+	'do not default to a general-purpose tool when a more specific tool fits the intent.\n\n' +
+	'After you process an image, end with a one-line digest so later turns can reuse it without re-processing:\n' +
+	'[Image digest | <label/path> | <image type: ui-mockup | error-screenshot | diagram | …> | <output type: understand | convert | compare | extract | diagnose | …> | <key facts: layout, colors, text, sizes, errors> | <open questions>]\n' +
+	'Keep it to one line — it is an index, not a full description. ' +
+	'The <output type> field records which output type this analysis was produced for, so later turns can apply the match rule above. ' +
+	'Update it if you re-process for a different output type (emit a new digest for the new output type; ' +
+	'do not overwrite the old one if both may be reused).\n\n' +
+	'Never invent the contents of an image you have not actually processed — if analysis is needed and none exists yet, call the tool. ' +
+	'If processing fails, returns nothing useful, or leaves you uncertain, say so explicitly rather than guessing; ' +
+	'the user must be able to tell when your understanding of an image may be wrong.\n\n' +
+	'When the images at hand are stale, missing, or do not show the current state of the problem — ' +
+	'for example the user has changed the code and is now reporting a visual bug, or a screenshot is too low-resolution to read an error — ' +
+	'ask the user for a fresh, specific screenshot to ground your diagnosis. ' +
+	'Ask only when a new capture would actually change your next step; otherwise proceed from what you have and state your assumptions. ' +
+	'Request something concrete (the current top nav, the full error dialog with its stack trace), not a vague "send a screenshot".\n\n' +
+	'Call the most appropriate image tool directly — ' +
+	'do not mention tool names in your reply unless you are invoking that tool.\n\n';
+
+/**
+ * Read the user-configurable image handling instruction from settings.
+ * Falls back to the built-in default when unset or empty.
+ */
+function getImageHandlingInstruction(): string {
+	const config = vscode.workspace.getConfiguration('glm-copilot');
+	return (
+		config.get<string>('imageHandlingPrompt', DEFAULT_IMAGE_HANDLING_INSTRUCTION) ||
+		DEFAULT_IMAGE_HANDLING_INSTRUCTION
+	);
+}
+
+/**
+ * Prepend the image-handling instruction to the system message (or insert a
+ * new system message at the front if none exists). Done before building the
+ * request body so the instruction becomes part of the stable cacheable prefix.
+ */
+function injectImageToolGuidance(messages: GLMMessage[]): void {
+	const instruction = getImageHandlingInstruction();
+	const systemMessage = messages.find((m) => m.role === 'system');
+	if (systemMessage && typeof systemMessage.content === 'string') {
+		systemMessage.content = instruction + systemMessage.content;
+	} else {
+		messages.unshift({
+			role: 'system',
+			content: instruction.trimEnd(),
+		});
+	}
 }

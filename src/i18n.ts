@@ -91,6 +91,9 @@ const zh: Translations = {
 		'图片会先由视觉代理识别为文字描述，当前模型只接收描述，不直接接收图片数据。',
 	'manager.visionMode.native': '原生图片',
 	'manager.visionMode.nativeHint': '原生图片会在发送前缩放，并共享 2.5 MiB 图片上下文预算。',
+	'manager.visionMode.mcp': 'MCP 工具', // [FORK]
+	'manager.visionMode.mcpHint': // [FORK]
+		'图片会从请求中剥离并存到本地文件，在对话中只保留一个指向文件路径的简短提示。由具备图像能力的 MCP 工具按需读取。适合纯文本模型（如走 Anthropic 接口的文本模型），避免 base64 无谓浪费上下文。',
 	'manager.field.contextWindow': '上下文窗口（tokens）',
 	'manager.field.maxOutput': '最大输出（tokens）',
 	'manager.field.toolCalling': '支持工具调用',
@@ -406,6 +409,13 @@ const zh: Translations = {
 	'extension.welcomeFailed': '欢迎引导加载异常',
 	'extension.openRequestDumpsFolderFailed':
 		'打开请求 dump 目录失败，请运行 "GLM: 显示日志" 查看详情。',
+	'command.cleanupStoredImages.confirm': // [FORK]
+		'删除所有已存储的 MCP 图片？此操作不可撤销；其他正在进行的会话或将来重放的历史会话可能仍会引用这些图片。',
+	'command.cleanupStoredImages.confirmYes': '删除', // [FORK]
+	'command.cleanupStoredImages.done': '已删除 {0} 个已存储的 MCP 图片。', // [FORK]
+	'command.cleanupStoredImages.failed': '清理已存储图片失败，请运行 “GLM: 显示日志” 查看详情。', // [FORK]
+	'vision.mcp.conflict.toolCallingDisabled': // [FORK]
+		'当前模型的图片处理方式为 “MCP 工具”，但工具调用已被禁用。MCP 图片模式依赖工具调用读取本地图片，二者不能同时关闭。请打开 “GLM: 管理模型与连接” 启用此模型的工具调用，或将图片处理方式改为 “视觉代理 / 原生图片”。',
 };
 
 const en: Translations = {
@@ -486,6 +496,9 @@ const en: Translations = {
 	'manager.visionMode.native': 'Native images',
 	'manager.visionMode.nativeHint':
 		'Native images are resized before sending and share a 2.5 MiB image context budget.',
+	'manager.visionMode.mcp': 'MCP tools', // [FORK]
+	'manager.visionMode.mcpHint': // [FORK]
+		'Images are stripped from the request and persisted to disk; only a short file-path prompt is left in the conversation. An image-capable MCP tool reads them on demand. Best for text-only models (e.g. a Claude-compatible text model behind the Anthropic endpoint) where base64 would waste context.',
 	'manager.field.contextWindow': 'Context window (tokens)',
 	'manager.field.maxOutput': 'Maximum output (tokens)',
 	'manager.field.toolCalling': 'Supports tool calling',
@@ -848,6 +861,14 @@ const en: Translations = {
 	'extension.welcomeFailed': 'Failed to show GLM welcome prompt',
 	'extension.openRequestDumpsFolderFailed':
 		'Failed to open request dumps folder. Run "GLM: Show Logs" for details.',
+	'command.cleanupStoredImages.confirm': // [FORK]
+		'Delete all stored MCP images? This cannot be undone; other ongoing or future-replayed conversations may still reference these files.',
+	'command.cleanupStoredImages.confirmYes': 'Delete', // [FORK]
+	'command.cleanupStoredImages.done': 'Deleted {0} stored MCP image(s).', // [FORK]
+	'command.cleanupStoredImages.failed':
+		'Failed to clean up stored images. Run "GLM: Show Logs" for details.', // [FORK]
+	'vision.mcp.conflict.toolCallingDisabled': // [FORK]
+		'This model\'s vision mode is "MCP tool", but tool calling is disabled. MCP vision mode relies on tool calls to read local image files, so the two cannot be combined with tool calling off. Open "GLM: Manage Models and Connections" to enable tool calling for this model, or switch its vision mode to "Vision proxy / Native image".',
 };
 
 /**

@@ -10,6 +10,7 @@ import {
 	IMAGE_DESCRIPTION_UNAVAILABLE,
 } from './consts';
 import { logVisionProxyDescribeFailed, logVisionProxyUnavailable } from './log';
+import { buildImagePromptText, storeImage } from './image-store'; // [FORK] mcp mode
 import { prepareNativeImageMessages } from './native';
 import {
 	formatVisionProxyErrorCode,
@@ -47,6 +48,14 @@ export async function resolveImageMessages(
 	}
 	if (visionMode === 'native') {
 		return prepareNativeImageMessages(messages, token, stats);
+	}
+	// [FORK] mcp mode: strip images from the request, persist them to disk, and
+	// replace each image part with a short text prompt pointing to the file path.
+	// This lets an image-capable MCP tool read the image by path, avoiding the
+	// massive context bloat of base64 for text-only models. Kept as a single
+	// early-return branch so the upstream proxy/native logic below is untouched.
+	if (visionMode === 'mcp') {
+		return stripImagesForMcpMode(messages, token, stats);
 	}
 
 	const markerBindings = createVisionMarkerBindings(messages, stats);
@@ -377,4 +386,115 @@ function toVisionImagePart(part: vscode.LanguageModelDataPart): VisionImagePart 
 		mimeType: part.mimeType,
 		data: part.data,
 	};
+}
+
+// ---- [FORK] MCP mode: strip images, persist to disk, leave file-path prompts ----
+
+/**
+ * MCP vision mode: for every message that carries image parts, persist the
+ * images to disk (content-addressable) and replace them with a short text
+ * prompt pointing to the file path. Non-image parts are preserved.
+ *
+ * Unlike `proxy` mode, no vision model is called and no base64 is kept in
+ * context — the model is expected to call an image-capable MCP tool to read
+ * the stored file on demand. This is the right mode for text-only models
+ * (e.g. a Claude-compatible text model behind the Anthropic endpoint) where
+ * injecting base64 would waste context without any benefit.
+ *
+ * If storage fails for any image, that image falls back to an
+ * "[unavailable]" text marker (still no base64), so a storage hiccup never
+ * silently bloats the context.
+ */
+async function stripImagesForMcpMode(
+	messages: readonly vscode.LanguageModelChatRequestMessage[],
+	token: vscode.CancellationToken,
+	stats: VisionResolutionStats,
+): Promise<VisionResolutionResult> {
+	// [FORK] Collect per-part replacements indexed by (messageIndex, partIndex)
+	// and apply them in place — mirroring how `prepareNativeImageMessages`
+	// preserves the original text/image interleaving. The earlier version
+	// gathered all non-image parts and appended image-path text to the end of
+	// each message, which destroyed the original ordering for interleaved
+	// text/image parts (e.g. "请分析这张图" + image became a single merged
+	// string with no separator).
+	const replacements: McpImageReplacement[] = [];
+
+	for (let messageIndex = 0; messageIndex < messages.length; messageIndex += 1) {
+		const message = messages[messageIndex];
+		const content = message.content as readonly vscode.LanguageModelInputPart[];
+		// Sequential index of image parts WITHIN this message, for "Image n of m" labels.
+		let imageOrdinal = 0;
+		const imageCount = content.filter(isImageDataPart).length;
+		for (let partIndex = 0; partIndex < content.length; partIndex += 1) {
+			const part = content[partIndex];
+			if (!isImageDataPart(part)) {
+				continue;
+			}
+			const filePath = await storeImage(part.data, part.mimeType, token);
+			stats.droppedImageParts += 1;
+			if (filePath) {
+				replacements.push({
+					messageIndex,
+					partIndex,
+					part: new vscode.LanguageModelTextPart(
+						// Prepend a newline so the image-path prompt is never
+						// concatenated to adjacent text without a separator.
+						'\n' + buildImagePromptText(filePath, imageOrdinal, imageCount),
+					),
+				});
+			} else {
+				// Storage failed — fall back to an unavailable marker. Never keep
+				// base64 in context: it would bloat text models with no benefit.
+				logVisionProxyUnavailable();
+				stats.unavailableImageMessages += 1;
+				replacements.push({
+					messageIndex,
+					partIndex,
+					part: new vscode.LanguageModelTextPart('\n' + IMAGE_DESCRIPTION_UNAVAILABLE),
+				});
+			}
+			imageOrdinal += 1;
+		}
+	}
+
+	return {
+		messages: applyMcpImageReplacements(messages, replacements),
+		stats,
+		replayMarkerMetadata: {},
+	};
+}
+
+interface McpImageReplacement {
+	messageIndex: number;
+	partIndex: number;
+	part: vscode.LanguageModelInputPart;
+}
+
+/** Apply per-(message,part) replacements in place, preserving all other parts. */
+function applyMcpImageReplacements(
+	messages: readonly vscode.LanguageModelChatRequestMessage[],
+	replacements: readonly McpImageReplacement[],
+): readonly vscode.LanguageModelChatRequestMessage[] {
+	const byMessage = new Map<number, Map<number, vscode.LanguageModelInputPart>>();
+	for (const replacement of replacements) {
+		let bucket = byMessage.get(replacement.messageIndex);
+		if (!bucket) {
+			bucket = new Map<number, vscode.LanguageModelInputPart>();
+			byMessage.set(replacement.messageIndex, bucket);
+		}
+		bucket.set(replacement.partIndex, replacement.part);
+	}
+	return messages.map((message, messageIndex) => {
+		const bucket = byMessage.get(messageIndex);
+		if (!bucket) {
+			return message;
+		}
+		return {
+			role: message.role,
+			content: (message.content as readonly vscode.LanguageModelInputPart[]).map(
+				(part, partIndex) => bucket.get(partIndex) ?? part,
+			),
+			name: message.name,
+		} as unknown as vscode.LanguageModelChatRequestMessage;
+	});
 }

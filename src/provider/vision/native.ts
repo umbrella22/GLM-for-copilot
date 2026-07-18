@@ -1,4 +1,5 @@
 import vscode from 'vscode';
+import { resizeImage } from './shared/resize';
 import type { VisionResolutionResult, VisionResolutionStats } from './types';
 
 export const NATIVE_IMAGE_CONTEXT_BUDGET_BYTES = (5 * 1024 * 1024) / 2;
@@ -16,12 +17,6 @@ interface NativeImageReplacement {
 	messageIndex: number;
 	partIndex: number;
 	part: vscode.LanguageModelInputPart;
-}
-
-interface ResizedNativeImage {
-	data: Uint8Array;
-	mimeType: string;
-	resizeFailed: boolean;
 }
 
 /**
@@ -42,7 +37,7 @@ export async function prepareNativeImageMessages(
 	let remainingBytes = NATIVE_IMAGE_CONTEXT_BUDGET_BYTES;
 
 	for (const candidate of candidates) {
-		const resized = await resizeNativeImage(candidate.part, token);
+		const resized = await resizeImage(candidate.part.data, candidate.part.mimeType, token);
 		stats.nativeImageBytesAfterResize += resized.data.byteLength;
 		if (resized.resizeFailed) {
 			stats.nativeResizeFailures += 1;
@@ -95,75 +90,9 @@ function collectNativeImageCandidates(
 	return candidates;
 }
 
-async function resizeNativeImage(
-	part: vscode.LanguageModelDataPart,
-	token: vscode.CancellationToken,
-): Promise<ResizedNativeImage> {
-	throwIfCancellationRequested(token);
-
-	try {
-		const resized = await vscode.commands.executeCommand<unknown>(
-			'_chat.resizeImage',
-			part.data,
-			part.mimeType,
-		);
-		throwIfCancellationRequested(token);
-		if (!(resized instanceof Uint8Array) || resized.byteLength === 0) {
-			return createResizeFallback(part);
-		}
-		return {
-			data: resized,
-			mimeType: detectImageMimeType(resized) ?? part.mimeType,
-			resizeFailed: false,
-		};
-	} catch {
-		throwIfCancellationRequested(token);
-		return createResizeFallback(part);
-	}
-}
-
-function createResizeFallback(part: vscode.LanguageModelDataPart): ResizedNativeImage {
-	return {
-		data: part.data,
-		mimeType: part.mimeType,
-		resizeFailed: true,
-	};
-}
-
-function throwIfCancellationRequested(token: vscode.CancellationToken): void {
-	if (token.isCancellationRequested) {
-		throw new vscode.CancellationError();
-	}
-}
-
-function detectImageMimeType(data: Uint8Array): string | undefined {
-	if (hasBytes(data, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
-		return 'image/png';
-	}
-	if (hasBytes(data, [0xff, 0xd8, 0xff])) {
-		return 'image/jpeg';
-	}
-	if (hasAscii(data, 0, 'GIF87a') || hasAscii(data, 0, 'GIF89a')) {
-		return 'image/gif';
-	}
-	if (hasAscii(data, 0, 'RIFF') && hasAscii(data, 8, 'WEBP')) {
-		return 'image/webp';
-	}
-	return undefined;
-}
-
-function hasBytes(data: Uint8Array, expected: readonly number[]): boolean {
-	return expected.every((byte, index) => data[index] === byte);
-}
-
-function hasAscii(data: Uint8Array, offset: number, expected: string): boolean {
-	for (let index = 0; index < expected.length; index += 1) {
-		if (data[offset + index] !== expected.charCodeAt(index)) {
-			return false;
-		}
-	}
-	return true;
-}
+// `resizeImage` / `detectImageMimeType` were extracted to `./shared/resize`
+// so both the native pipeline (here) and the mcp pipeline (image-store) can
+// reuse the same resize + magic-byte detection logic.
 
 function applyNativeImageReplacements(
 	messages: readonly vscode.LanguageModelChatRequestMessage[],

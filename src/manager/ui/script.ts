@@ -348,6 +348,7 @@ export function getModelManagerScript(initialState: string, initialStrings: stri
 				[
 					{ value: 'proxy', label: strings.visionProxy },
 					{ value: 'native', label: strings.nativeImages },
+					{ value: 'mcp', label: strings.mcpImages }, // [FORK]
 				].forEach((item) => {
 					const label = element('label', 'segmented-option');
 					const input = element('input');
@@ -411,10 +412,13 @@ export function getModelManagerScript(initialState: string, initialStrings: stri
 				const visionHint = element('div', 'hint');
 				const updateVisionHint = () => {
 					const selected = visionMode.querySelector('input[name="modelVisionMode"]:checked');
+					const value = selected ? selected.value : '';
 					visionHint.textContent =
-						selected && selected.value === 'native'
+						value === 'native'
 							? strings.nativeBudgetHint
-							: strings.visionProxyHint;
+							: value === 'mcp' // [FORK] +mcp
+								? strings.mcpBudgetHint
+								: strings.visionProxyHint;
 				};
 				visionMode.querySelectorAll('input[name="modelVisionMode"]').forEach((input) => {
 					input.addEventListener('change', updateVisionHint);

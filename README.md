@@ -26,7 +26,7 @@ Love GLM's price-performance but don't want to give up GitHub Copilot's agent mo
 
 - **Don't replace Copilot — power it up.** No new sidebar, no new chat UI to learn. Just a new model in the picker you already use.
 - **Agent mode, tool calling, instructions, MCP, skills — all of it still works.** Copilot's entire stack, now running on GLM.
-- **Vision where each model needs it.** GLM-4.6V-Flash and GLM-5V-Turbo receive images directly by default. GLM-5.2 and GLM-5-Turbo use the transparent Vision Proxy, which describes images with GLM-4.6V-Flash before passing text along. You can choose either mode per model.
+- **Vision where each model needs it.** GLM-4.6V-Flash and GLM-5V-Turbo receive images directly by default. GLM-5.2 and GLM-5-Turbo use the transparent Vision Proxy, which describes images with GLM-4.6V-Flash before passing text along. You can also choose `mcp` mode per model to store images locally for a compatible MCP tool to read.
 - **Estimated per-turn cost.** When the GLM API returns usage, the extension estimates the official list-price cost, reports it to Copilot usage metadata, writes it to logs, and shows the latest turn in the status bar.
 - **BYOK, pay GLM directly.** Your API key, your bill, your rate limits. Stored in the OS keychain, never on disk.
 
@@ -71,9 +71,9 @@ New and updated API keys live in VS Code's `SecretStorage` (OS keychain on macOS
 
 After each completed GLM response, the extension reports usage to Copilot metadata and writes it to logs. The status bar headline follows the active resource's default channel; its tooltip combines active Coding Plan quotas and Standard API costs. Estimates use CNY for domestic BigModel endpoints and USD for Z.ai endpoints.
 
-### Zero Runtime Dependencies
+### Runtime Footprint
 
-Pure VS Code API + Node.js built-ins. No Python, no Docker, no local proxy server to babysit.
+The core extension uses only the VS Code API and Node.js built-ins: no Python, Docker, or local proxy server. The optional built-in stdio MCP server launches `@z_ai/mcp-server@0.1.4` through `npx` and requires Node.js 18 or newer in the child process.
 
 ## Getting Started
 
@@ -130,6 +130,15 @@ A custom Base URL is an optional compatibility override for models using the `de
 | `glm-copilot.debugMode` | `minimal` | Diagnostic mode: token usage only, privacy-preserving metadata, or verbose request dumps under extension global storage. |
 | `glm-copilot.visionModel` | _(auto)_ | Compatibility value managed from the Vision Proxy view. New saves use `vendor/id`; legacy bare model IDs remain readable. |
 | `glm-copilot.visionPrompt` | _(built-in)_ | Prompt used to describe image attachments in proxy mode. |
+| `glm-copilot.imageHandlingPrompt` | _(built-in)_ | System instruction used in effective `mcp` mode, including text-only turns for prompt-cache stability. |
+| `glm-copilot.imageStoredPrompt` | _(built-in)_ | Per-image local-file prompt. `{0}` is the image label and `{1}` is the path. |
+| `glm-copilot.mcp.zai-mcp-server.enabled` | `false` | Application-level opt-in for the official stdio MCP server (includes vision tools). |
+| `glm-copilot.mcp.web-search-prime.enabled` | `false` | Application-level opt-in for the official HTTP web-search MCP server. |
+| `glm-copilot.mcp.web-reader.enabled` | `false` | Application-level opt-in for the official HTTP web-reader MCP server. |
+| `glm-copilot.mcp.zread.enabled` | `false` | Application-level opt-in for the official HTTP zread MCP server. |
+| `glm-copilot.mcp.imageCleanupMode` | `manual` | Keep stored images until **GLM: Clean Up Stored Images**, or opt into a 7-day TTL cleanup on activation. |
+| `glm-copilot.mcp.imageCapableTools` | `[]` | Exact runtime tool IDs to trust as image readers. Official tools are detected from their required local-image-path schema; do not use short names or guessed prefixes. |
+| `glm-copilot.mcp.servers` | `{}` | Advanced application-scoped overrides and complete custom server definitions. Built-in servers are defined by the extension; their `enabled` field here is ignored. |
 | `glm-copilot.experimental.stabilizeToolList` | `false` | Pre-activates available tools to make the GLM `tools` parameter more stable across turns. It can increase input tokens. |
 
 Thinking Effort is configured from Copilot Chat's model picker for each GLM model.
@@ -174,6 +183,8 @@ The manager writes the canonical object below. This example is useful for automa
 `proxy` keeps the existing transparent Vision Proxy: a vision model turns image attachments into text, then the selected model receives that text. It works with text-only endpoints but adds a request and cannot preserve every visual detail.
 
 `native` resizes images with VS Code's Copilot-compatible image command before Base64 encoding and applies a 2.5 MiB binary context budget, prioritizing the newest messages. Images over budget are replaced with a notice while the text request continues. Use it only with a model and endpoint that support image input. Native requests fail directly without switching to the proxy. Image bytes are never stored in replay markers, diagnostics, or request dumps.
+
+`mcp` stores each image attachment in the request under extension global storage (`mcp-images/`) and replaces it with a path prompt. The request proceeds only when an available tool's schema accepts a required local image path, or when its exact runtime `tool.name` is listed in `glm-copilot.mcp.imageCapableTools`. The official `@z_ai/mcp-server` stdio tools are the supported readers; a remote HTTP MCP server may not be able to access the local path. If no reader exists, the extension falls back to the Vision Proxy when configured, otherwise it refuses to remove the image. Stored files use content-addressed names and are kept until manually cleaned or until the optional 7-day TTL runs.
 
 ## Troubleshooting
 

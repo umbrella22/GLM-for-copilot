@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { registerCommands } from '../../src/runtime/commands';
 import { formatCredentialChannel } from '../../src/auth';
 import {
@@ -14,7 +14,16 @@ import {
 	__resetCommandState,
 	__setConfigurationValue,
 	__setQuickPickSelectionLabel,
+	__setWarningMessageButton,
+	__getWindowMessages,
 } from '../support/vscode.mock';
+
+// Mock cleanupAllStoredImages so the cleanup command can be tested without
+// initializing the real image store. The spy records the call count.
+const cleanupAllStoredImagesMock = vi.fn(async () => 0);
+vi.mock('../../src/provider/vision/image-store', () => ({
+	cleanupAllStoredImages: (...args: unknown[]) => cleanupAllStoredImagesMock(...args),
+}));
 
 describe('runtime commands', () => {
 	beforeEach(() => {
@@ -36,5 +45,40 @@ describe('runtime commands', () => {
 		await vscode.commands.executeCommand('glm-copilot.getApiKey');
 
 		expect(__getOpenedExternal()?.toString()).toBe(expectedUrl);
+	});
+});
+
+describe('runtime commands — cleanupStoredImages (FORK)', () => {
+	beforeEach(() => {
+		__clearConfigurationValues();
+		__resetCommandState();
+		cleanupAllStoredImagesMock.mockClear();
+	});
+
+	it('does nothing when the user dismisses the confirmation dialog', async () => {
+		__setWarningMessageButton(undefined);
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.cleanupStoredImages');
+		expect(cleanupAllStoredImagesMock).not.toHaveBeenCalled();
+	});
+
+	it('calls cleanupAllStoredImages when confirmed and reports the count', async () => {
+		cleanupAllStoredImagesMock.mockResolvedValueOnce(7);
+		__setWarningMessageButton('Delete');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.cleanupStoredImages');
+		expect(cleanupAllStoredImagesMock).toHaveBeenCalledTimes(1);
+		// Success message includes the deleted count.
+		expect(__getWindowMessages().information.join(' ')).toMatch(/7/);
+	});
+
+	it('shows an error message when cleanup throws', async () => {
+		cleanupAllStoredImagesMock.mockRejectedValueOnce(new Error('fs error'));
+		__setWarningMessageButton('Delete');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.cleanupStoredImages');
+		expect(cleanupAllStoredImagesMock).toHaveBeenCalledTimes(1);
+		// An error message was surfaced (not silently swallowed).
+		expect(__getWindowMessages().error.length).toBeGreaterThan(0);
 	});
 });

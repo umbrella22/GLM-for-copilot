@@ -51,6 +51,12 @@
         "displayName": "GLM"
       }
     ],
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "glm-copilot.mcp-servers",
+        "label": "GLM Copilot MCP Servers"
+      }
+    ],
     "commands": [
       {
         "command": "glm-copilot.setApiKey",
@@ -87,6 +93,10 @@
       {
         "command": "glm-copilot.openRequestDumpsFolder",
         "title": "%glm-copilot.command.openRequestDumpsFolder%"
+      },
+      {
+        "command": "glm-copilot.cleanupStoredImages",
+        "title": "%glm-copilot.command.cleanupStoredImages%"
       }
     ],
     "walkthroughs": [
@@ -227,7 +237,8 @@
                     "type": "string",
                     "enum": [
                       "proxy",
-                      "native"
+                      "native",
+                      "mcp"
                     ],
                     "description": "%glm-copilot.config.modelManagement.visionMode.description%"
                   }
@@ -319,6 +330,255 @@
           "editPresentation": "multilineText",
           "default": "Describe all image attachments in this message.\n\nIf there is one image, describe it directly.\nIf there are multiple images:\n1. Describe each image separately, preserving their order.\n2. Then provide a combined description explaining the overall context and relationships across the images.\n\nReturn one concise factual description suitable for inserting into a text-only chat prompt. Include visible text, objects, UI elements, people, and relevant context. Do not invent details.",
           "markdownDescription": "%glm-copilot.config.visionPrompt.description%"
+        },
+        "glm-copilot.imageHandlingPrompt": {
+          "type": "string",
+          "editPresentation": "multilineText",
+          "default": "[Image Handling]\nAttached images are stored as local files; their paths appear in the conversation as \"[Image attached at local file: <path>]\". You cannot see images inline — they must be processed through an image-capable MCP tool. The file name is a content hash, so the same path always refers to the same image.\n\nBefore processing an image, decide whether you can reuse an existing analysis or must process it again. The decision has TWO dimensions, checked in this order:\n\n(1) Output-type match (PRIMARY). Every image task has an output type — what the user wants back. Common output types (non-exhaustive; infer from the user's goal, not from keywords): understand/describe (what is in this image), convert/generate (turn this UI into code, prompt, or spec), compare (design vs implementation, find differences), extract (text/code/error from a screenshot), diagnose (error screenshot, stack trace), or general/uncertain. Reusing a prior analysis is valid only when the current task's output type MATCHES the output type that analysis was produced for. If the user's requested output type differs from what the prior analysis/digest supports — for example you previously described the image (understand) and now the user asks you to replicate it into code (convert/generate) — you MUST NOT reuse the description; choose the tool best matched to the new output type and process the image again, even if you already know the image contents well. The trigger is the output type changing, NOT the image changing and NOT missing detail.\n\n(2) Information sufficiency within the same output type (SECONDARY). Only when the output type matches, then reuse unless one of:\n(a) it has not been processed for this output type in this conversation;\n(b) the current question needs detail the prior analysis did not cover; or\n(c) the image may have changed since (for example, the user edited the UI and re-captured it).\nWhen in doubt about output type, treat it as not-yet-processed and process with the most appropriate tool.\n\nFor the FIRST analysis of an image (no prior analysis exists), choose the tool best matched to the task's output type directly — do not default to a general-purpose tool when a more specific tool fits the intent.\n\nAfter you process an image, end with a one-line digest so later turns can reuse it without re-processing:\n[Image digest | <label/path> | <image type: ui-mockup | error-screenshot | diagram | …> | <output type: understand | convert | compare | extract | diagnose | …> | <key facts: layout, colors, text, sizes, errors> | <open questions>]\nKeep it to one line — it is an index, not a full description. The <output type> field records which output type this analysis was produced for, so later turns can apply the match rule above. Update it if you re-process for a different output type (emit a new digest for the new output type; do not overwrite the old one if both may be reused).\n\nNever invent the contents of an image you have not actually processed — if analysis is needed and none exists yet, call the tool. If processing fails, returns nothing useful, or leaves you uncertain, say so explicitly rather than guessing; the user must be able to tell when your understanding of an image may be wrong.\n\nWhen the images at hand are stale, missing, or do not show the current state of the problem — for example the user has changed the code and is now reporting a visual bug, or a screenshot is too low-resolution to read an error — ask the user for a fresh, specific screenshot to ground your diagnosis. Ask only when a new capture would actually change your next step; otherwise proceed from what you have and state your assumptions. Request something concrete (the current top nav, the full error dialog with its stack trace), not a vague \"send a screenshot\".\n\nCall the most appropriate image tool directly — do not mention tool names in your reply unless you are invoking that tool.\n\n",
+          "markdownDescription": "%glm-copilot.config.imageHandlingPrompt.description%"
+        },
+        "glm-copilot.imageStoredPrompt": {
+          "type": "string",
+          "editPresentation": "multilineText",
+          "default": "[{0} attached at local file: {1}]\nThis image cannot be displayed inline; process it with an image-capable MCP tool. The file name is a content hash — if you have already analyzed this path in this conversation, reuse that analysis unless you need new detail, the image has changed, or the requested output type differs from the prior analysis (see the output-type match rule in the system image-handling instruction). ",
+          "markdownDescription": "%glm-copilot.config.imageStoredPrompt.description%"
+        },
+        "glm-copilot.mcp.zai-mcp-server.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%glm-copilot.config.mcp.zai-mcp-server.enabled.description%",
+          "scope": "application"
+        },
+        "glm-copilot.mcp.web-search-prime.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%glm-copilot.config.mcp.web-search-prime.enabled.description%",
+          "scope": "application"
+        },
+        "glm-copilot.mcp.web-reader.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%glm-copilot.config.mcp.web-reader.enabled.description%",
+          "scope": "application"
+        },
+        "glm-copilot.mcp.zread.enabled": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%glm-copilot.config.mcp.zread.enabled.description%",
+          "scope": "application"
+        },
+        "glm-copilot.mcp.imageCleanupMode": {
+          "type": "string",
+          "enum": [
+            "manual",
+            "ttl-7d"
+          ],
+          "enumItemLabels": [
+            "%glm-copilot.config.mcp.imageCleanupMode.manual.label%",
+            "%glm-copilot.config.mcp.imageCleanupMode.ttl-7d.label%"
+          ],
+          "default": "manual",
+          "markdownDescription": "%glm-copilot.config.mcp.imageCleanupMode.description%"
+        },
+        "glm-copilot.mcp.imageCapableTools": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "default": [],
+          "scope": "application",
+          "markdownDescription": "%glm-copilot.config.mcp.imageCapableTools.description%"
+        },
+        "glm-copilot.mcp.servers": {
+          "type": "object",
+          "default": {},
+          "scope": "application",
+          "markdownDescription": "%glm-copilot.config.mcp.servers.description%",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": [
+                  "type",
+                  "label",
+                  "command"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "stdio"
+                    ]
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "detail": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "command": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "args": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "cwd": {
+                    "type": "string",
+                    "description": "Working directory to launch the stdio process in (stdio only)."
+                  },
+                  "env": {
+                    "type": "object",
+                    "description": "Environment variables for the stdio process (excluding injected auth keys). String values only.",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "injectApiKey": {
+                    "type": "boolean"
+                  },
+                  "credentialChannel": {
+                    "type": "string",
+                    "enum": [
+                      "china-coding",
+                      "china-standard",
+                      "international-coding",
+                      "international-standard"
+                    ]
+                  },
+                  "authEnvKey": {
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type",
+                  "label",
+                  "url"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "http"
+                    ]
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "detail": {
+                    "type": "string"
+                  },
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "url": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "headers": {
+                    "type": "object",
+                    "description": "Extra request headers for the http server (excluding the injected Authorization header). String values only.",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "injectApiKey": {
+                    "type": "boolean"
+                  },
+                  "credentialChannel": {
+                    "type": "string",
+                    "enum": [
+                      "china-coding",
+                      "china-standard",
+                      "international-coding",
+                      "international-standard"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "patternProperties": {
+            "^(?:zai-mcp-server|web-search-prime|web-reader|zread)$": {
+              "type": "object",
+              "description": "Partial override of a built-in server id (e.g. only `url` or only `env`). No field is required; the built-in base fills the gaps at merge time. All known fields are allowed, unknown ones are rejected. A standalone (user-defined) id should use one of the complete shapes above instead.",
+              "additionalProperties": false,
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "stdio",
+                    "http"
+                  ]
+                },
+                "label": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string"
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "command": {
+                  "type": "string"
+                },
+                "args": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "cwd": {
+                  "type": "string"
+                },
+                "env": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "url": {
+                  "type": "string"
+                },
+                "headers": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "injectApiKey": {
+                  "type": "boolean"
+                },
+                "credentialChannel": {
+                  "type": "string",
+                  "enum": [
+                    "china-coding",
+                    "china-standard",
+                    "international-coding",
+                    "international-standard"
+                  ]
+                },
+                "authEnvKey": {
+                  "type": "string"
+                }
+              }
+            }
+          }
         },
         "glm-copilot.debugMode": {
           "type": "string",

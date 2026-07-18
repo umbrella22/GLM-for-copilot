@@ -3,6 +3,7 @@ type Disposable = { dispose(): void };
 export enum LanguageModelChatMessageRole {
 	User = 1,
 	Assistant = 2,
+	System = 3,
 }
 
 export enum LanguageModelChatToolMode {
@@ -71,6 +72,40 @@ export class ThemeIcon {
 	constructor(readonly id: string) {}
 }
 
+/**
+ * Minimal mock of VS Code's MCP server definitions.
+ *
+ * The real classes support `instanceof` checks against their class identity;
+ * the mock preserves that so `resolveServerDefinition` can branch on
+ * `definition instanceof McpStdioServerDefinition` / `McpHttpServerDefinition`.
+ * `env` and `headers` are mutable plain objects to mirror the real classes'
+ * in-place credential injection contract.
+ *
+ * Constructor signatures match what `buildServerDefinitions` calls:
+ *   new McpStdioServerDefinition(label, command, args, env, version)
+ *   new McpHttpServerDefinition(label, uri, headers, version)
+ */
+export class McpStdioServerDefinition {
+	cwd?: Uri;
+
+	constructor(
+		readonly label: string,
+		readonly command: string,
+		readonly args: readonly string[],
+		public env: Record<string, string>,
+		readonly version?: string,
+	) {}
+}
+
+export class McpHttpServerDefinition {
+	constructor(
+		readonly label: string,
+		readonly uri: Uri,
+		public headers: Record<string, string>,
+		readonly version?: string,
+	) {}
+}
+
 export class EventEmitter<T = void> {
 	private readonly listeners = new Set<(value: T) => void>();
 
@@ -93,6 +128,7 @@ export class EventEmitter<T = void> {
 }
 
 const configurationValues = new Map<string, unknown>();
+const defaultConfigurationValues = new Map<string, unknown>();
 const workspaceConfigurationValues = new Map<string, unknown>();
 const workspaceFolderConfigurationValues = new Map<string, Map<string, unknown>>();
 const registeredCommands = new Map<string, (...args: unknown[]) => unknown>();
@@ -101,6 +137,11 @@ let lastStatusBarItem: Record<string, unknown> | undefined;
 let quickPickSelectionLabel: string | undefined;
 let inputBoxValue: string | undefined;
 let activeTextEditorUri: Uri | undefined;
+// When set, showWarningMessage returns this value (simulates the user
+// clicking a specific button on a modal warning, e.g. the 'Apply' button on
+// the Coding Plan preset confirmation). When undefined, returns undefined
+// (simulates dismissing the dialog without choosing a button).
+let warningMessageButton: string | undefined;
 const activeTextEditorEmitter = new EventEmitter<{ document: { uri: Uri } } | undefined>();
 const workspaceFoldersEmitter = new EventEmitter<unknown>();
 let lastWebviewPanel: MockWebviewPanel | undefined;
@@ -112,8 +153,13 @@ export function __setConfigurationValue(key: string, value: unknown): void {
 	configurationValues.set(key, value);
 }
 
+export function __setConfigurationDefaultValue(key: string, value: unknown): void {
+	defaultConfigurationValues.set(key, value);
+}
+
 export function __clearConfigurationValues(): void {
 	configurationValues.clear();
+	defaultConfigurationValues.clear();
 	workspaceConfigurationValues.clear();
 	workspaceFolderConfigurationValues.clear();
 	mockWorkspaceFolders = undefined;
@@ -131,6 +177,10 @@ export function __setQuickPickSelectionLabel(label: string | undefined): void {
 
 export function __setInputBoxValue(value: string | undefined): void {
 	inputBoxValue = value;
+}
+
+export function __setWarningMessageButton(button: string | undefined): void {
+	warningMessageButton = button;
 }
 
 export function __getWindowMessages(): {
@@ -151,6 +201,7 @@ export function __resetCommandState(): void {
 	lastStatusBarItem = undefined;
 	quickPickSelectionLabel = undefined;
 	inputBoxValue = undefined;
+	warningMessageButton = undefined;
 	activeTextEditorUri = undefined;
 	lastWebviewPanel = undefined;
 	informationMessages.length = 0;
@@ -298,6 +349,28 @@ function getConfigurationMapValue(
 	return { found: false };
 }
 
+function isConfigurationObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function mergeConfigurationObjects(
+	base: Readonly<Record<string, unknown>>,
+	override: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+	const result = Object.create(null) as Record<string, unknown>;
+	for (const [key, value] of Object.entries(base)) {
+		result[key] = value;
+	}
+	for (const [key, value] of Object.entries(override)) {
+		const inherited = result[key];
+		result[key] =
+			isConfigurationObject(inherited) && isConfigurationObject(value)
+				? mergeConfigurationObjects(inherited, value)
+				: value;
+	}
+	return result;
+}
+
 export const workspace = {
 	get workspaceFolders(): Array<{ uri: Uri }> | undefined {
 		return mockWorkspaceFolders;
@@ -324,25 +397,48 @@ export const workspace = {
 		return {
 			get<T>(key: string, fallback?: T): T | undefined {
 				const full = scopedKey(key);
-				for (const values of [folderValues, workspaceConfigurationValues, configurationValues]) {
+				let resolved: unknown = fallback;
+				let found = false;
+				for (const values of [
+					defaultConfigurationValues,
+					configurationValues,
+					workspaceConfigurationValues,
+					folderValues,
+				]) {
 					const stored = getConfigurationMapValue(values, full, key);
 					if (stored.found) {
-						return stored.value as T;
+						resolved =
+							found && isConfigurationObject(resolved) && isConfigurationObject(stored.value)
+								? mergeConfigurationObjects(resolved, stored.value)
+								: stored.value;
+						found = true;
 					}
 				}
-				return fallback;
+				return (found ? resolved : fallback) as T | undefined;
 			},
-			inspect<T>(
-				key: string,
-			): { globalValue?: T; workspaceValue?: T; workspaceFolderValue?: T } | undefined {
+			inspect<T>(key: string):
+				| {
+						defaultValue?: T;
+						globalValue?: T;
+						workspaceValue?: T;
+						workspaceFolderValue?: T;
+				  }
+				| undefined {
 				const full = scopedKey(key);
+				const defaultValue = getConfigurationMapValue(defaultConfigurationValues, full, key);
 				const globalValue = getConfigurationMapValue(configurationValues, full, key);
 				const workspaceValue = getConfigurationMapValue(workspaceConfigurationValues, full, key);
 				const workspaceFolderValue = getConfigurationMapValue(folderValues, full, key);
-				if (!globalValue.found && !workspaceValue.found && !workspaceFolderValue.found) {
+				if (
+					!defaultValue.found &&
+					!globalValue.found &&
+					!workspaceValue.found &&
+					!workspaceFolderValue.found
+				) {
 					return undefined;
 				}
 				return {
+					...(defaultValue.found ? { defaultValue: defaultValue.value as T } : {}),
 					...(globalValue.found ? { globalValue: globalValue.value as T } : {}),
 					...(workspaceValue.found ? { workspaceValue: workspaceValue.value as T } : {}),
 					...(workspaceFolderValue.found
@@ -442,7 +538,7 @@ export const window = {
 	},
 	async showWarningMessage(message: string): Promise<string | undefined> {
 		warningMessages.push(message);
-		return undefined;
+		return warningMessageButton;
 	},
 	async showErrorMessage(message: string): Promise<string | undefined> {
 		errorMessages.push(message);
@@ -518,6 +614,8 @@ const vscode = {
 	LanguageModelToolCallPart,
 	LanguageModelToolResultPart,
 	ThemeIcon,
+	McpStdioServerDefinition,
+	McpHttpServerDefinition,
 };
 
 export default vscode;

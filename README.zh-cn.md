@@ -26,7 +26,7 @@
 
 - **不是替换 Copilot，而是增强它。** 没有新的侧边栏，没有新的聊天界面需要学习。只是在你已经在用的模型选择器中多了一个选项。
 - **Agent 模式、工具调用、Instructions、MCP、Skills——全部正常运作。** Copilot 的完整能力栈，现在跑在 GLM 上。
-- **按模型需要处理视觉任务。** GLM-4.6V-Flash 和 GLM-5V-Turbo 默认直接接收图片；GLM-5.2 和 GLM-5-Turbo 默认通过透明视觉代理将图片转换为描述。每个模型都可单独选择模式。
+- **按模型需要处理视觉任务。** GLM-4.6V-Flash 和 GLM-5V-Turbo 默认直接接收图片；GLM-5.2 和 GLM-5-Turbo 默认通过透明视觉代理将图片转换为描述。每个模型也可单独选择 `mcp` 模式，将图片存储到本地供兼容的 MCP 工具读取。
 - **按轮次估算费用。** 当 GLM API 返回 usage 时，扩展会按官方标价估算本轮费用，上报到 Copilot usage 元数据、写入日志，并在状态栏显示最近一轮费用。
 - **需自行提供 API Key，直接向 GLM 付费。** 你的 API Key，你的账单，你的速率限制。密钥存储在操作系统密钥链中，不会以明文形式写入磁盘。
 
@@ -71,9 +71,9 @@
 
 每次 GLM 响应完成后，扩展会将用量上报到 Copilot 元数据并写入日志。状态栏主文案跟随当前资源的默认通道，悬浮提示合并展示所有活跃 Coding Plan 配额和标准 API 费用。国内 BigModel endpoint 使用 CNY，Z.ai endpoint 使用 USD。
 
-### 零运行时依赖
+### 运行时组成
 
-纯 VS Code API + Node.js 内置模块。无需 Python、Docker 或本地代理进程。
+核心扩展只使用 VS Code API 和 Node.js 内置模块，无需 Python、Docker 或本地代理进程。可选的官方 stdio MCP 服务会通过 `npx` 启动 `@z_ai/mcp-server@0.1.4`，子进程需要 Node.js 18 或更高版本。
 
 ## 快速开始
 
@@ -130,6 +130,15 @@
 | `glm-copilot.debugMode` | `minimal` | 诊断模式：仅 Token 用量、隐私安全元数据或扩展全局存储中的详细请求 dump。 |
 | `glm-copilot.visionModel` | _(自动)_ | 由视觉代理视图维护的兼容值。新版保存为 `vendor/id`，旧版裸模型 ID 仍可读取。 |
 | `glm-copilot.visionPrompt` | _(内置)_ | 代理图片模式用于描述图片附件的提示词。 |
+| `glm-copilot.imageHandlingPrompt` | _(内置)_ | 生效的 `mcp` 模式使用的系统提示词，包括纯文本回合（用于保持 prompt cache 稳定）。 |
+| `glm-copilot.imageStoredPrompt` | _(内置)_ | 单张图片的本地文件提示词；`{0}` 是图片标签，`{1}` 是文件路径。 |
+| `glm-copilot.mcp.zai-mcp-server.enabled` | `false` | 官方 stdio MCP 服务的应用级显式开关（含视觉工具）。 |
+| `glm-copilot.mcp.web-search-prime.enabled` | `false` | 官方 HTTP 网页搜索 MCP 服务的应用级显式开关。 |
+| `glm-copilot.mcp.web-reader.enabled` | `false` | 官方 HTTP 网页读取 MCP 服务的应用级显式开关。 |
+| `glm-copilot.mcp.zread.enabled` | `false` | 官方 HTTP zread MCP 服务的应用级显式开关。 |
+| `glm-copilot.mcp.imageCleanupMode` | `manual` | 保留图片直到运行 **GLM: 清理已存储的图片**，或选择激活时执行 7 天 TTL 清理。 |
+| `glm-copilot.mcp.imageCapableTools` | `[]` | 显式信任的完整运行时工具 ID。官方工具根据必需的本地图片路径 schema 自动识别，不要填写短名或猜测前缀。 |
+| `glm-copilot.mcp.servers` | `{}` | 应用级高级覆盖和完整的自定义服务定义。内置服务由扩展代码定义，此处的 `enabled` 会被忽略。 |
 | `glm-copilot.experimental.stabilizeToolList` | `false` | 预先激活可用工具，使多轮请求中的 GLM `tools` 参数更稳定；可能增加 input tokens。 |
 
 思考深度可通过 Copilot Chat 的模型选择器对每个 GLM 模型单独设置。
@@ -174,6 +183,8 @@
 `proxy` 保持透明视觉代理流程：视觉模型先将图片转换为文字描述，所选模型再接收这段文本。它兼容纯文本端点，但会增加一次请求，也可能损失视觉细节。
 
 `native` 在 Base64 编码前使用 VS Code 的 Copilot 兼容图片命令缩放图片，并按最新消息优先分配 2.5 MiB 二进制上下文预算。超出预算的图片会替换为提示文本，其余文字请求继续执行。原生请求不会自动切换到代理，图片字节也不会写入 replay marker、诊断或请求 dump。
+
+`mcp` 会将请求中的每个图片附件存储在扩展全局存储的 `mcp-images/` 下，并用文件路径提示替换图片。只有当可用工具的 schema 声明了必需的本地图片路径输入，或其完整运行时 `tool.name` 被加入 `glm-copilot.mcp.imageCapableTools` 时，请求才会继续。官方 `@z_ai/mcp-server` 的 stdio 工具集是受支持的读取器；远程 HTTP MCP 服务未必能访问本地路径。没有读取器时，有已配置视觉代理则回退到代理，否则扩展会在移除图片前拒绝请求。文件名使用内容寻址，除非手动清理或启用 7 天 TTL，否则会保留。
 
 ## 排错
 

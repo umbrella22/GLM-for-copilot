@@ -4,6 +4,10 @@ import {
 	collectTrailingToolResultIds,
 	prepareRequestTools,
 } from '../../src/provider/tools/request';
+import {
+	createVisionProxyFallbackNotice,
+	filterProviderNotices,
+} from '../../src/provider/tools/notices';
 import type { GLMMessage } from '../../src/types';
 
 function tool(name: string): vscode.LanguageModelChatTool {
@@ -59,5 +63,27 @@ describe('tool request helpers', () => {
 
 		expect(collectTrailingToolResultIds(messages)).toEqual(['call-1', 'call-2']);
 		expect(collectTrailingToolResultIds([{ role: 'user', content: 'done' }])).toEqual([]);
+	});
+});
+
+describe('provider notice filtering', () => {
+	it('removes an MCP vision fallback notice from the next-turn assistant history', () => {
+		const messages = [
+			{
+				role: vscode.LanguageModelChatMessageRole.Assistant,
+				content: [
+					new vscode.LanguageModelTextPart(
+						`${createVisionProxyFallbackNotice()}The actual model response`,
+					),
+				],
+			},
+		] as vscode.LanguageModelChatRequestMessage[];
+
+		const filtered = filterProviderNotices(messages);
+		expect(filtered).not.toBe(messages);
+		expect(filtered).toHaveLength(1);
+		expect((filtered[0]!.content[0] as vscode.LanguageModelTextPart).value).toBe(
+			'The actual model response',
+		);
 	});
 });

@@ -36,7 +36,8 @@ const USAGE_REFRESH_INTERVAL_MS = 60_000;
  * GLM models appear directly in the Copilot Chat model picker.
  */
 export class GLMChatProvider implements vscode.LanguageModelChatProvider<ModelPickerChatInformation> {
-	private readonly authManager: AuthManager;
+	/** [FORK] Exposed so the MCP module can reuse the same API key (BYOK). */
+	readonly authManager: AuthManager;
 	private readonly globalStorageUri: vscode.Uri;
 	private readonly onDidChangeLanguageModelChatInformationEmitter = new vscode.EventEmitter<void>();
 	private isActive = true;

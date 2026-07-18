@@ -723,3 +723,181 @@ describe('request preparation — mcp vision mode entry guard (PR #14 review #4)
 		});
 	});
 });
+
+// [FORK] PR #18: image-capable MCP tools are stripped for non-mcp EFFECTIVE
+// vision modes (native/proxy, incl. mcp->proxy fallback) WHEN the request
+// carries images — so they don't lure the model away from its own image path.
+// Pure-text requests keep them (rule A); mcp mode keeps them (model reads
+// images through them).
+describe('request preparation — strip image-capable MCP tools for non-mcp modes (PR #18)', () => {
+	let resizeImage: ReturnType<typeof vi.fn>;
+
+	beforeEach(() => {
+		__clearConfigurationValues();
+		__resetCommandState();
+		resizeImage = vi.fn((data: unknown) => data);
+		vscode.commands.registerCommand('_chat.resizeImage', resizeImage);
+	});
+
+	function optionsWithTools(
+		tools: vscode.LanguageModelChatTool[],
+	): vscode.ProvideLanguageModelChatResponseOptions {
+		return {
+			tools,
+			modelConfiguration: { reasoningEffort: 'max' },
+		} as vscode.ProvideLanguageModelChatResponseOptions;
+	}
+
+	it('strips image-capable MCP tools from a native-vision model but keeps ordinary tools', async () => {
+		// glm-4.6v-flash defaults to native. analyze_image is on the allowlist
+		// and would lure the model into calling the MCP tool instead of using
+		// its native vision -> filtered out. web_search is ordinary -> kept.
+		const prepared = await prepareChatRequest({
+			authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
+			globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
+			modelInfo: { id: 'glm-4.6v-flash' } as vscode.LanguageModelChatInformation,
+			segment,
+			messages: [userMessage([new vscode.LanguageModelTextPart('hi'), imagePart()])],
+			options: optionsWithTools([imageTool('analyze_image'), tool('web_search')]),
+			token,
+			cacheDiagnostics: createCacheDiagnosticsRecorder(),
+			getVisionDescriber: async () => ({ id: 'unused', source: 'auto', describe: vi.fn() }),
+		});
+
+		expect(prepared.visionMode).toBe('native');
+		expect(prepared.request.tools?.map((t) => t.function.name)).toEqual(['web_search']);
+	});
+
+	it('strips image-capable MCP tools from a proxy-vision model too', async () => {
+		// glm-5.2 defaults to proxy. Vision tools are redundant (the model gets
+		// text descriptions and cannot feed the original image to the tool) and
+		// interfering, so they are filtered here as well.
+		const prepared = await prepareChatRequest({
+			authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
+			globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
+			modelInfo: { id: 'glm-5.2' } as vscode.LanguageModelChatInformation,
+			segment,
+			messages: [userMessage([new vscode.LanguageModelTextPart('hi'), imagePart()])],
+			options: optionsWithTools([imageTool('analyze_image'), tool('web_search')]),
+			token,
+			cacheDiagnostics: createCacheDiagnosticsRecorder(),
+			getVisionDescriber: async () => ({ id: 'unused', source: 'auto', describe: vi.fn() }),
+		});
+
+		expect(prepared.visionMode).toBe('proxy');
+		expect(prepared.request.tools?.map((t) => t.function.name)).toEqual(['web_search']);
+	});
+
+	it('keeps image-capable MCP tools in mcp mode (the model reads images through them)', async () => {
+		__setConfigurationValue('glm-copilot.customModels', ['team-tools']);
+		__setConfigurationValue('glm-copilot.modelVisionModes', { 'team-tools': 'mcp' });
+
+		const prepared = await prepareChatRequest({
+			authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
+			globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
+			modelInfo: { id: 'team-tools' } as vscode.LanguageModelChatInformation,
+			segment,
+			messages: [userMessage([new vscode.LanguageModelTextPart('hi')])],
+			options: optionsWithTools([imageTool('analyze_image'), tool('web_search')]),
+			token,
+			cacheDiagnostics: createCacheDiagnosticsRecorder(),
+			getVisionDescriber: async () => ({ id: 'unused', source: 'auto', describe: vi.fn() }),
+		});
+
+		expect(prepared.visionMode).toBe('mcp');
+		// Both tools preserved: mcp mode must NOT filter image-capable tools.
+		expect(prepared.request.tools?.map((t) => t.function.name)).toEqual([
+			'analyze_image',
+			'web_search',
+		]);
+	});
+
+	it('strips fully-qualified mcp_<server>_<tool> image tools from a native model', async () => {
+		// The real VS Code runtime id for the zai-mcp-server vision tool uses
+		// single underscores; the allowlist matches the short suffix, so the
+		// qualified name must be recognized and filtered for native models.
+		const prepared = await prepareChatRequest({
+			authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
+			globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
+			modelInfo: { id: 'glm-4.6v-flash' } as vscode.LanguageModelChatInformation,
+			segment,
+			messages: [userMessage([new vscode.LanguageModelTextPart('hi'), imagePart()])],
+			options: optionsWithTools([
+				imageTool('mcp_zai-mcp-server_analyze_image'),
+				tool('web_search'),
+			]),
+			token,
+			cacheDiagnostics: createCacheDiagnosticsRecorder(),
+			getVisionDescriber: async () => ({ id: 'unused', source: 'auto', describe: vi.fn() }),
+		});
+
+		expect(prepared.visionMode).toBe('native');
+		expect(prepared.request.tools?.map((t) => t.function.name)).toEqual(['web_search']);
+	});
+
+	it('keeps image-capable MCP tools for a pure-text native request (PR #18 rule A)', async () => {
+		// No image attachment -> nothing lures the model -> image-capable tools
+		// stay available (rule A). Only requests that carry images are filtered.
+		const prepared = await prepareChatRequest({
+			authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
+			globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
+			modelInfo: { id: 'glm-4.6v-flash' } as vscode.LanguageModelChatInformation,
+			segment,
+			messages: [userMessage([new vscode.LanguageModelTextPart('check /tmp/x.png')])],
+			options: optionsWithTools([imageTool('analyze_image'), tool('web_search')]),
+			token,
+			cacheDiagnostics: createCacheDiagnosticsRecorder(),
+			getVisionDescriber: async () => ({ id: 'unused', source: 'auto', describe: vi.fn() }),
+		});
+
+		expect(prepared.visionMode).toBe('native');
+		// Pure-text request: both tools kept (rule A — no image, no strip).
+		expect(prepared.request.tools?.map((t) => t.function.name)).toEqual([
+			'analyze_image',
+			'web_search',
+		]);
+	});
+
+	it('strips image-capable MCP tools when mcp mode falls back to proxy (PR #18 issue 1)', async () => {
+		// 1 image + only ui_diff_check (schema requires 2 image paths) -> the
+		// mcp guard finds no usable tool -> falls back to proxy. The image tool
+		// must then be stripped too: proxy does not create local image files, so
+		// leaving ui_diff_check would let the model call a tool with no path.
+		__setConfigurationValue('glm-copilot.customModels', ['team-tools']);
+		__setConfigurationValue('glm-copilot.modelVisionModes', { 'team-tools': 'mcp' });
+		const uiDiffCheck = {
+			name: 'mcp_zai-mcp-server_ui_diff_check',
+			description: 'ui diff',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					expected_image_source: {
+						type: 'string',
+						description: 'Local file path to the expected image',
+					},
+					actual_image_source: {
+						type: 'string',
+						description: 'Local file path to the actual image',
+					},
+				},
+				required: ['expected_image_source', 'actual_image_source'],
+			},
+		} as vscode.LanguageModelChatTool;
+
+		const prepared = await prepareChatRequest({
+			authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
+			globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
+			modelInfo: { id: 'team-tools' } as vscode.LanguageModelChatInformation,
+			segment,
+			messages: [userMessage([new vscode.LanguageModelTextPart('compare'), imagePart()])],
+			options: optionsWithTools([uiDiffCheck, tool('web_search')]),
+			token,
+			cacheDiagnostics: createCacheDiagnosticsRecorder(),
+			getVisionDescriber: async () => ({ id: 'proxy', source: 'auto', describe: vi.fn() }),
+		});
+
+		// Fell back to proxy and stripped the image tool; web_search kept.
+		expect(prepared.visionMode).toBe('proxy');
+		expect(prepared.request.tools?.map((t) => t.function.name)).toEqual(['web_search']);
+	});
+});

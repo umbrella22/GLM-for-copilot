@@ -45,6 +45,20 @@ export function isImageCapableTool(
 	);
 }
 
+/**
+ * Whether a tool is POTENTIALLY image-capable, ignoring the request's image
+ * count. Used by the non-mcp strip filter (`stripImageCapableToolsFromOptions`),
+ * which removes EVERY image-capable tool regardless of how many images the
+ * current request carries — unlike `isImageCapableTool`, whose count gate
+ * serves the mcp-mode guard's "can this tool read these N images" question.
+ */
+export function isPotentiallyImageCapableTool(
+	tool: vscode.LanguageModelChatTool,
+	exactOverrides: ReadonlySet<string>,
+): boolean {
+	return exactOverrides.has(tool.name) || localImagePathInputCount(tool.inputSchema) > 0;
+}
+
 /** Whether any available tool can read an image path emitted by MCP mode. */
 export function hasImageCapableTool(
 	options: vscode.ProvideLanguageModelChatResponseOptions,
@@ -90,4 +104,46 @@ function localImagePathInputCount(schema: object | undefined): number {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * [FORK] PR #17: Remove image-capable MCP tools from a request's options.
+ *
+ * native and proxy vision modes give the model its own image path — native
+ * inlines the image bytes, proxy replaces them with a text description. In
+ * both modes an image-capable MCP tool in the list is redundant AND actively
+ * harmful: tested models (e.g. glm-5v-turbo) get lured into calling the MCP
+ * vision tool instead of using their own native vision, and hand it VS Code
+ * attachment placeholders (e.g. `attachment:0`) the tool cannot resolve,
+ * producing tool errors. So for non-mcp modes we strip these tools before
+ * they ever reach the model.
+ *
+ * mcp mode is the ONE case that needs image-capable tools (the model reads
+ * images through them), so the caller must skip this filter when
+ * visionMode === 'mcp'. This function is intentionally visionMode-agnostic —
+ * the mode decision lives in the request layer — it only does the mechanical
+ * removal against the supplied allowlist.
+ *
+ * Returns the SAME options object when nothing was removed (no tools, or no
+ * image-capable tool present), so the common case pays no shallow-copy cost
+ * and reference-equality callers can detect "unchanged".
+ */
+export function stripImageCapableToolsFromOptions(
+	options: vscode.ProvideLanguageModelChatResponseOptions,
+	exactOverrides: ReadonlySet<string>,
+): vscode.ProvideLanguageModelChatResponseOptions {
+	const tools = options.tools;
+	if (!tools || tools.length === 0) {
+		return options;
+	}
+	// Strip ANY image-capable tool regardless of how many images this request
+	// carries — a native/proxy model must not see image-capable MCP tools at
+	// all. `isPotentiallyImageCapableTool` ignores the request's image count
+	// (unlike the mcp-mode guard's `isImageCapableTool`, which gates by count),
+	// so multi-image tools like ui_diff_check are also removed here.
+	const filtered = tools.filter((tool) => !isPotentiallyImageCapableTool(tool, exactOverrides));
+	if (filtered.length === tools.length) {
+		return options;
+	}
+	return { ...options, tools: filtered };
 }

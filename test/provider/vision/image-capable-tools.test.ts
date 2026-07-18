@@ -4,6 +4,7 @@ import {
 	hasImageCapableTool,
 	isImageCapableTool,
 	readImageCapableToolOverrides,
+	stripImageCapableToolsFromOptions,
 } from '../../../src/provider/vision/image-capable-tools';
 import { __clearConfigurationValues, __setConfigurationValue } from '../../support/vscode.mock';
 
@@ -252,5 +253,82 @@ describe('image-capable-tools — readImageCapableToolOverrides (user extension)
 	it('returns no overrides for a malformed non-array setting', () => {
 		__setConfigurationValue('glm-copilot.mcp.imageCapableTools', { tool: true });
 		expect(readImageCapableToolOverrides()).toEqual(new Set());
+	});
+});
+
+describe('image-capable-tools — stripImageCapableToolsFromOptions', () => {
+	const allowlist = new Set<string>(['analyze_image', 'ui_to_artifact']);
+
+	function optionsWith(
+		tools: { name: string }[] | undefined,
+	): vscode.ProvideLanguageModelChatResponseOptions {
+		return {
+			tools: tools as vscode.LanguageModelChatTool[] | undefined,
+		} as vscode.ProvideLanguageModelChatResponseOptions;
+	}
+
+	it('removes image-capable tools and keeps ordinary ones', () => {
+		const result = stripImageCapableToolsFromOptions(
+			optionsWith([{ name: 'analyze_image' }, { name: 'web_search' }]),
+			allowlist,
+		);
+		expect(result.tools?.map((t) => t.name)).toEqual(['web_search']);
+	});
+
+	it('removes a qualified mcp_<server>_<tool> image tool detected by its schema', () => {
+		// bb53f52 switched detection from name-suffix matching to input-schema
+		// matching: a qualified MCP tool is stripped when its schema declares a
+		// local image path, regardless of the generated id prefix.
+		const qualifiedImageTool = {
+			name: 'mcp_zai-mcp-server_analyze_image',
+			description: 'qualified image tool',
+			inputSchema: {
+				type: 'object',
+				properties: { image_source: localImageProperty },
+				required: ['image_source'],
+			},
+		} as vscode.LanguageModelChatTool;
+		const result = stripImageCapableToolsFromOptions(
+			{ tools: [qualifiedImageTool] } as vscode.ProvideLanguageModelChatResponseOptions,
+			allowlist,
+		);
+		expect(result.tools).toEqual([]);
+	});
+
+	it('returns the SAME options object when nothing needs removing', () => {
+		// No image-capable tool present: the original options must come back by
+		// reference so the common case pays no shallow-copy cost.
+		const original = optionsWith([{ name: 'web_search' }, { name: 'terminal' }]);
+		expect(stripImageCapableToolsFromOptions(original, allowlist)).toBe(original);
+	});
+
+	it('returns the SAME options object when tools is undefined or empty', () => {
+		const undefinedOpts = optionsWith(undefined);
+		expect(stripImageCapableToolsFromOptions(undefinedOpts, allowlist)).toBe(undefinedOpts);
+		const emptyOpts = optionsWith([]);
+		expect(stripImageCapableToolsFromOptions(emptyOpts, allowlist)).toBe(emptyOpts);
+	});
+
+	it('returns an empty tools array when every tool is image-capable', () => {
+		const result = stripImageCapableToolsFromOptions(
+			optionsWith([{ name: 'analyze_image' }, { name: 'ui_to_artifact' }]),
+			allowlist,
+		);
+		expect(result.tools).toEqual([]);
+	});
+
+	it('preserves sibling option fields on the shallow copy', () => {
+		// When tools had to be filtered, the returned object is a shallow copy
+		// that must keep other fields (toolMode, modelOptions) intact.
+		const original = {
+			tools: [{ name: 'analyze_image' }, { name: 'web_search' }] as vscode.LanguageModelChatTool[],
+			toolMode: 1 as vscode.LanguageModelChatToolMode,
+			modelOptions: { foo: 'bar' },
+		} as vscode.ProvideLanguageModelChatResponseOptions;
+		const result = stripImageCapableToolsFromOptions(original, allowlist);
+		expect(result).not.toBe(original);
+		expect(result.toolMode).toBe(1);
+		expect(result.modelOptions).toEqual({ foo: 'bar' });
+		expect(result.tools?.map((t) => t.name)).toEqual(['web_search']);
 	});
 });

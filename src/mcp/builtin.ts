@@ -21,8 +21,8 @@ export const BUILTIN_MCP_SERVERS: Readonly<McpServerConfigMap> = {
 		label: 'ZAI MCP Server',
 		detail: 'GLM 官方聚合 MCP，含视觉识别等能力 (Official GLM aggregated MCP, includes vision)',
 		// [FORK] Built-in GLM official servers are disabled by default. Users
-		// opt in either by running "GLM: Apply Recommended Setup for Coding
-		// Plan" or by toggling each server's checkbox in Settings. This avoids
+		// opt in by toggling each server's application-level checkbox in Settings.
+		// This avoids
 		// surprising existing users (and their BYOK keys) on upgrade.
 		enabled: false,
 		command: GLM_OFFICIAL_MCP_STDIO.command,

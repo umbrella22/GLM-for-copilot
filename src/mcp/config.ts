@@ -2,16 +2,16 @@ import vscode from 'vscode';
 import { CONFIG_SECTION } from '../consts';
 import { BUILTIN_MCP_ENABLED_KEYS, MCP_CONFIG_KEY } from './consts';
 import { isBuiltinMcpServer } from './builtin';
-import type { McpServerConfig, RawUserMcpServerMap } from './types';
+import { createMcpServerMap, type McpServerConfig, type RawUserMcpServerMap } from './types';
 import type { CredentialChannel } from '../types';
 
 /**
  * Read the raw user-facing MCP server configuration from settings.
  *
- * VS Code's object-type configuration uses *whole-value override* semantics:
- * if the user sets `glm-copilot.mcp.servers`, their value replaces the
- * `default` entirely — there is no automatic deep merge. Callers that need
- * the merged view (built-in + user overrides) should use `./merge` instead.
+ * This setting is application-scoped, so only the explicit global value is a
+ * user override. `get()` must not be used here: VS Code recursively merges
+ * object defaults into effective values, which would make a manifest default
+ * such as `injectApiKey: true` indistinguishable from fresh user consent.
  *
  * Returns an empty map when nothing is configured, never `undefined`, so
  * callers can safely iterate.
@@ -26,7 +26,7 @@ import type { CredentialChannel } from '../types';
  */
 export function readUserMcpServers(): RawUserMcpServerMap {
 	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-	const value = config.get<Record<string, unknown>>(MCP_CONFIG_KEY, {});
+	const value = config.inspect<unknown>(MCP_CONFIG_KEY)?.globalValue;
 	return sanitizeServerMap(value);
 }
 
@@ -75,9 +75,12 @@ export async function resetUserMcpServers(
  * (e.g. only `{ "url": "..." }`) survive, while user-defined ids still must
  * carry a complete standalone definition.
  */
-function sanitizeServerMap(input: Record<string, unknown>): RawUserMcpServerMap {
-	const result: RawUserMcpServerMap = {};
-	for (const [id, raw] of Object.entries(input)) {
+function sanitizeServerMap(input: unknown): RawUserMcpServerMap {
+	const result = createMcpServerMap<Partial<McpServerConfig>>();
+	if (!input || typeof input !== 'object' || Array.isArray(input)) {
+		return result;
+	}
+	for (const [id, raw] of Object.entries(input as Record<string, unknown>)) {
 		if (!id || typeof id !== 'string') {
 			continue;
 		}
@@ -244,7 +247,7 @@ function sanitizeStringRecord(raw: unknown): Record<string, string> | undefined 
 		return undefined;
 	}
 	const obj = raw as Record<string, unknown>;
-	const result: Record<string, string> = {};
+	const result = Object.create(null) as Record<string, string>;
 	for (const [key, value] of Object.entries(obj)) {
 		if (typeof key === 'string' && typeof value === 'string') {
 			result[key] = value;
@@ -284,8 +287,8 @@ export function readBuiltinServerEnabled(id: string): boolean {
 	}
 	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
 	// [FORK] Default to false: built-in MCP servers are opt-in. Users enable
-	// them via "GLM: Apply Recommended Setup for Coding Plan" or the settings
-	// checkboxes. This avoids sending BYOK keys to MCP services without
+	// them with the application-level settings checkboxes. This avoids sending
+	// BYOK keys to MCP services without
 	// explicit consent on install/upgrade.
 	const value = config.get<boolean>(settingKey, false);
 	return value;

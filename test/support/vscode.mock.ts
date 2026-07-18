@@ -3,6 +3,7 @@ type Disposable = { dispose(): void };
 export enum LanguageModelChatMessageRole {
 	User = 1,
 	Assistant = 2,
+	System = 3,
 }
 
 export enum LanguageModelChatToolMode {
@@ -127,6 +128,7 @@ export class EventEmitter<T = void> {
 }
 
 const configurationValues = new Map<string, unknown>();
+const defaultConfigurationValues = new Map<string, unknown>();
 const workspaceConfigurationValues = new Map<string, unknown>();
 const workspaceFolderConfigurationValues = new Map<string, Map<string, unknown>>();
 const registeredCommands = new Map<string, (...args: unknown[]) => unknown>();
@@ -151,8 +153,13 @@ export function __setConfigurationValue(key: string, value: unknown): void {
 	configurationValues.set(key, value);
 }
 
+export function __setConfigurationDefaultValue(key: string, value: unknown): void {
+	defaultConfigurationValues.set(key, value);
+}
+
 export function __clearConfigurationValues(): void {
 	configurationValues.clear();
+	defaultConfigurationValues.clear();
 	workspaceConfigurationValues.clear();
 	workspaceFolderConfigurationValues.clear();
 	mockWorkspaceFolders = undefined;
@@ -342,6 +349,28 @@ function getConfigurationMapValue(
 	return { found: false };
 }
 
+function isConfigurationObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function mergeConfigurationObjects(
+	base: Readonly<Record<string, unknown>>,
+	override: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+	const result = Object.create(null) as Record<string, unknown>;
+	for (const [key, value] of Object.entries(base)) {
+		result[key] = value;
+	}
+	for (const [key, value] of Object.entries(override)) {
+		const inherited = result[key];
+		result[key] =
+			isConfigurationObject(inherited) && isConfigurationObject(value)
+				? mergeConfigurationObjects(inherited, value)
+				: value;
+	}
+	return result;
+}
+
 export const workspace = {
 	get workspaceFolders(): Array<{ uri: Uri }> | undefined {
 		return mockWorkspaceFolders;
@@ -368,25 +397,48 @@ export const workspace = {
 		return {
 			get<T>(key: string, fallback?: T): T | undefined {
 				const full = scopedKey(key);
-				for (const values of [folderValues, workspaceConfigurationValues, configurationValues]) {
+				let resolved: unknown = fallback;
+				let found = false;
+				for (const values of [
+					defaultConfigurationValues,
+					configurationValues,
+					workspaceConfigurationValues,
+					folderValues,
+				]) {
 					const stored = getConfigurationMapValue(values, full, key);
 					if (stored.found) {
-						return stored.value as T;
+						resolved =
+							found && isConfigurationObject(resolved) && isConfigurationObject(stored.value)
+								? mergeConfigurationObjects(resolved, stored.value)
+								: stored.value;
+						found = true;
 					}
 				}
-				return fallback;
+				return (found ? resolved : fallback) as T | undefined;
 			},
-			inspect<T>(
-				key: string,
-			): { globalValue?: T; workspaceValue?: T; workspaceFolderValue?: T } | undefined {
+			inspect<T>(key: string):
+				| {
+						defaultValue?: T;
+						globalValue?: T;
+						workspaceValue?: T;
+						workspaceFolderValue?: T;
+				  }
+				| undefined {
 				const full = scopedKey(key);
+				const defaultValue = getConfigurationMapValue(defaultConfigurationValues, full, key);
 				const globalValue = getConfigurationMapValue(configurationValues, full, key);
 				const workspaceValue = getConfigurationMapValue(workspaceConfigurationValues, full, key);
 				const workspaceFolderValue = getConfigurationMapValue(folderValues, full, key);
-				if (!globalValue.found && !workspaceValue.found && !workspaceFolderValue.found) {
+				if (
+					!defaultValue.found &&
+					!globalValue.found &&
+					!workspaceValue.found &&
+					!workspaceFolderValue.found
+				) {
 					return undefined;
 				}
 				return {
+					...(defaultValue.found ? { defaultValue: defaultValue.value as T } : {}),
 					...(globalValue.found ? { globalValue: globalValue.value as T } : {}),
 					...(workspaceValue.found ? { workspaceValue: workspaceValue.value as T } : {}),
 					...(workspaceFolderValue.found

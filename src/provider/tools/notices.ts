@@ -46,6 +46,18 @@ export function createVisionProxyMissingNotice(): string {
 	].join('\n');
 }
 
+export function createVisionProxyFallbackNotice(): string {
+	return [
+		'',
+		VISION_PROXY_NOTICE_START,
+		'',
+		createBlockquote(t('vision.mcp.fallbackToProxy').trim()),
+		'',
+		VISION_PROXY_NOTICE_END,
+		'',
+	].join('\n');
+}
+
 export function createVisionProxyFailureNotice(errorCode: string, errorMessage: string): string {
 	return [
 		'',

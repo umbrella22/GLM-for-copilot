@@ -122,3 +122,8 @@ export type McpServerConfigMap = Record<string, McpServerConfig>;
  * superset of the partial shape. The merge layer fills gaps for built-in ids.
  */
 export type RawUserMcpServerMap = Record<string, Partial<McpServerConfig>>;
+
+/** Create an arbitrary-server-id dictionary without the legacy `__proto__` setter. */
+export function createMcpServerMap<T>(): Record<string, T> {
+	return Object.create(null) as Record<string, T>;
+}

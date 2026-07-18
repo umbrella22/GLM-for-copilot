@@ -331,6 +331,11 @@ describe('buildImagePromptText', () => {
 		expect(text).toBe('IMG[/tmp/x.png]#Image');
 	});
 
+	it('replaces repeated placeholders and preserves replacement-string characters', () => {
+		__setConfigurationValue('glm-copilot.imageStoredPrompt', '{1}|{1}|{0}|{0}');
+		expect(buildImagePromptText('/tmp/$&.png', 0, 1)).toBe('/tmp/$&.png|/tmp/$&.png|Image|Image');
+	});
+
 	it('falls back to default template when configured value is empty', () => {
 		__setConfigurationValue('glm-copilot.imageStoredPrompt', '');
 		const text = buildImagePromptText('/tmp/x.png', 0, 1);

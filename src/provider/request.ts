@@ -32,8 +32,9 @@ import type { ReplayMarkerMetadata } from './replay';
 import { classifyGLMRequest, shouldForceThinkingNone, type RequestKind } from './routing';
 import type { ConversationSegment } from './segment';
 import { collectTrailingToolResultIds, prepareRequestTools } from './tools/request';
+import { createVisionProxyFallbackNotice } from './tools/notices';
 import { resolveImageMessages, type VisionDescriber } from './vision';
-import { hasImageCapableTool, readImageCapableTools } from './vision/image-capable-tools';
+import { hasImageCapableTool, readImageCapableToolOverrides } from './vision/image-capable-tools';
 
 export interface PreparedChatRequest {
 	client: GLMClient;
@@ -105,7 +106,8 @@ export async function prepareChatRequest({
 	// terminal, edits) would pass, images would be stripped, and the model
 	// would have no reader — a silent loss.
 	//
-	// Now we check for an ACTUAL image-capable tool against an allowlist. When
+	// Now we check for an ACTUAL image-capable tool from its input schema or an
+	// exact user override. When
 	// the request carries images but no image-capable tool is available, we
 	// must NOT silently strip. Resolution order:
 	//   1. tool calling off entirely -> throw the original conflict error
@@ -123,15 +125,20 @@ export async function prepareChatRequest({
 	let effectiveVisionMode = visionMode;
 	let mcpFallbackNotice: string | undefined;
 	if (visionMode === 'mcp') {
-		const hasImages = messages.some((m) =>
-			(m.content as readonly vscode.LanguageModelInputPart[]).some(
-				(p) => p instanceof vscode.LanguageModelDataPart && p.mimeType.startsWith('image/'),
-			),
+		const imageCount = messages.reduce(
+			(count, message) =>
+				count +
+				(message.content as readonly vscode.LanguageModelInputPart[]).filter(
+					(p) => p instanceof vscode.LanguageModelDataPart && p.mimeType.startsWith('image/'),
+				).length,
+			0,
 		);
+		const hasImages = imageCount > 0;
 		if (hasImages) {
 			const toolCallingOff = !tools || tools.length === 0;
 			const hasVisionTool =
-				!toolCallingOff && hasImageCapableTool(options, readImageCapableTools());
+				!toolCallingOff &&
+				hasImageCapableTool(options, readImageCapableToolOverrides(), imageCount);
 			if (!hasVisionTool) {
 				if (toolCallingOff) {
 					// Case 1: no tools at all — nothing can read the image under any mode.
@@ -141,7 +148,7 @@ export async function prepareChatRequest({
 				const proxyDescriber = await getVisionDescriber();
 				if (proxyDescriber) {
 					effectiveVisionMode = 'proxy';
-					mcpFallbackNotice = t('vision.mcp.fallbackToProxy');
+					mcpFallbackNotice = createVisionProxyFallbackNotice();
 				} else {
 					// Case 3: no vision MCP tool AND no proxy — refuse with guidance.
 					throw new Error(t('vision.mcp.conflict.noImageTool'));
@@ -267,7 +274,7 @@ export async function prepareChatRequest({
 		// [FORK] Surface the mcp->proxy fallback notice alongside any notice
 		// produced by vision resolution (e.g. proxy missing). Both are shown to
 		// the user so they understand why the effective mode differed.
-		initialResponseNotice: mcpFallbackNotice ?? visionResolution.initialResponseNotice,
+		initialResponseNotice: joinNotices(mcpFallbackNotice, visionResolution.initialResponseNotice),
 		requestDump,
 		// Report the EFFECTIVE mode so downstream (segment tracing, request
 		// dumps, stats) reflects what actually ran, not what was configured.
@@ -278,13 +285,18 @@ export async function prepareChatRequest({
 	};
 }
 
+function joinNotices(...notices: readonly (string | undefined)[]): string | undefined {
+	const joined = notices.filter((notice) => notice && notice.trim().length > 0).join('\n');
+	return joined || undefined;
+}
+
 // ---- [FORK] Image-handling system instruction injection ----
 
 /**
  * Default value for the image handling system instruction. Keep in sync with
  * `glm-copilot.imageHandlingPrompt.default` in package.json.
  */
-const DEFAULT_IMAGE_HANDLING_INSTRUCTION =
+export const DEFAULT_IMAGE_HANDLING_INSTRUCTION =
 	'[Image Handling]\n' +
 	'Attached images are stored as local files; their paths appear in the conversation as "[Image attached at local file: <path>]". ' +
 	'You cannot see images inline — they must be processed through an image-capable MCP tool. ' +
@@ -347,7 +359,7 @@ function injectImageToolGuidance(messages: GLMMessage[]): void {
 	const instruction = getImageHandlingInstruction();
 	const systemMessage = messages.find((m) => m.role === 'system');
 	if (systemMessage && typeof systemMessage.content === 'string') {
-		systemMessage.content = instruction + systemMessage.content;
+		systemMessage.content = `${instruction.trimEnd()}\n\n${systemMessage.content}`;
 	} else {
 		messages.unshift({
 			role: 'system',

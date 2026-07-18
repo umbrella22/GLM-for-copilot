@@ -1,6 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { BUILTIN_MCP_SERVERS } from '../../src/mcp/builtin';
+import { DEFAULT_IMAGE_HANDLING_INSTRUCTION } from '../../src/provider/request';
+import { DEFAULT_IMAGE_STORED_PROMPT } from '../../src/provider/vision/image-store';
 import type { ModelVisionMode } from '../../src/types';
 
 /**
@@ -79,100 +82,105 @@ describe('package.json visionMode schema sync (PR #15 F4)', () => {
 	});
 });
 
-/**
- * [FORK] PR #15 Finding 3: the public package.json JSON Schema for
- * `glm-copilot.mcp.servers` must accept the SAME shapes the runtime
- * sanitizer (config.ts) accepts. The earlier schema used `oneOf` with two
- * branches that both REQUIRED `type` + `label` + (`command`/`url`), so a
- * built-in id partial override like `{ "web-reader": { "url": "..." } }`
- * parsed fine at runtime but showed a red squiggle in Settings JSON — the
- * public contract contradicted the parse capability.
- *
- * The fix switched `oneOf` → `anyOf` and added a third "override" branch
- * with NO required fields (but `additionalProperties: false` so typos are
- * still caught). This test pins that contract: if someone reverts to `oneOf`
- * or drops the override branch / the env-cwd-headers declarations, the build
- * fails loudly.
- *
- * We do NOT assert per-id required differences here — VS Code JSON Schema
- * cannot distinguish built-in ids from user-defined ones by key name, so the
- * override branch necessarily also accepts incomplete standalone shapes
- * (e.g. `{ type:'stdio', label:'X' }` without command). Runtime
- * sanitizeStandaloneServer is the backstop that rejects those for non-built-in
- * ids; the schema's job is just to stop rejecting legitimate overrides.
- */
 describe('package.json mcp.servers schema contract (PR #15 F3)', () => {
 	const pkgPath = join(process.cwd(), 'package.json');
 	const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as Record<string, unknown>;
-	const serversSchema = (
-		(
-			pkg.contributes as {
-				configuration: { properties: Record<string, unknown> };
-			}
-		).configuration.properties['glm-copilot.mcp.servers'] as {
-			additionalProperties?: { anyOf?: unknown[]; oneOf?: unknown[] };
+	const properties = (
+		pkg.contributes as {
+			configuration: { properties: Record<string, unknown> };
 		}
-	).additionalProperties;
-
-	it('uses anyOf (not oneOf) so a partial override can coexist with complete shapes', () => {
-		expect(serversSchema, 'additionalProperties must be defined').toBeDefined();
-		// anyOf = "at least one branch matches", which lets a built-in partial
-		// override (only `url`) match the override branch even though it fails
-		// the complete-shape branches. oneOf = "exactly one" and would still
-		// reject partials because they match zero complete branches.
-		expect(Array.isArray(serversSchema!.anyOf), 'must use anyOf').toBe(true);
-		expect(
-			Array.isArray(serversSchema!.oneOf),
-			'must NOT use oneOf (it cannot accept partial overrides)',
-		).toBe(false);
-	});
+	).configuration.properties;
+	const serversSetting = properties['glm-copilot.mcp.servers'] as {
+		default?: unknown;
+		scope?: string;
+		patternProperties?: Record<string, SchemaBranch>;
+		additionalProperties?: { oneOf?: SchemaBranch[]; anyOf?: SchemaBranch[] };
+	};
 
 	interface SchemaBranch {
 		required?: string[];
 		additionalProperties?: unknown;
-		properties?: Record<string, unknown>;
+		properties?: Record<string, { minLength?: number } | unknown>;
 	}
-	const branches = (serversSchema!.anyOf as SchemaBranch[]) ?? [];
 
-	it('has a partial-override branch with NO required fields', () => {
-		// The branch that lets `{ "web-reader": { "url": "..." } }` through.
-		// It must not require type/label/command/url.
-		const overrideBranch = branches.find(
-			(b) => !Array.isArray(b.required) || b.required!.length === 0,
-		);
-		expect(overrideBranch, 'a no-required override branch must exist').toBeDefined();
+	it('keeps built-ins out of manifest defaults and reads this setting only at application scope', () => {
+		expect(serversSetting.default).toEqual({});
+		expect(serversSetting.scope).toBe('application');
 	});
 
-	it('partial-override branch rejects unknown fields (additionalProperties: false)', () => {
-		// Typos must still be caught: a field name the extension does not know
-		// should produce a squiggle, so the user notices a misspelled key.
-		const overrideBranch = branches.find(
-			(b) => !Array.isArray(b.required) || b.required!.length === 0,
-		);
-		expect(
-			overrideBranch!.additionalProperties,
-			'override branch must set additionalProperties',
-		).toBe(false);
+	it('limits partial definitions to the exact built-in ids', () => {
+		const patterns = Object.keys(serversSetting.patternProperties ?? {});
+		expect(patterns).toHaveLength(1);
+		const builtinPattern = new RegExp(patterns[0]!);
+		for (const id of Object.keys(BUILTIN_MCP_SERVERS)) {
+			expect(builtinPattern.test(id), `pattern must accept built-in ${id}`).toBe(true);
+		}
+		expect(builtinPattern.test('my-custom-server')).toBe(false);
+		const partialSchema = serversSetting.patternProperties?.[patterns[0]!];
+		expect(partialSchema?.required).toBeUndefined();
+		expect(partialSchema?.additionalProperties).toBe(false);
 	});
 
-	it('stdio complete-shape branch declares env + cwd (PR #15 F3 forwarded fields)', () => {
-		// config.ts forwards these to McpStdioServerDefinition; the schema must
-		// declare them so users writing them don't see a squiggle.
+	it('requires complete stdio/http definitions for every custom id', () => {
+		const branches = serversSetting.additionalProperties?.oneOf ?? [];
+		expect(serversSetting.additionalProperties?.anyOf).toBeUndefined();
+		expect(branches).toHaveLength(2);
 		const stdioBranch = branches.find(
 			(b) => Array.isArray(b.required) && b.required!.includes('command'),
 		);
-		expect(stdioBranch, 'stdio complete-shape branch must exist').toBeDefined();
-		const props = stdioBranch!.properties ?? {};
-		expect(props.env, 'stdio branch must declare env').toBeDefined();
-		expect(props.cwd, 'stdio branch must declare cwd').toBeDefined();
-	});
-
-	it('http complete-shape branch declares headers (PR #15 F3 forwarded field)', () => {
-		// config.ts forwards headers to McpHttpServerDefinition.
 		const httpBranch = branches.find(
 			(b) => Array.isArray(b.required) && b.required!.includes('url'),
 		);
+		expect(stdioBranch, 'stdio complete-shape branch must exist').toBeDefined();
 		expect(httpBranch, 'http complete-shape branch must exist').toBeDefined();
+		if (!stdioBranch || !httpBranch) {
+			throw new Error('complete MCP schema branches are missing');
+		}
+		expect(stdioBranch!.required).toEqual(expect.arrayContaining(['type', 'label', 'command']));
+		expect(httpBranch!.required).toEqual(expect.arrayContaining(['type', 'label', 'url']));
+		expect(stdioBranch!.properties?.env).toBeDefined();
+		expect(stdioBranch!.properties?.cwd).toBeDefined();
 		expect(httpBranch!.properties?.headers, 'http branch must declare headers').toBeDefined();
+		const stdioProperties = stdioBranch.properties ?? {};
+		const httpProperties = httpBranch.properties ?? {};
+		expect((stdioProperties.label as { minLength?: number }).minLength).toBe(1);
+		expect((stdioProperties.command as { minLength?: number }).minLength).toBe(1);
+		expect((httpProperties.url as { minLength?: number }).minLength).toBe(1);
+	});
+
+	it('keeps credential-bearing built-in enable switches at application scope', () => {
+		for (const id of Object.keys(BUILTIN_MCP_SERVERS)) {
+			const setting = properties[`glm-copilot.mcp.${id}.enabled`] as { scope?: string };
+			expect(setting.scope, `${id} enable switch scope`).toBe('application');
+		}
+	});
+});
+
+describe('package.json MCP prompt defaults', () => {
+	const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8')) as {
+		contributes: { configuration: { properties: Record<string, { default?: unknown }> } };
+	};
+	const properties = pkg.contributes.configuration.properties;
+
+	it('matches the runtime image-handling instruction exactly', () => {
+		expect(properties['glm-copilot.imageHandlingPrompt']?.default).toBe(
+			DEFAULT_IMAGE_HANDLING_INSTRUCTION,
+		);
+	});
+
+	it('matches the runtime per-image prompt exactly', () => {
+		expect(properties['glm-copilot.imageStoredPrompt']?.default).toBe(DEFAULT_IMAGE_STORED_PROMPT);
+	});
+
+	it('does not document the obsolete double-underscore MCP tool id format', () => {
+		for (const file of ['package.nls.json', 'package.nls.zh-cn.json']) {
+			const messages = JSON.parse(readFileSync(join(process.cwd(), file), 'utf-8')) as Record<
+				string,
+				string
+			>;
+			expect(messages['glm-copilot.config.mcp.imageCapableTools.description']).not.toContain(
+				'mcp__',
+			);
+		}
 	});
 });

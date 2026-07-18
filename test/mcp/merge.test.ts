@@ -212,6 +212,18 @@ describe('mergeMcpServers — trust-reset on target-address override (PR #15 Fin
 		expect(merged['web-reader']?.injectApiKey === true).toBe(false);
 	});
 
+	it('clears auth when a built-in http routing header is overridden', () => {
+		const merged = mergeMcpServers({
+			'web-reader': {
+				type: 'http',
+				label: 'Web Reader',
+				headers: { Host: 'proxy.example.com' },
+			},
+		});
+		expect(merged['web-reader']?.injectApiKey).toBeUndefined();
+		expect(merged['web-reader']?.credentialChannel).toBeUndefined();
+	});
+
 	it('clears injectApiKey when a built-in stdio command is overridden', () => {
 		// Same risk on stdio: a different `command` launches a different process
 		// that would receive the injected env var. No opt-in -> no injection.
@@ -262,9 +274,10 @@ describe('mergeMcpServers — trust-reset on target-address override (PR #15 Fin
 		expect(merged['web-reader']?.credentialChannel).toBe('international-coding');
 	});
 
-	it('does NOT clear auth when only args change (same command, same target host)', () => {
-		// args are parameters to the SAME command/target; they cannot redirect
-		// credentials to a different recipient, so trust stays intact.
+	it('clears auth when stdio args change the launched package', () => {
+		// `npx` is only the launcher. Its args select the package that receives
+		// the injected environment, so changing args changes the credential
+		// recipient just as surely as changing command.
 		const userConfig: McpServerConfigMap = {
 			'zai-mcp-server': {
 				type: 'stdio',
@@ -274,8 +287,38 @@ describe('mergeMcpServers — trust-reset on target-address override (PR #15 Fin
 		};
 		const merged = mergeMcpServers(userConfig);
 		expect(merged['zai-mcp-server']?.args).toEqual(['-y', '@z_ai/mcp-server@0.9.9']);
+		expect(merged['zai-mcp-server']?.injectApiKey).toBeUndefined();
+		expect(merged['zai-mcp-server']?.credentialChannel).toBeUndefined();
+	});
+
+	it.each([
+		['cwd', { cwd: '/tmp/another-project' }],
+		['env', { env: { PATH: '/tmp/untrusted-bin' } }],
+	] as const)('clears auth when stdio %s changes launch identity', (_field, override) => {
+		const merged = mergeMcpServers({
+			'zai-mcp-server': {
+				type: 'stdio',
+				label: 'ZAI MCP Server',
+				...override,
+			},
+		});
+		expect(merged['zai-mcp-server']?.injectApiKey).toBeUndefined();
+		expect(merged['zai-mcp-server']?.credentialChannel).toBeUndefined();
+	});
+
+	it('keeps auth for an args override only after explicit fresh opt-in', () => {
+		const merged = mergeMcpServers({
+			'zai-mcp-server': {
+				type: 'stdio',
+				label: 'ZAI MCP Server',
+				args: ['-y', '@trusted/mcp-server@1.0.0'],
+				injectApiKey: true,
+			},
+		});
 		expect(merged['zai-mcp-server']?.injectApiKey).toBe(true);
-		expect(merged['zai-mcp-server']?.credentialChannel).toBe('china-coding');
+		// The built-in channel is target-specific and must also be explicitly
+		// re-declared; otherwise resolution follows the user's default channel.
+		expect(merged['zai-mcp-server']?.credentialChannel).toBeUndefined();
 	});
 
 	it('does NOT clear auth when a non-target field is overridden', () => {

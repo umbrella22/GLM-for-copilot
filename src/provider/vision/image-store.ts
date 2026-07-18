@@ -247,7 +247,7 @@ function isAlreadyExistsError(error: unknown): boolean {
  * Supports positional placeholders: {0}=label (e.g. "Image" or "Image 2 of 3"),
  * {1}=file path.
  */
-const DEFAULT_IMAGE_STORED_PROMPT =
+export const DEFAULT_IMAGE_STORED_PROMPT =
 	'[{0} attached at local file: {1}]\n' +
 	'This image cannot be displayed inline; process it with an image-capable MCP tool. ' +
 	'The file name is a content hash — if you have already analyzed this path in this ' +
@@ -273,7 +273,7 @@ export function buildImagePromptText(filePath: string, index: number, total: num
 	const template =
 		config.get<string>('imageStoredPrompt', DEFAULT_IMAGE_STORED_PROMPT) ||
 		DEFAULT_IMAGE_STORED_PROMPT;
-	return template.replace('{0}', label).replace('{1}', filePath);
+	return template.replaceAll('{0}', () => label).replaceAll('{1}', () => filePath);
 }
 
 /**

@@ -1,6 +1,86 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import * as vscode from 'vscode';
+import { buildServerDefinitions } from '../../src/mcp/build';
 import { readUserMcpServers } from '../../src/mcp/config';
-import { __clearConfigurationValues, __setConfigurationValue } from '../support/vscode.mock';
+import { mergeMcpServers, pickEnabledServers } from '../../src/mcp/merge';
+import {
+	__clearConfigurationValues,
+	__setConfigurationDefaultValue,
+	__setConfigurationValue,
+} from '../support/vscode.mock';
+
+describe('readUserMcpServers — explicit configuration boundary', () => {
+	beforeEach(() => {
+		__clearConfigurationValues();
+	});
+
+	afterEach(() => {
+		__clearConfigurationValues();
+	});
+
+	it('does not mistake recursively merged manifest defaults for explicit credential consent', () => {
+		__setConfigurationDefaultValue('glm-copilot.mcp.servers', {
+			'web-reader': {
+				type: 'http',
+				label: 'Web Reader',
+				url: 'https://open.bigmodel.cn/api/mcp/web_reader/mcp',
+				injectApiKey: true,
+				credentialChannel: 'china-coding',
+			},
+		});
+		__setConfigurationValue('glm-copilot.mcp.servers', {
+			'web-reader': { url: 'https://proxy.example.com/reader' },
+		});
+
+		const effective = vscode.workspace
+			.getConfiguration('glm-copilot')
+			.get<Record<string, Record<string, unknown>>>('mcp.servers');
+		expect(effective?.['web-reader']).toMatchObject({
+			url: 'https://proxy.example.com/reader',
+			injectApiKey: true,
+			credentialChannel: 'china-coding',
+		});
+
+		const explicit = readUserMcpServers();
+		expect(explicit['web-reader']).toEqual({ url: 'https://proxy.example.com/reader' });
+		expect(explicit['web-reader']?.injectApiKey).toBeUndefined();
+		expect(explicit['web-reader']?.credentialChannel).toBeUndefined();
+	});
+
+	it('preserves an own __proto__ server id without changing the result prototype', () => {
+		const configured = JSON.parse(
+			'{"__proto__":{"type":"http","label":"Prototype Server","url":"https://example.com/mcp"}}',
+		) as Record<string, unknown>;
+		__setConfigurationValue('glm-copilot.mcp.servers', configured);
+
+		const result = readUserMcpServers();
+		expect(Object.getPrototypeOf(result)).toBeNull();
+		expect(Object.hasOwn(result, '__proto__')).toBe(true);
+		expect(result['__proto__']).toMatchObject({
+			type: 'http',
+			label: 'Prototype Server',
+			url: 'https://example.com/mcp',
+		});
+
+		const merged = mergeMcpServers(result);
+		const enabled = pickEnabledServers(merged);
+		expect(Object.getPrototypeOf(merged)).toBeNull();
+		expect(Object.getPrototypeOf(enabled)).toBeNull();
+		expect(Object.hasOwn(merged, '__proto__')).toBe(true);
+		expect(Object.hasOwn(enabled, '__proto__')).toBe(true);
+		expect(buildServerDefinitions(enabled)).toEqual([
+			expect.objectContaining({
+				id: '__proto__',
+				definition: expect.objectContaining({ label: 'Prototype Server' }),
+			}),
+		]);
+	});
+
+	it('returns an empty map for malformed non-object settings', () => {
+		__setConfigurationValue('glm-copilot.mcp.servers', null);
+		expect(readUserMcpServers()).toEqual(Object.create(null));
+	});
+});
 
 /**
  * [FORK] PR #15 Finding 3: sanitize must distinguish built-in partial

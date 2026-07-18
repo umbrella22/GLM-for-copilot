@@ -67,6 +67,22 @@ function tool(name: string): vscode.LanguageModelChatTool {
 	} as vscode.LanguageModelChatTool;
 }
 
+function imageTool(name: string): vscode.LanguageModelChatTool {
+	return {
+		...tool(name),
+		inputSchema: {
+			type: 'object',
+			properties: {
+				image_source: {
+					type: 'string',
+					description: 'Local file path or remote URL to the image',
+				},
+			},
+			required: ['image_source'],
+		},
+	};
+}
+
 describe('request preparation', () => {
 	let resizeImage: ReturnType<typeof vi.fn>;
 
@@ -461,8 +477,8 @@ describe('request preparation — mcp vision mode entry guard (PR #14 review #4)
 	});
 
 	it('does NOT throw when mcp mode + image-capable tool present + request carries images', async () => {
-		// Happy path: mcp mode with an IMAGE-CAPABLE tool (must be on the
-		// imageCapableTools allowlist), images get stripped to disk and the
+		// Happy path: mcp mode with an IMAGE-CAPABLE tool schema, images get
+		// stripped to disk and the
 		// file-path prompt replaces the image part.
 		// [F2] The guard now checks for an actual image-capable tool, not just
 		// any tool, so a generic tool name would fall back to proxy instead.
@@ -478,7 +494,7 @@ describe('request preparation — mcp vision mode entry guard (PR #14 review #4)
 			modelInfo: { id: 'team-tools' } as vscode.LanguageModelChatInformation,
 			segment,
 			messages: [userMessage([pngImagePart()])],
-			options: buildOptions({ tools: [tool('analyze_image')] }),
+			options: buildOptions({ tools: [imageTool('analyze_image')] }),
 			token,
 			cacheDiagnostics: createCacheDiagnosticsRecorder(),
 			getVisionDescriber: async () => ({ id: 'unused', source: 'auto', describe: vi.fn() }),
@@ -531,7 +547,7 @@ describe('request preparation — mcp vision mode entry guard (PR #14 review #4)
 	describe('mcp vision mode — image-capable tool detection (PR #15 F2)', () => {
 		it('falls back to proxy when only ordinary tools are available + proxy describer exists', async () => {
 			// tool calling is on and options.tools is non-empty, but NONE of the
-			// tools are on the imageCapableTools allowlist. Proxy describer is
+			// tools have no local-image schema. Proxy describer is
 			// available, so the effective mode becomes proxy and a notice is set.
 			__setConfigurationValue('glm-copilot.customModels', ['team-tools']);
 			__setConfigurationValue('glm-copilot.modelVisionModes', { 'team-tools': 'mcp' });
@@ -558,6 +574,34 @@ describe('request preparation — mcp vision mode entry guard (PR #14 review #4)
 			expect(prepared.visionMode).not.toBe('native');
 			// A notice explains the fallback so the user knows why it happened.
 			expect(prepared.initialResponseNotice).toMatch(/vision proxy|视觉代理/i);
+			expect(prepared.initialResponseNotice).toContain('[glm-copilot-vision-proxy-notice-start]');
+		});
+
+		it('preserves the proxy failure notice after announcing an mcp fallback', async () => {
+			__setConfigurationValue('glm-copilot.customModels', ['team-tools']);
+			__setConfigurationValue('glm-copilot.modelVisionModes', { 'team-tools': 'mcp' });
+
+			const prepared = await prepareChatRequest({
+				authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
+				globalStorageUri: vscode.Uri.file(tmpRoot),
+				modelInfo: { id: 'team-tools' } as vscode.LanguageModelChatInformation,
+				segment,
+				messages: [userMessage([imagePart()])],
+				options: buildOptions({ tools: [tool('web_search')] }),
+				token,
+				cacheDiagnostics: createCacheDiagnosticsRecorder(),
+				getVisionDescriber: async () =>
+					({
+						id: 'glm-4.6v-flash',
+						source: 'auto',
+						describe: vi.fn().mockRejectedValue(new Error('proxy failed')),
+					}) as unknown as VisionDescriber,
+			});
+
+			expect(prepared.visionMode).toBe('proxy');
+			expect(prepared.initialResponseNotice).toMatch(/vision proxy|回退/i);
+			expect(prepared.initialResponseNotice).toContain('[glm-copilot-vision-proxy-notice-start]');
+			expect(JSON.stringify(prepared.request.messages)).toContain('unavailable');
 		});
 
 		it('THROWS when only ordinary tools are available AND no proxy describer exists', async () => {
@@ -583,11 +627,11 @@ describe('request preparation — mcp vision mode entry guard (PR #14 review #4)
 			).rejects.toThrowError(/no image-capable MCP tool|没有可用的图片 MCP 工具/i);
 		});
 
-		it('recognizes fully-qualified MCP tool names (mcp_<server>_<tool>)', async () => {
+		it('recognizes qualified MCP image tools with a compatible input schema', async () => {
 			// VS Code qualifies MCP tool ids with a single-underscore prefix
 			// (McpToolName.Prefix='mcp_' + safeServerName + '_' + toolName).
-			// The allowlist matches the short name, so this must still count as
-			// image-capable and run in mcp mode.
+			// The generated prefix is dynamic; schema capability should still
+			// count and keep the request in mcp mode.
 			__setConfigurationValue('glm-copilot.customModels', ['team-tools']);
 			__setConfigurationValue('glm-copilot.modelVisionModes', { 'team-tools': 'mcp' });
 
@@ -597,7 +641,7 @@ describe('request preparation — mcp vision mode entry guard (PR #14 review #4)
 				modelInfo: { id: 'team-tools' } as vscode.LanguageModelChatInformation,
 				segment,
 				messages: [userMessage([imagePart()])],
-				options: buildOptions({ tools: [tool('mcp_zai-mcp-server_analyze_image')] }),
+				options: buildOptions({ tools: [imageTool('mcp_zai-mcp-serve_analyze_image')] }),
 				token,
 				cacheDiagnostics: createCacheDiagnosticsRecorder(),
 				getVisionDescriber: async () => undefined, // unused: should stay in mcp
@@ -607,9 +651,9 @@ describe('request preparation — mcp vision mode entry guard (PR #14 review #4)
 			expect(prepared.initialResponseNotice).toBeUndefined();
 		});
 
-		it('recognizes user-added custom tool names via glm-copilot.mcp.imageCapableTools', async () => {
-			// A third-party vision tool NOT in the defaults. The user added it
-			// to the allowlist; it must be recognized so mcp mode runs.
+		it('recognizes an exact user-added runtime tool id via glm-copilot.mcp.imageCapableTools', async () => {
+			// A third-party tool without a standard schema can be trusted by its
+			// exact runtime id; short names and suffix guesses are not accepted.
 			__setConfigurationValue('glm-copilot.customModels', ['team-tools']);
 			__setConfigurationValue('glm-copilot.modelVisionModes', { 'team-tools': 'mcp' });
 			__setConfigurationValue('glm-copilot.mcp.imageCapableTools', ['my_custom_vision_tool']);
@@ -649,6 +693,33 @@ describe('request preparation — mcp vision mode entry guard (PR #14 review #4)
 
 			expect(prepared.visionMode).toBe('mcp');
 			expect(prepared.initialResponseNotice).toBeUndefined();
+		});
+
+		it('keeps a separator between a custom image instruction and an existing system prompt', async () => {
+			__setConfigurationValue('glm-copilot.customModels', ['team-tools']);
+			__setConfigurationValue('glm-copilot.modelVisionModes', { 'team-tools': 'mcp' });
+			__setConfigurationValue('glm-copilot.imageHandlingPrompt', 'CUSTOM INSTRUCTION');
+
+			const prepared = await prepareChatRequest({
+				authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
+				globalStorageUri: vscode.Uri.file(tmpRoot),
+				modelInfo: { id: 'team-tools' } as vscode.LanguageModelChatInformation,
+				segment,
+				messages: [
+					{
+						role: vscode.LanguageModelChatMessageRole.System,
+						content: [new vscode.LanguageModelTextPart('BASE SYSTEM')],
+					} as vscode.LanguageModelChatRequestMessage,
+				],
+				options: buildOptions({ tools: [] }),
+				token,
+				cacheDiagnostics: createCacheDiagnosticsRecorder(),
+				getVisionDescriber: async () => undefined,
+			});
+
+			expect(JSON.stringify(prepared.request.messages)).toContain(
+				'CUSTOM INSTRUCTION\\n\\nBASE SYSTEM',
+			);
 		});
 	});
 });

@@ -101,7 +101,7 @@ export async function prepareChatRequest({
 	const apiModelId = getApiModelId(modelInfo.id, configurationResource);
 	const visionMode = getModelVisionMode(modelInfo.id, configurationResource);
 	const imageCapableOverrides = readImageCapableToolOverrides();
-	// Count image parts once; shared by the PR #17 strip filter below and the
+	// Count image parts once; shared by the PR #18 strip filter below and the
 	// mcp-mode fallback guard further down (bb53f52 made detection image-count aware).
 	const imageCount = messages.reduce(
 		(count, message) =>

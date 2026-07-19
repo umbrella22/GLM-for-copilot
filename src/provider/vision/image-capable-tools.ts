@@ -107,7 +107,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * [FORK] PR #17: Remove image-capable MCP tools from a request's options.
+ * [FORK] PR #18: Remove image-capable MCP tools from a request's options.
  *
  * native and proxy vision modes give the model its own image path — native
  * inlines the image bytes, proxy replaces them with a text description. In

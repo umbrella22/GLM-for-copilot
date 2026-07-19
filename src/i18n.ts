@@ -409,12 +409,15 @@ const zh: Translations = {
 	'extension.welcomeFailed': '欢迎引导加载异常',
 	'extension.openRequestDumpsFolderFailed':
 		'打开请求 dump 目录失败，请运行 "GLM: 显示日志" 查看详情。',
-	'command.resetToDefaults.confirm': // [FORK]
-		'将 GLM Copilot 的插件配置重置为默认值？这将清除你的用户级覆盖（模型管理、图片处理方式、MCP 服务、视觉与图片提示词模板、工具列表稳定化）。工作区/工作区文件夹级别的配置不会被清除。API Key 不会被清除。',
-	'command.resetToDefaults.confirmYes': '重置', // [FORK]
-	'command.resetToDefaults.done': '已重置 {0} 项 GLM Copilot 配置为默认值。', // [FORK]
-	'command.resetToDefaults.partial': '已部分重置 GLM Copilot 配置（{0}/{1} 项）。失败项：\n{2}', // [FORK]
-	'command.resetToDefaults.failed': '重置 GLM Copilot 配置失败（{0}/{1} 项）。原因：\n{2}', // [FORK]
+	'command.resetCodingPlanPreset.confirm': // [FORK]
+		'将 GLM Coding Plan 一键预设恢复为默认值？仅恢复当前值与预设写入一致的项：GLM-5.2 的 endpointRoute/visionMode、GLM-5-Turbo 的 visionMode、4 个内置 MCP 服务开关、工具列表稳定化。你手动修改过的项会被自动跳过。不影响其他自定义配置（自定义 MCP 服务、API Key、工作区级别设置、图片提示词等）。',
+	'command.resetCodingPlanPreset.confirmYes': '恢复', // [FORK]
+	'command.resetCodingPlanPreset.done': '已恢复 GLM Coding Plan 预设为默认值（{0} 项复位）。', // [FORK]
+	'command.resetCodingPlanPreset.partial': // [FORK]
+		'已部分恢复 GLM Coding Plan 预设（{0}/{1} 项）。失败项：\n{2}',
+	'command.resetCodingPlanPreset.failed': // [FORK]
+		'恢复 GLM Coding Plan 预设失败（{0}/{1} 项）。原因：\n{2}',
+	'command.resetCodingPlanPreset.skipped': '被跳过的项（{0} 个）保留了你手动修改的值。', // [FORK]
 	'command.applyCodingPlanPreset.confirm': // [FORK]
 		'为 GLM Coding Plan 套餐应用推荐配置？这将写入用户级覆盖：GLM-5.2 走国内 Anthropic 线路 + MCP 图片模式，GLM-5-Turbo 走 MCP 图片模式，启用 4 个内置 MCP 服务，并启用工具列表稳定化。仅影响用户级配置，工作区配置不变。',
 	'command.applyCodingPlanPreset.confirmYes': '应用', // [FORK]
@@ -879,14 +882,16 @@ const en: Translations = {
 	'extension.welcomeFailed': 'Failed to show GLM welcome prompt',
 	'extension.openRequestDumpsFolderFailed':
 		'Failed to open request dumps folder. Run "GLM: Show Logs" for details.',
-	'command.resetToDefaults.confirm': // [FORK]
-		'Reset GLM Copilot settings to defaults? This clears your user-level overrides (model management, image handling, MCP servers, vision and image prompt templates, stabilize tool list). Workspace and workspace-folder scoped settings are not affected. API keys are not cleared.',
-	'command.resetToDefaults.confirmYes': 'Reset', // [FORK]
-	'command.resetToDefaults.done': 'Reset {0} GLM Copilot setting(s) to defaults.', // [FORK]
-	'command.resetToDefaults.partial': // [FORK]
-		'Reset GLM Copilot settings partially ({0}/{1} item(s)). Failures:\n{2}',
-	'command.resetToDefaults.failed': // [FORK]
-		'Failed to reset GLM Copilot settings ({0}/{1} item(s)). Reasons:\n{2}',
+	'command.resetCodingPlanPreset.confirm': // [FORK]
+		'Reset the GLM Coding Plan one-click preset to defaults? Only items whose current values match the preset are reset: GLM-5.2 endpointRoute/visionMode, GLM-5-Turbo visionMode, the 4 built-in MCP server toggles, and stabilize tool list. Items you have manually modified are automatically skipped. Other custom settings (custom MCP servers, API keys, workspace-scoped settings, image prompts, …) are not affected.',
+	'command.resetCodingPlanPreset.confirmYes': 'Reset', // [FORK]
+	'command.resetCodingPlanPreset.done': // [FORK]
+		'Reset the GLM Coding Plan preset to defaults ({0} item(s) reset).',
+	'command.resetCodingPlanPreset.partial': // [FORK]
+		'Partially reset the GLM Coding Plan preset ({0}/{1} item(s)). Failures:\n{2}',
+	'command.resetCodingPlanPreset.failed': // [FORK]
+		'Failed to reset the GLM Coding Plan preset ({0}/{1} item(s)). Reasons:\n{2}',
+	'command.resetCodingPlanPreset.skipped': 'Skipped item(s) ({0}) kept your manual edits.', // [FORK]
 	'command.applyCodingPlanPreset.confirm': // [FORK]
 		'Apply the recommended setup for the GLM Coding Plan subscription? This writes user-level overrides: GLM-5.2 on the domestic Anthropic route + MCP vision mode, GLM-5-Turbo on MCP vision mode, all 4 built-in MCP servers enabled, and stabilize tool list enabled. Only user-scope configuration is affected; workspace settings are untouched.',
 	'command.applyCodingPlanPreset.confirmYes': 'Apply', // [FORK]

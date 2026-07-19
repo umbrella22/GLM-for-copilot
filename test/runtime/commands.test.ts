@@ -14,9 +14,9 @@ import {
 	__getOpenedExternal,
 	__getConfigurationValueAtScope,
 	__resetCommandState,
+	__setConfigurationUpdateFailure,
 	__setConfigurationValue,
 	__setConfigurationValueAtScope,
-	__setConfigurationUpdateFailure,
 	__setQuickPickSelectionLabel,
 	__setWarningMessageButton,
 	__setWorkspaceFolders,
@@ -88,139 +88,6 @@ describe('runtime commands — cleanupStoredImages (FORK)', () => {
 		expect(cleanupAllStoredImagesMock).toHaveBeenCalledTimes(1);
 		// An error message was surfaced (not silently swallowed).
 		expect(__getWindowMessages().error.length).toBeGreaterThan(0);
-	});
-});
-
-describe('runtime commands — resetToDefaults (FORK)', () => {
-	beforeEach(() => {
-		__clearConfigurationValues();
-		__resetCommandState();
-		cleanupAllStoredImagesMock.mockClear();
-	});
-
-	it('does nothing when the user dismisses the confirmation dialog', async () => {
-		__setWarningMessageButton(undefined);
-		// Pre-set some values to prove they are NOT cleared on cancel.
-		__setConfigurationValue('glm-copilot.mcp.imageCleanupMode', 'ttl-7d');
-		__setConfigurationValue('glm-copilot.mcp.zread.enabled', true);
-
-		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
-		await vscode.commands.executeCommand('glm-copilot.resetToDefaults');
-
-		// Values untouched because the user cancelled.
-		const cfg = vscode.workspace.getConfiguration('glm-copilot');
-		expect(cfg.get('mcp.imageCleanupMode')).toBe('ttl-7d');
-		expect(cfg.get('mcp.zread.enabled')).toBe(true);
-	});
-
-	it('clears all fork-relevant keys including visionPrompt when confirmed', async () => {
-		__setWarningMessageButton('Reset');
-		// Set values across every category resetToDefaults should clear.
-		__setConfigurationValue('glm-copilot.mcp.imageCleanupMode', 'ttl-7d');
-		__setConfigurationValue('glm-copilot.mcp.zread.enabled', true);
-		__setConfigurationValue('glm-copilot.imageHandlingPrompt', 'custom');
-		__setConfigurationValue('glm-copilot.imageStoredPrompt', 'custom');
-		__setConfigurationValue('glm-copilot.visionPrompt', 'custom');
-		__setConfigurationValue('glm-copilot.experimental.stabilizeToolList', true);
-
-		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
-		await vscode.commands.executeCommand('glm-copilot.resetToDefaults');
-
-		const cfg = vscode.workspace.getConfiguration('glm-copilot');
-		// imageCleanupMode must be in the reset list (regression guard: an
-		// earlier version missed it).
-		expect(cfg.get('mcp.imageCleanupMode')).toBeUndefined();
-		// All four built-in server toggles cleared.
-		for (const id of Object.keys(BUILTIN_MCP_SERVERS)) {
-			expect(cfg.get(`mcp.${id}.enabled`), `mcp.${id}.enabled should be cleared`).toBeUndefined();
-		}
-		expect(cfg.get('imageHandlingPrompt')).toBeUndefined();
-		expect(cfg.get('imageStoredPrompt')).toBeUndefined();
-		// visionPrompt must be in the reset list (regression guard: this port
-		// intentionally adds it — without it, a vision-prompt override would
-		// survive "reset to defaults" while imageHandlingPrompt/imageStoredPrompt
-		// do not, leaving an inconsistent footprint).
-		expect(cfg.get('visionPrompt')).toBeUndefined();
-		expect(cfg.get('experimental.stabilizeToolList')).toBeUndefined();
-	});
-
-	it('reports the full cleared count on success', async () => {
-		__setWarningMessageButton('Reset');
-		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
-		await vscode.commands.executeCommand('glm-copilot.resetToDefaults');
-		const messages = __getWindowMessages().information;
-		// The done message includes the cleared count: 10 keys + modelManagement
-		// = 11. Guards against the reset list silently shrinking.
-		expect(messages.join(' ')).toMatch(/11/);
-	});
-
-	it('reports a partial failure when one key fails (F2)', async () => {
-		const totalOps = 11; // 10 keys + modelManagement
-		__setConfigurationUpdateFailure('glm-copilot.visionPrompt', ConfigurationTarget.Global);
-		__setWarningMessageButton('Reset');
-		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
-		await vscode.commands.executeCommand('glm-copilot.resetToDefaults');
-
-		const msgs = __getWindowMessages();
-		// Partial-failure warning must include the failing key and the ratio.
-		const partial = msgs.warning.find(
-			(m) => m.includes('visionPrompt') && m.includes(`${totalOps - 1}/${totalOps}`),
-		);
-		expect(partial).toBeDefined();
-		// The misleading success info and any error must NOT fire.
-		expect(msgs.information.length).toBe(0);
-		expect(msgs.error.length).toBe(0);
-	});
-
-	it('reports a total failure (error) when every reset fails (F2)', async () => {
-		const totalOps = 11; // 10 keys + modelManagement
-		// Fail every per-key reset, then the modelManagement write.
-		const failingKeys = [
-			'experimental.stabilizeToolList',
-			'mcp.servers',
-			'mcp.imageCleanupMode',
-			'imageHandlingPrompt',
-			'imageStoredPrompt',
-			'visionPrompt',
-			'modelManagement',
-		];
-		for (const key of failingKeys) {
-			__setConfigurationUpdateFailure(`glm-copilot.${key}`, ConfigurationTarget.Global);
-		}
-		for (const id of Object.keys(BUILTIN_MCP_SERVERS)) {
-			__setConfigurationUpdateFailure(`glm-copilot.mcp.${id}.enabled`, ConfigurationTarget.Global);
-		}
-		__setWarningMessageButton('Reset');
-		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
-		await vscode.commands.executeCommand('glm-copilot.resetToDefaults');
-
-		const msgs = __getWindowMessages();
-		// Total failure -> error message with 0/totalOps.
-		expect(msgs.error.length).toBe(1);
-		expect(msgs.error[0]).toContain(`0/${totalOps}`);
-		// Only the modal confirm warning fired; no success info, no partial warning.
-		expect(msgs.warning.length).toBe(1);
-		expect(msgs.information.length).toBe(0);
-	});
-});
-
-describe('runtime commands — resetToDefaults i18n (FORK)', () => {
-	it('renders partial, failed, and done messages without leftover placeholders (F2)', () => {
-		// Guards against positional-arg misuse: t() maps {N} -> args[N] with no
-		// skipping, so a mismatched template would leave a literal {N} behind.
-		const partial = t('command.resetToDefaults.partial', 10, 11, 'visionPrompt: boom');
-		expect(partial).not.toMatch(/\{\d\}/);
-		expect(partial).toContain('10/11');
-		expect(partial).toContain('visionPrompt');
-
-		const failed = t('command.resetToDefaults.failed', 0, 11, 'modelManagement: boom');
-		expect(failed).not.toMatch(/\{\d\}/);
-		expect(failed).toContain('0/11');
-		expect(failed).toContain('modelManagement');
-
-		const done = t('command.resetToDefaults.done', 11);
-		expect(done).not.toMatch(/\{\d\}/);
-		expect(done).toContain('11');
 	});
 });
 
@@ -561,5 +428,264 @@ describe('runtime commands — applyCodingPlanPreset i18n (FORK)', () => {
 		expect(failed).not.toMatch(/\{\d\}/);
 		expect(failed).toContain('0/6');
 		expect(failed).toContain('modelManagement');
+	});
+});
+
+describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
+	beforeEach(() => {
+		__clearConfigurationValues();
+		__resetCommandState();
+		cleanupAllStoredImagesMock.mockClear();
+	});
+
+	it('does nothing when the user dismisses the confirmation dialog', async () => {
+		__setWarningMessageButton(undefined);
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		// No success/error message surfaced (only the confirmation prompt).
+		expect(__getWindowMessages().information.length).toBe(0);
+		expect(__getWindowMessages().error.length).toBe(0);
+	});
+
+	it('resets all 6 preset items after applyCodingPlanPreset and clears modelManagement entirely', async () => {
+		// Apply preset first so we have the canonical values to reset.
+		__setWarningMessageButton('Apply');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.applyCodingPlanPreset');
+
+		// Reset.
+		__setWarningMessageButton('Reset');
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		const cfg = vscode.workspace.getConfiguration('glm-copilot');
+		// All MCP toggles back to default (false / unset).
+		for (const id of Object.keys(BUILTIN_MCP_SERVERS)) {
+			expect(
+				cfg.inspect<boolean>(`mcp.${id}.enabled`)?.globalValue,
+				`mcp.${id}.enabled globalValue should be unset after reset`,
+			).toBeUndefined();
+		}
+		// stabilizeToolList back to default (unset; package.json default false).
+		expect(cfg.inspect<boolean>('experimental.stabilizeToolList')?.globalValue).toBeUndefined();
+		// modelManagement collapsed to default {version:1} → user override cleared entirely.
+		expect(
+			__getConfigurationValueAtScope('glm-copilot.modelManagement', ConfigurationTarget.Global),
+		).toBeUndefined();
+	});
+
+	it('preserves non-preset model entries and customModels when resetting', async () => {
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			{
+				version: 1,
+				defaultConnection: { endpoint: 'china-standard' },
+				models: {
+					'glm-5.2': { endpointRoute: 'china-anthropic', visionMode: 'mcp' },
+					'glm-5-turbo': { visionMode: 'mcp' },
+					'glm-4.6v-flash': { visionMode: 'native' },
+				},
+				customModels: { 'my-team-model': { id: 'my-team-model', thinking: true } },
+			},
+			ConfigurationTarget.Global,
+		);
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		const mm = __getConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			ConfigurationTarget.Global,
+		) as {
+			defaultConnection?: { endpoint?: string };
+			models?: Record<string, unknown>;
+			customModels?: Record<string, unknown>;
+		};
+		// Preset entries removed.
+		expect(mm?.models?.['glm-5.2']).toBeUndefined();
+		expect(mm?.models?.['glm-5-turbo']).toBeUndefined();
+		// Non-preset entry preserved.
+		expect(mm?.models?.['glm-4.6v-flash']).toMatchObject({ visionMode: 'native' });
+		// Other user fields preserved.
+		expect(mm?.defaultConnection?.endpoint).toBe('china-standard');
+		expect(mm?.customModels?.['my-team-model']).toBeDefined();
+	});
+
+	it('keeps the glm-5.2 entry untouched when visionMode was changed by the user', async () => {
+		// User changed visionMode from preset 'mcp' to 'native' but left endpointRoute alone.
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			{
+				version: 1,
+				models: {
+					'glm-5.2': { endpointRoute: 'china-anthropic', visionMode: 'native' },
+				},
+			},
+			ConfigurationTarget.Global,
+		);
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		const mm = __getConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			ConfigurationTarget.Global,
+		) as { models?: Record<string, { endpointRoute?: string; visionMode?: string }> };
+		// Subset didn't match → entire entry preserved (no field stripped).
+		expect(mm?.models?.['glm-5.2']).toEqual({
+			endpointRoute: 'china-anthropic',
+			visionMode: 'native',
+		});
+	});
+
+	it('keeps the glm-5-turbo entry untouched when visionMode was changed by the user', async () => {
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			{
+				version: 1,
+				models: { 'glm-5-turbo': { visionMode: 'proxy' } },
+			},
+			ConfigurationTarget.Global,
+		);
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		const mm = __getConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			ConfigurationTarget.Global,
+		) as { models?: Record<string, { visionMode?: string }> };
+		expect(mm?.models?.['glm-5-turbo']).toEqual({ visionMode: 'proxy' });
+	});
+
+	it('drops only preset fields when glm-5.2 has extra user fields (apiModelId)', async () => {
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			{
+				version: 1,
+				models: {
+					'glm-5.2': {
+						apiModelId: 'custom-5.2-id',
+						endpointRoute: 'china-anthropic',
+						visionMode: 'mcp',
+					},
+				},
+			},
+			ConfigurationTarget.Global,
+		);
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		const mm = __getConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			ConfigurationTarget.Global,
+		) as {
+			models?: Record<string, { apiModelId?: string; endpointRoute?: string; visionMode?: string }>;
+		};
+		// Preset fields removed, user-added apiModelId preserved.
+		expect(mm?.models?.['glm-5.2']).toEqual({ apiModelId: 'custom-5.2-id' });
+	});
+
+	it('skips stabilizeToolList when user set it to false (no preset match)', async () => {
+		__setConfigurationValueAtScope(
+			'glm-copilot.experimental.stabilizeToolList',
+			false,
+			ConfigurationTarget.Global,
+		);
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		const cfg = vscode.workspace.getConfiguration('glm-copilot');
+		// Still false — user override left alone.
+		expect(cfg.inspect<boolean>('experimental.stabilizeToolList')?.globalValue).toBe(false);
+		// The skipped hint surfaces in the info message.
+		expect(__getWindowMessages().information.join(' ')).toMatch(/skipped/i);
+	});
+
+	it('skips mcp.<id>.enabled when user set it to false (no preset match)', async () => {
+		__setConfigurationValueAtScope(
+			'glm-copilot.mcp.zai-mcp-server.enabled',
+			false,
+			ConfigurationTarget.Global,
+		);
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		const cfg = vscode.workspace.getConfiguration('glm-copilot');
+		expect(cfg.inspect<boolean>('mcp.zai-mcp-server.enabled')?.globalValue).toBe(false);
+		// The skipped hint surfaces in the info message.
+		expect(__getWindowMessages().information.join(' ')).toMatch(/skipped/i);
+	});
+
+	it('reports total failure when every reset op throws', async () => {
+		// Seed values so the command actually attempts writes (otherwise the
+		// ops are no-ops and never reach the throwing update()).
+		__setConfigurationValueAtScope(
+			'glm-copilot.experimental.stabilizeToolList',
+			true,
+			ConfigurationTarget.Global,
+		);
+		for (const id of Object.keys(BUILTIN_MCP_SERVERS)) {
+			__setConfigurationValueAtScope(
+				`glm-copilot.mcp.${id}.enabled`,
+				true,
+				ConfigurationTarget.Global,
+			);
+		}
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			{
+				version: 1,
+				models: {
+					'glm-5.2': { endpointRoute: 'china-anthropic', visionMode: 'mcp' },
+					'glm-5-turbo': { visionMode: 'mcp' },
+				},
+			},
+			ConfigurationTarget.Global,
+		);
+		// Force every update() to throw. The key is registered without a
+		// target so any scope matches.
+		__setConfigurationUpdateFailure('glm-copilot.experimental.stabilizeToolList');
+		__setConfigurationUpdateFailure('glm-copilot.mcp.zai-mcp-server.enabled');
+		__setConfigurationUpdateFailure('glm-copilot.mcp.web-search-prime.enabled');
+		__setConfigurationUpdateFailure('glm-copilot.mcp.web-reader.enabled');
+		__setConfigurationUpdateFailure('glm-copilot.mcp.zread.enabled');
+		__setConfigurationUpdateFailure('glm-copilot.modelManagement');
+
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		// 0/6 surfaced as an error message.
+		const errors = __getWindowMessages().error;
+		expect(errors.length).toBeGreaterThan(0);
+		expect(errors.join(' ')).toMatch(/0\/6/);
+	});
+
+	it('reports partial failure when some ops throw and others succeed', async () => {
+		__setConfigurationValueAtScope(
+			'glm-copilot.experimental.stabilizeToolList',
+			true,
+			ConfigurationTarget.Global,
+		);
+		__setConfigurationValueAtScope(
+			'glm-copilot.mcp.zai-mcp-server.enabled',
+			true,
+			ConfigurationTarget.Global,
+		);
+		// Only stabilizeToolList throws; other ops succeed.
+		__setConfigurationUpdateFailure('glm-copilot.experimental.stabilizeToolList');
+
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		const warnings = __getWindowMessages().warning;
+		expect(warnings.length).toBeGreaterThan(0);
+		// 1 op succeeded out of 6 total → "1/6".
+		expect(warnings.join(' ')).toMatch(/1\/6/);
 	});
 });

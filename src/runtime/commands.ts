@@ -8,7 +8,6 @@ import {
 	saveModelManagementConfiguration,
 } from '../config';
 import { CONFIG_SECTION } from '../consts';
-import { MCP_CONFIG_KEY } from '../mcp/consts';
 import { BUILTIN_MCP_SERVERS } from '../mcp/builtin';
 import { resolveCredentialChannelApiKeyUrl } from '../endpoint';
 import { cleanupAllStoredImages } from '../provider/vision/image-store';
@@ -16,7 +15,7 @@ import { t } from '../i18n';
 import { logger } from '../logger';
 import { ensureRequestDumpRoot } from '../provider/debug';
 import { getActiveWorkspaceFolderResource } from '../workspace';
-import type { ModelManagementConfigurationV1 } from '../types';
+import type { ModelManagementConfigurationV1, ModelManagementModelConfiguration } from '../types';
 
 export function registerCommands(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
@@ -28,10 +27,12 @@ export function registerCommands(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('glm-copilot.openSettings', () =>
 			vscode.commands.executeCommand('workbench.action.openSettings', 'glm-copilot'),
 		),
-		// [FORK] Reset GLM Copilot settings to the fork's package.json defaults.
-		// Useful for migration or for undoing applyCodingPlanPreset: clears user
-		// overrides so the defaults take effect. API keys are NOT cleared.
-		vscode.commands.registerCommand('glm-copilot.resetToDefaults', resetToDefaults),
+		// [FORK] Reset the GLM Coding Plan one-click preset to defaults — the
+		// narrow inverse of `applyCodingPlanPreset`. Only resets items whose
+		// current user-scope value still matches what `applyCodingPlanPreset`
+		// wrote; user-modified values are skipped. API keys and workspace-scoped
+		// settings are not touched.
+		vscode.commands.registerCommand('glm-copilot.resetCodingPlanPreset', resetCodingPlanPreset),
 		// [FORK] One-click preset for GLM Coding Plan subscription users.
 		// Writes user-scope overrides (NOT built-in model definitions) so the
 		// built-in defaults stay aligned with upstream, and Coding Plan users
@@ -77,82 +78,212 @@ async function openRequestDumpsFolder(context: vscode.ExtensionContext): Promise
 }
 
 /**
- * [FORK] Reset fork-relevant settings to their package.json defaults by
- * clearing user-scope overrides. Workspace/workspace-folder overrides are
- * left untouched (those may carry legitimate team or project settings).
+ * [FORK] Narrow inverse of `applyCodingPlanPreset`: resets only the items the
+ * preset writes (6 total), and only when the current user-scope value still
+ * matches what the preset would have written. Items the user has manually
+ * modified away from the preset value are skipped — we never destroy user
+ * edits. Workspace/workspace-folder overrides, custom MCP servers, API keys,
+ * and unrelated user settings (image prompts, imageCapableTools, …) are not
+ * touched.
  *
- * Resets: modelManagement, stabilizeToolList, mcp.servers + per-server
- * toggles, imageCleanupMode, imageHandlingPrompt, imageStoredPrompt,
- * visionPrompt. API keys are NOT cleared.
- *
- * This is the inverse of `applyCodingPlanPreset` (which writes the subset
- * modelManagement + stabilizeToolList + per-server toggles), and additionally
- * restores the fork's image-handling / vision prompt templates.
+ * Reporting mirrors `applyCodingPlanPreset`'s three-state surface, with a
+ * trailing hint listing how many items were skipped because the user had
+ * modified them.
  */
-async function resetToDefaults(): Promise<void> {
+async function resetCodingPlanPreset(): Promise<void> {
 	const confirm = await vscode.window.showWarningMessage(
-		t('command.resetToDefaults.confirm'),
+		t('command.resetCodingPlanPreset.confirm'),
 		{ modal: true },
-		t('command.resetToDefaults.confirmYes'),
+		t('command.resetCodingPlanPreset.confirmYes'),
 	);
-	if (confirm !== t('command.resetToDefaults.confirmYes')) {
+	if (confirm !== t('command.resetCodingPlanPreset.confirmYes')) {
 		return;
 	}
 
-	let cleared = 0;
-	const errors: string[] = []; // [FORK] collect failures for diagnostics
+	let reset = 0;
+	let skipped = 0;
+	const errors: string[] = [];
 	const target = vscode.ConfigurationTarget.Global;
 	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-	const keysToReset = [
-		'experimental.stabilizeToolList',
-		MCP_CONFIG_KEY,
-		'mcp.zai-mcp-server.enabled',
-		'mcp.web-search-prime.enabled',
-		'mcp.web-reader.enabled',
-		'mcp.zread.enabled',
-		'mcp.imageCleanupMode',
-		'imageHandlingPrompt',
-		'imageStoredPrompt',
-		'visionPrompt',
-	];
 
-	for (const key of keysToReset) {
+	// 1. modelManagement — subset match on glm-5.2 / glm-5-turbo entries,
+	//    then write back only if something actually changed. If the trimmed
+	//    value collapses to the package.json default shape `{version:1}` the
+	//    user override is cleared entirely so settings.json stays clean.
+	//    Reading `.globalValue` (not the merged `.effective`) prevents
+	//    workspace/folder overrides from being promoted into user-global.
+	try {
+		const resource = getActiveWorkspaceFolderResource();
+		const current = inspectEffectiveModelManagementConfiguration(resource).globalValue;
+		if (!current) {
+			skipped += 1;
+		} else {
+			const trimmed = trimCodingPlanPresetFromModelManagement(current);
+			if (!trimmed.changed) {
+				skipped += 1;
+			} else if (trimmed.equivalentToDefault) {
+				await resetModelManagementConfiguration(target);
+				reset += 1;
+			} else {
+				await saveModelManagementConfiguration(trimmed.value, target);
+				reset += 1;
+			}
+		}
+	} catch (error) {
+		logger.warn('Failed to reset modelManagement', error);
+		errors.push(`modelManagement: ${toErrorMessage(error)}`);
+	}
+
+	// 2. stabilizeToolList — reset only when the user-scope value is exactly
+	//    the preset's `true`. `false` or unset is treated as "user already
+	//    moved off the preset" and skipped.
+	try {
+		const stabilizeInspect = config.inspect<boolean>('experimental.stabilizeToolList');
+		if (stabilizeInspect?.globalValue === true) {
+			await config.update('experimental.stabilizeToolList', undefined, target);
+			reset += 1;
+		} else {
+			skipped += 1;
+		}
+	} catch (error) {
+		logger.warn('Failed to reset stabilizeToolList', error);
+		errors.push(`stabilizeToolList: ${toErrorMessage(error)}`);
+	}
+
+	// 3. Per built-in MCP `enabled` toggle — same value-aware rule.
+	for (const id of Object.keys(BUILTIN_MCP_SERVERS)) {
+		const key = `mcp.${id}.enabled`;
 		try {
-			await config.update(key, undefined, target);
-			cleared += 1;
+			const enabledInspect = config.inspect<boolean>(key);
+			if (enabledInspect?.globalValue === true) {
+				await config.update(key, undefined, target);
+				reset += 1;
+			} else {
+				skipped += 1;
+			}
 		} catch (error) {
 			logger.warn(`Failed to reset "${key}"`, error);
 			errors.push(`${key}: ${toErrorMessage(error)}`);
 		}
 	}
 
-	// modelManagement uses its own reset helper (handles the versioned shape).
-	try {
-		await resetModelManagementConfiguration(target);
-		cleared += 1;
-	} catch (error) {
-		logger.warn('Failed to reset modelManagement', error);
-		errors.push(`modelManagement: ${toErrorMessage(error)}`);
-	}
+	const totalOps = 2 + Object.keys(BUILTIN_MCP_SERVERS).length;
+	const skippedHint = skipped > 0 ? `\n${t('command.resetCodingPlanPreset.skipped', skipped)}` : '';
 
-	// [FORK] Surface partial failures explicitly (mirrors applyCodingPlanPreset).
-	// Earlier only a total failure (cleared === 0) was reported, so a partial
-	// failure fell through to the success message and the failing keys lived
-	// only in the log.
-	const totalOps = keysToReset.length + 1; // +1 for modelManagement
 	if (errors.length > 0) {
-		if (cleared === 0) {
+		if (reset === 0) {
 			void vscode.window.showErrorMessage(
-				t('command.resetToDefaults.failed', cleared, totalOps, errors.join('\n')),
+				t('command.resetCodingPlanPreset.failed', reset, totalOps, errors.join('\n')) + skippedHint,
 			);
 		} else {
 			void vscode.window.showWarningMessage(
-				t('command.resetToDefaults.partial', cleared, totalOps, errors.join('\n')),
+				t('command.resetCodingPlanPreset.partial', reset, totalOps, errors.join('\n')) +
+					skippedHint,
 			);
 		}
 		return;
 	}
-	void vscode.window.showInformationMessage(t('command.resetToDefaults.done', cleared));
+	void vscode.window.showInformationMessage(
+		t('command.resetCodingPlanPreset.done', reset) + skippedHint,
+	);
+}
+
+/**
+ * [FORK] Result of stripping the Coding Plan preset fields off an existing
+ * user-scope `modelManagement` value.
+ */
+interface CodingPlanPresetTrimResult {
+	/** Value to write back (already normalized — preset fields removed). */
+	readonly value: ModelManagementConfigurationV1;
+	/** True iff at least one preset-targeted field was actually removed. */
+	readonly changed: boolean;
+	/**
+	 * True iff the trimmed value collapses to the package.json default shape
+	 * `{version:1}` (no defaultConnection, models, or customModels). In that
+	 * case the caller clears the user override rather than writing back.
+	 */
+	readonly equivalentToDefault: boolean;
+}
+
+/**
+ * [FORK] Build the model-management value that remains after stripping the
+ * fields `applyCodingPlanPreset` writes. Uses conservative subset match: if
+ * EITHER preset-targeted field of a `glm-5.2` / `glm-5-turbo` entry deviates
+ * from the value the preset would write, the whole entry is kept untouched
+ * (we don't risk breaking a user-tuned combination). Non-targeted entries,
+ * `defaultConnection`, and `customModels` are always preserved verbatim.
+ */
+function trimCodingPlanPresetFromModelManagement(
+	current: ModelManagementConfigurationV1,
+): CodingPlanPresetTrimResult {
+	const value: ModelManagementConfigurationV1 = {
+		version: 1,
+		...(current.defaultConnection ? { defaultConnection: current.defaultConnection } : {}),
+		...(current.customModels ? { customModels: current.customModels } : {}),
+	};
+
+	let changed = false;
+	if (current.models) {
+		// Null-proto record so arbitrary ids (including the literal '__proto__')
+		// survive as own data properties rather than hitting a plain object's
+		// prototype setter.
+		const newModels = Object.create(null) as Record<string, ModelManagementModelConfiguration>;
+		let hasAnyModel = false;
+
+		for (const [id, profile] of Object.entries(current.models)) {
+			const trimmed = trimCodingPlanPresetModelEntry(id, profile);
+			if (trimmed === null) {
+				// Not a preset target, or subset didn't match — keep as-is.
+				newModels[id] = profile;
+				hasAnyModel = true;
+				continue;
+			}
+			changed = true;
+			if (Object.keys(trimmed).length === 0) {
+				// Entry fully stripped — drop it from the map.
+				continue;
+			}
+			newModels[id] = trimmed;
+			hasAnyModel = true;
+		}
+
+		if (hasAnyModel) {
+			value.models = newModels;
+		}
+	}
+
+	const equivalentToDefault = !value.defaultConnection && !value.models && !value.customModels;
+	return { value, changed, equivalentToDefault };
+}
+
+/**
+ * [FORK] Return a shallow copy of `profile` with the preset-targeted fields
+ * removed, or `null` to signal "keep this entry untouched" — either because
+ * the id isn't a preset target, or because any preset-targeted field
+ * deviates from the value `applyCodingPlanPreset` writes (subset match).
+ */
+function trimCodingPlanPresetModelEntry(
+	id: string,
+	profile: ModelManagementModelConfiguration,
+): ModelManagementModelConfiguration | null {
+	if (id === 'glm-5.2') {
+		if (profile.endpointRoute !== 'china-anthropic' || profile.visionMode !== 'mcp') {
+			return null;
+		}
+		const trimmed: ModelManagementModelConfiguration = { ...profile };
+		delete trimmed.endpointRoute;
+		delete trimmed.visionMode;
+		return trimmed;
+	}
+	if (id === 'glm-5-turbo') {
+		if (profile.visionMode !== 'mcp') {
+			return null;
+		}
+		const trimmed: ModelManagementModelConfiguration = { ...profile };
+		delete trimmed.visionMode;
+		return trimmed;
+	}
+	return null;
 }
 
 /**

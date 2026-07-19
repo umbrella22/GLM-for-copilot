@@ -95,8 +95,8 @@
         "title": "%glm-copilot.command.openRequestDumpsFolder%"
       },
       {
-        "command": "glm-copilot.resetToDefaults",
-        "title": "%glm-copilot.command.resetToDefaults%"
+        "command": "glm-copilot.resetCodingPlanPreset",
+        "title": "%glm-copilot.command.resetCodingPlanPreset%"
       },
       {
         "command": "glm-copilot.applyCodingPlanPreset",

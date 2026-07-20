@@ -34,7 +34,11 @@ import type { ConversationSegment } from './segment';
 import { collectTrailingToolResultIds, prepareRequestTools } from './tools/request';
 import { createVisionProxyFallbackNotice } from './tools/notices';
 import { resolveImageMessages, type VisionDescriber } from './vision';
-import { hasImageCapableTool, readImageCapableToolOverrides } from './vision/image-capable-tools';
+import {
+	hasImageCapableTool,
+	readImageCapableToolOverrides,
+	stripImageCapableToolsFromOptions,
+} from './vision/image-capable-tools';
 
 export interface PreparedChatRequest {
 	client: GLMClient;
@@ -96,7 +100,21 @@ export async function prepareChatRequest({
 	const maxTokens = getMaxTokens();
 	const apiModelId = getApiModelId(modelInfo.id, configurationResource);
 	const visionMode = getModelVisionMode(modelInfo.id, configurationResource);
-	const tools = prepareRequestTools(modelDef?.capabilities.toolCalling, options);
+	const imageCapableOverrides = readImageCapableToolOverrides();
+	// Count image parts once; shared by the PR #18 strip filter below and the
+	// mcp-mode fallback guard further down (bb53f52 made detection image-count aware).
+	const imageCount = messages.reduce(
+		(count, message) =>
+			count +
+			(message.content as readonly vscode.LanguageModelInputPart[]).filter(
+				(p) => p instanceof vscode.LanguageModelDataPart && p.mimeType.startsWith('image/'),
+			).length,
+		0,
+	);
+	// Build initial tools from the raw options. The mcp-mode guard below needs
+	// them to decide toolCallingOff; the PR #18 strip filter further down may
+	// rebuild tools from filtered options once the EFFECTIVE vision mode settles.
+	let tools = prepareRequestTools(modelDef?.capabilities.toolCalling, options);
 
 	// [FORK] MCP vision mode guard (PR #15 Finding 2).
 	//
@@ -107,9 +125,8 @@ export async function prepareChatRequest({
 	// would have no reader — a silent loss.
 	//
 	// Now we check for an ACTUAL image-capable tool from its input schema or an
-	// exact user override. When
-	// the request carries images but no image-capable tool is available, we
-	// must NOT silently strip. Resolution order:
+	// exact user override. When the request carries images but no image-capable
+	// tool is available, we must NOT silently strip. Resolution order:
 	//   1. tool calling off entirely -> throw the original conflict error
 	//      (images can never reach a tool in this session)
 	//   2. tools exist but none is image-capable -> try to fall back to the
@@ -119,42 +136,45 @@ export async function prepareChatRequest({
 	//   3. no proxy available either -> throw a clear error telling the user
 	//      the three ways out (enable a vision MCP tool / configure a proxy /
 	//      switch to native if the model supports it)
-	//
-	// Pure-text requests skip all of this — the branches only fire when there
-	// are image parts to lose.
 	let effectiveVisionMode = visionMode;
 	let mcpFallbackNotice: string | undefined;
-	if (visionMode === 'mcp') {
-		const imageCount = messages.reduce(
-			(count, message) =>
-				count +
-				(message.content as readonly vscode.LanguageModelInputPart[]).filter(
-					(p) => p instanceof vscode.LanguageModelDataPart && p.mimeType.startsWith('image/'),
-				).length,
-			0,
-		);
-		const hasImages = imageCount > 0;
-		if (hasImages) {
-			const toolCallingOff = !tools || tools.length === 0;
-			const hasVisionTool =
-				!toolCallingOff &&
-				hasImageCapableTool(options, readImageCapableToolOverrides(), imageCount);
-			if (!hasVisionTool) {
-				if (toolCallingOff) {
-					// Case 1: no tools at all — nothing can read the image under any mode.
-					throw new Error(t('vision.mcp.conflict.toolCallingDisabled'));
-				}
-				// Case 2: tools exist but none is image-capable. Try proxy fallback.
-				const proxyDescriber = await getVisionDescriber();
-				if (proxyDescriber) {
-					effectiveVisionMode = 'proxy';
-					mcpFallbackNotice = createVisionProxyFallbackNotice();
-				} else {
-					// Case 3: no vision MCP tool AND no proxy — refuse with guidance.
-					throw new Error(t('vision.mcp.conflict.noImageTool'));
-				}
+	if (visionMode === 'mcp' && imageCount > 0) {
+		const toolCallingOff = !tools || tools.length === 0;
+		const hasVisionTool =
+			!toolCallingOff && hasImageCapableTool(options, imageCapableOverrides, imageCount);
+		if (!hasVisionTool) {
+			if (toolCallingOff) {
+				// Case 1: no tools at all — nothing can read the image under any mode.
+				throw new Error(t('vision.mcp.conflict.toolCallingDisabled'));
+			}
+			// Case 2: tools exist but none is image-capable. Try proxy fallback.
+			const proxyDescriber = await getVisionDescriber();
+			if (proxyDescriber) {
+				effectiveVisionMode = 'proxy';
+				mcpFallbackNotice = createVisionProxyFallbackNotice();
+			} else {
+				// Case 3: no vision MCP tool AND no proxy — refuse with guidance.
+				throw new Error(t('vision.mcp.conflict.noImageTool'));
 			}
 		}
+	}
+
+	// [FORK] PR #18: strip image-capable MCP tools once the EFFECTIVE vision
+	// mode is settled. native/proxy modes have their own image path (inline
+	// bytes / text description); an image MCP tool is redundant there and
+	// actively interferes — glm-5v-turbo gets lured into calling it instead of
+	// using native vision, and hands it VS Code attachment placeholders the tool
+	// cannot resolve. This also covers mcp -> proxy fallback (review issue 1):
+	// proxy does not create local image files, so an image MCP tool left in the
+	// list would have no readable path. Only strip when this request actually
+	// carries images (rule A): a pure-text request has no image to lure the
+	// model, so image-capable tools stay available for other uses.
+	const shouldStripImageTools = effectiveVisionMode !== 'mcp' && imageCount > 0;
+	const requestOptions = shouldStripImageTools
+		? stripImageCapableToolsFromOptions(options, imageCapableOverrides)
+		: options;
+	if (shouldStripImageTools) {
+		tools = prepareRequestTools(modelDef?.capabilities.toolCalling, requestOptions);
 	}
 
 	const visionResolution = await resolveImageMessages(
@@ -232,7 +252,7 @@ export async function prepareChatRequest({
 		maxTokens,
 		inputMessages: messages,
 		resolvedMessages,
-		requestOptions: options,
+		requestOptions: requestOptions,
 		visionModelId: visionResolution.visionModelId,
 		visionProxySource: visionResolution.visionProxySource,
 		visionStats: visionResolution.stats,

@@ -27,11 +27,12 @@ export function registerCommands(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('glm-copilot.openSettings', () =>
 			vscode.commands.executeCommand('workbench.action.openSettings', 'glm-copilot'),
 		),
-		// [FORK] Reset the GLM Coding Plan one-click preset to defaults — the
-		// narrow inverse of `applyCodingPlanPreset`. Only resets items whose
-		// current user-scope value still matches what `applyCodingPlanPreset`
-		// wrote; user-modified values are skipped. API keys and workspace-scoped
-		// settings are not touched.
+		// [FORK] Value-based reset of the Coding Plan preset fields: clears only
+		// those items whose current user-scope value still matches the preset
+		// value. Items the user has modified away from the preset are left
+		// untouched. This is NOT a true inverse of applyCodingPlanPreset — it
+		// does not record or restore pre-apply state. API keys and workspace-
+		// scoped settings are not touched.
 		vscode.commands.registerCommand('glm-copilot.resetCodingPlanPreset', resetCodingPlanPreset),
 		// [FORK] One-click preset for GLM Coding Plan subscription users.
 		// Writes user-scope overrides (NOT built-in model definitions) so the
@@ -78,17 +79,17 @@ async function openRequestDumpsFolder(context: vscode.ExtensionContext): Promise
 }
 
 /**
- * [FORK] Narrow inverse of `applyCodingPlanPreset`: resets only the items the
- * preset writes (6 total), and only when the current user-scope value still
- * matches what the preset would have written. Items the user has manually
- * modified away from the preset value are skipped — we never destroy user
- * edits. Workspace/workspace-folder overrides, custom MCP servers, API keys,
- * and unrelated user settings (image prompts, imageCapableTools, …) are not
- * touched.
+ * [FORK] Value-based reset of the Coding Plan preset fields: clears only
+ * those items whose current user-scope value still matches the preset value.
+ * Items the user has modified away from the preset are left untouched.
+ * This is NOT a true inverse of applyCodingPlanPreset — it does not record
+ * or restore pre-apply state. Workspace/workspace-folder overrides, custom
+ * MCP servers, API keys, and unrelated user settings (image prompts,
+ * imageCapableTools, …) are not touched.
  *
  * Reporting mirrors `applyCodingPlanPreset`'s three-state surface, with a
- * trailing hint listing how many items were skipped because the user had
- * modified them.
+ * trailing hint listing how many items were skipped because the current
+ * value no longer matched the preset.
  */
 async function resetCodingPlanPreset(): Promise<void> {
 	const confirm = await vscode.window.showWarningMessage(
@@ -134,6 +135,63 @@ async function resetCodingPlanPreset(): Promise<void> {
 		errors.push(`modelManagement: ${toErrorMessage(error)}`);
 	}
 
+	// 1b. Legacy cleanup — modelEndpointOverrides and modelVisionModes may
+	//     contain stale values that re-fill the canonical modelManagement on
+	//     the next read, undoing the reset. Value-aware: only delete entries
+	//     whose current value still matches what applyCodingPlanPreset wrote.
+	//     Other model entries in the same legacy map are preserved, and the
+	//     map is set to undefined when it becomes empty so settings.json
+	//     stays clean.
+	try {
+		const epInspect = config.inspect<Record<string, unknown>>('modelEndpointOverrides');
+		const epValue = epInspect?.globalValue;
+		if (epValue && typeof epValue === 'object' && !Array.isArray(epValue)) {
+			const cleaned = { ...epValue };
+			if (cleaned['glm-5.2'] === 'china-anthropic') {
+				delete cleaned['glm-5.2'];
+				const updated = Object.keys(cleaned).length > 0 ? cleaned : undefined;
+				await config.update('modelEndpointOverrides', updated, target);
+				reset += 1;
+			} else {
+				skipped += 1;
+			}
+		} else {
+			skipped += 1;
+		}
+	} catch (error) {
+		logger.warn('Failed to clean legacy modelEndpointOverrides', error);
+		errors.push(`modelEndpointOverrides: ${toErrorMessage(error)}`);
+	}
+
+	try {
+		const vmInspect = config.inspect<Record<string, unknown>>('modelVisionModes');
+		const vmValue = vmInspect?.globalValue;
+		if (vmValue && typeof vmValue === 'object' && !Array.isArray(vmValue)) {
+			const cleaned = { ...vmValue };
+			let changed = false;
+			if (cleaned['glm-5.2'] === 'mcp') {
+				delete cleaned['glm-5.2'];
+				changed = true;
+			}
+			if (cleaned['glm-5-turbo'] === 'mcp') {
+				delete cleaned['glm-5-turbo'];
+				changed = true;
+			}
+			if (changed) {
+				const updated = Object.keys(cleaned).length > 0 ? cleaned : undefined;
+				await config.update('modelVisionModes', updated, target);
+				reset += 1;
+			} else {
+				skipped += 1;
+			}
+		} else {
+			skipped += 1;
+		}
+	} catch (error) {
+		logger.warn('Failed to clean legacy modelVisionModes', error);
+		errors.push(`modelVisionModes: ${toErrorMessage(error)}`);
+	}
+
 	// 2. stabilizeToolList — reset only when the user-scope value is exactly
 	//    the preset's `true`. `false` or unset is treated as "user already
 	//    moved off the preset" and skipped.
@@ -167,7 +225,7 @@ async function resetCodingPlanPreset(): Promise<void> {
 		}
 	}
 
-	const totalOps = 2 + Object.keys(BUILTIN_MCP_SERVERS).length;
+	const totalOps = 2 + Object.keys(BUILTIN_MCP_SERVERS).length + 2; // +2 legacy fields
 	const skippedHint = skipped > 0 ? `\n${t('command.resetCodingPlanPreset.skipped', skipped)}` : '';
 
 	if (errors.length > 0) {

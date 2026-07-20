@@ -646,6 +646,18 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 			},
 			ConfigurationTarget.Global,
 		);
+		// Legacy fields: seed matching preset values so the cleanup attempts
+		// to write, then make those writes fail as well.
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelEndpointOverrides',
+			{ 'glm-5.2': 'china-anthropic' },
+			ConfigurationTarget.Global,
+		);
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelVisionModes',
+			{ 'glm-5.2': 'mcp', 'glm-5-turbo': 'mcp' },
+			ConfigurationTarget.Global,
+		);
 		// Force every update() to throw. The key is registered without a
 		// target so any scope matches.
 		__setConfigurationUpdateFailure('glm-copilot.experimental.stabilizeToolList');
@@ -654,15 +666,17 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 		__setConfigurationUpdateFailure('glm-copilot.mcp.web-reader.enabled');
 		__setConfigurationUpdateFailure('glm-copilot.mcp.zread.enabled');
 		__setConfigurationUpdateFailure('glm-copilot.modelManagement');
+		__setConfigurationUpdateFailure('glm-copilot.modelEndpointOverrides');
+		__setConfigurationUpdateFailure('glm-copilot.modelVisionModes');
 
 		__setWarningMessageButton('Reset');
 		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
 		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
 
-		// 0/6 surfaced as an error message.
+		// 0/8 surfaced as an error message.
 		const errors = __getWindowMessages().error;
 		expect(errors.length).toBeGreaterThan(0);
-		expect(errors.join(' ')).toMatch(/0\/6/);
+		expect(errors.join(' ')).toMatch(/0\/8/);
 	});
 
 	it('reports partial failure when some ops throw and others succeed', async () => {
@@ -685,7 +699,128 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 
 		const warnings = __getWindowMessages().warning;
 		expect(warnings.length).toBeGreaterThan(0);
-		// 1 op succeeded out of 6 total → "1/6".
-		expect(warnings.join(' ')).toMatch(/1\/6/);
+		// 1 op succeeded out of 8 total → "1/8".
+		expect(warnings.join(' ')).toMatch(/1\/8/);
+	});
+
+	// -- Legacy cleanup regression tests (PR #16 R3) --
+
+	it('cleans stale legacy modelEndpointOverrides and modelVisionModes (pure legacy)', async () => {
+		// Legacy-only values matching the preset — no canonical modelManagement.
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelEndpointOverrides',
+			{ 'glm-5.2': 'china-anthropic', 'other-model': 'same-region-standard' },
+			ConfigurationTarget.Global,
+		);
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelVisionModes',
+			{ 'glm-5.2': 'mcp', 'glm-5-turbo': 'mcp' },
+			ConfigurationTarget.Global,
+		);
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		// Legacy entries matching the preset are removed.
+		const ep = __getConfigurationValueAtScope(
+			'glm-copilot.modelEndpointOverrides',
+			ConfigurationTarget.Global,
+		) as Record<string, unknown> | undefined;
+		expect(ep?.['glm-5.2']).toBeUndefined();
+		// Non-preset model entry preserved.
+		expect(ep?.['other-model']).toBe('same-region-standard');
+
+		const vm = __getConfigurationValueAtScope(
+			'glm-copilot.modelVisionModes',
+			ConfigurationTarget.Global,
+		) as Record<string, unknown> | undefined;
+		expect(vm?.['glm-5.2']).toBeUndefined();
+		expect(vm?.['glm-5-turbo']).toBeUndefined();
+	});
+
+	it('cleans both canonical and stale legacy entries together', async () => {
+		// Canonical + matching legacy values coexist (post-migration partial-failure scenario).
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			{
+				version: 1,
+				models: {
+					'glm-5.2': { endpointRoute: 'china-anthropic', visionMode: 'mcp' },
+					'glm-5-turbo': { visionMode: 'mcp' },
+				},
+			},
+			ConfigurationTarget.Global,
+		);
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelEndpointOverrides',
+			{ 'glm-5.2': 'china-anthropic' },
+			ConfigurationTarget.Global,
+		);
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelVisionModes',
+			{ 'glm-5.2': 'mcp', 'glm-5-turbo': 'mcp' },
+			ConfigurationTarget.Global,
+		);
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		// Canonical modelManagement collapsed to default → cleared.
+		expect(
+			__getConfigurationValueAtScope('glm-copilot.modelManagement', ConfigurationTarget.Global),
+		).toBeUndefined();
+		// Legacy fields cleared.
+		expect(
+			__getConfigurationValueAtScope('glm-copilot.modelEndpointOverrides', ConfigurationTarget.Global),
+		).toBeUndefined();
+		expect(
+			__getConfigurationValueAtScope('glm-copilot.modelVisionModes', ConfigurationTarget.Global),
+		).toBeUndefined();
+	});
+
+	it('preserves non-matching legacy sibling model entries', async () => {
+		// visionModes has glm-5-turbo matching the preset, but glm-4.6v-flash
+		// set to 'native' — only the preset-matching entry is removed.
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelVisionModes',
+			{ 'glm-5-turbo': 'mcp', 'glm-4.6v-flash': 'native' },
+			ConfigurationTarget.Global,
+		);
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		const vm = __getConfigurationValueAtScope(
+			'glm-copilot.modelVisionModes',
+			ConfigurationTarget.Global,
+		) as Record<string, unknown> | undefined;
+		expect(vm?.['glm-5-turbo']).toBeUndefined();
+		expect(vm?.['glm-4.6v-flash']).toBe('native');
+	});
+
+	it('reports partial failure when a legacy cleanup write throws', async () => {
+		// Seed matching legacy values and force modelVisionModes write to fail.
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelEndpointOverrides',
+			{ 'glm-5.2': 'china-anthropic' },
+			ConfigurationTarget.Global,
+		);
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelVisionModes',
+			{ 'glm-5.2': 'mcp', 'glm-5-turbo': 'mcp' },
+			ConfigurationTarget.Global,
+		);
+		__setConfigurationUpdateFailure('glm-copilot.modelVisionModes');
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		const warnings = __getWindowMessages().warning;
+		expect(warnings.length).toBeGreaterThan(0);
+		expect(warnings.join(' ')).toContain('modelVisionModes');
+		// modelEndpointOverrides cleanup succeeded.
+		expect(
+			__getConfigurationValueAtScope('glm-copilot.modelEndpointOverrides', ConfigurationTarget.Global),
+		).toBeUndefined();
 	});
 });

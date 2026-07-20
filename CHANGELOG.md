@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.7.0...v0.8.0) (2026-07-20)
+
+
+### Features
+
+* **vision,mcp:** strip image-capable MCP tools for non-mcp vision modes ([13914cb](https://github.com/umbrella22/GLM-for-copilot/commit/13914cb0d23c0d8083d2eabbcf5279b6369f0b3b))
+* **vision,mcp:** strip image-capable MCP tools for non-mcp vision modes ([#18](https://github.com/umbrella22/GLM-for-copilot/issues/18)) ([5248209](https://github.com/umbrella22/GLM-for-copilot/commit/5248209279c3ec1e9ac4788c2be01160c930f28e))
+
+
+### Bug Fixes
+
+* update remaining [#17](https://github.com/umbrella22/GLM-for-copilot/issues/17) references to [#18](https://github.com/umbrella22/GLM-for-copilot/issues/18) in comments ([#18](https://github.com/umbrella22/GLM-for-copilot/issues/18)) ([8812ccd](https://github.com/umbrella22/GLM-for-copilot/commit/8812ccd6d71fdc83cc559fc6652aff2311c15b15))
+
 ## [0.7.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.6.0...v0.7.0) (2026-07-18)
 
 

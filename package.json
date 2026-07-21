@@ -619,7 +619,7 @@
     "@vscode/vsce": "^3.9.2",
     "ovsx": "1.0.2",
     "typescript": "^7.0.2",
-    "vite-plus": "^0.2.4",
-    "vitest": "4.1.9"
+    "vite-plus": "^0.2.5",
+    "vitest": "4.1.10"
   }
 }

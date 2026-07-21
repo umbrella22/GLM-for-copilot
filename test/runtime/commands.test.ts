@@ -771,7 +771,10 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 		).toBeUndefined();
 		// Legacy fields cleared.
 		expect(
-			__getConfigurationValueAtScope('glm-copilot.modelEndpointOverrides', ConfigurationTarget.Global),
+			__getConfigurationValueAtScope(
+				'glm-copilot.modelEndpointOverrides',
+				ConfigurationTarget.Global,
+			),
 		).toBeUndefined();
 		expect(
 			__getConfigurationValueAtScope('glm-copilot.modelVisionModes', ConfigurationTarget.Global),
@@ -820,7 +823,158 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 		expect(warnings.join(' ')).toContain('modelVisionModes');
 		// modelEndpointOverrides cleanup succeeded.
 		expect(
-			__getConfigurationValueAtScope('glm-copilot.modelEndpointOverrides', ConfigurationTarget.Global),
+			__getConfigurationValueAtScope(
+				'glm-copilot.modelEndpointOverrides',
+				ConfigurationTarget.Global,
+			),
 		).toBeUndefined();
+	});
+
+	// -- Legacy × canonical interaction regression tests (PR #16 R4) --
+
+	it('does NOT promote legacy sibling models into canonical modelManagement', async () => {
+		// Pure legacy config: only a non-preset-target sibling lives in the
+		// legacy maps. Previously reset would read the merged Global value
+		// (legacy + canonical) and write the legacy sibling back as canonical,
+		// permanently freezing it. Now reset reads canonical-only and the
+		// sibling stays in legacy untouched.
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelEndpointOverrides',
+			{ 'other-model': 'china-anthropic' },
+			ConfigurationTarget.Global,
+		);
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelVisionModes',
+			{ 'other-model': 'native' },
+			ConfigurationTarget.Global,
+		);
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		// Canonical never written for non-preset models.
+		expect(
+			__getConfigurationValueAtScope('glm-copilot.modelManagement', ConfigurationTarget.Global),
+		).toBeUndefined();
+		// Legacy sibling preserved verbatim.
+		const ep = __getConfigurationValueAtScope(
+			'glm-copilot.modelEndpointOverrides',
+			ConfigurationTarget.Global,
+		) as Record<string, unknown> | undefined;
+		expect(ep?.['other-model']).toBe('china-anthropic');
+		const vm = __getConfigurationValueAtScope(
+			'glm-copilot.modelVisionModes',
+			ConfigurationTarget.Global,
+		) as Record<string, unknown> | undefined;
+		expect(vm?.['other-model']).toBe('native');
+	});
+
+	it('preserves glm-5.2 legacy entries when route matches but vision does not (R4 F2a)', async () => {
+		// glm-5.2: route=china-anthropic + vision=native → subset does NOT
+		// match. The legacy path must keep BOTH maps intact for glm-5.2,
+		// mirroring the canonical subset rule.
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelEndpointOverrides',
+			{ 'glm-5.2': 'china-anthropic' },
+			ConfigurationTarget.Global,
+		);
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelVisionModes',
+			{ 'glm-5.2': 'native' },
+			ConfigurationTarget.Global,
+		);
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		const ep = __getConfigurationValueAtScope(
+			'glm-copilot.modelEndpointOverrides',
+			ConfigurationTarget.Global,
+		) as Record<string, unknown> | undefined;
+		const vm = __getConfigurationValueAtScope(
+			'glm-copilot.modelVisionModes',
+			ConfigurationTarget.Global,
+		) as Record<string, unknown> | undefined;
+		// Neither map should lose its glm-5.2 entry — the dual-field preset
+		// match failed, so both halves stay.
+		expect(ep?.['glm-5.2']).toBe('china-anthropic');
+		expect(vm?.['glm-5.2']).toBe('native');
+	});
+
+	it('preserves glm-5.2 legacy entries when vision matches but route does not (R4 F2b)', async () => {
+		// glm-5.2: route=china-standard + vision=mcp → subset does NOT match.
+		// The legacy path must keep BOTH maps intact for glm-5.2.
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelEndpointOverrides',
+			{ 'glm-5.2': 'china-standard' },
+			ConfigurationTarget.Global,
+		);
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelVisionModes',
+			{ 'glm-5.2': 'mcp' },
+			ConfigurationTarget.Global,
+		);
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		const ep = __getConfigurationValueAtScope(
+			'glm-copilot.modelEndpointOverrides',
+			ConfigurationTarget.Global,
+		) as Record<string, unknown> | undefined;
+		const vm = __getConfigurationValueAtScope(
+			'glm-copilot.modelVisionModes',
+			ConfigurationTarget.Global,
+		) as Record<string, unknown> | undefined;
+		expect(ep?.['glm-5.2']).toBe('china-standard');
+		expect(vm?.['glm-5.2']).toBe('mcp');
+	});
+
+	it('does not promote legacy siblings to canonical when canonical already has preset entries', async () => {
+		// Composite scenario: user ran applyCodingPlanPreset (which wrote the
+		// canonical preset entries) AND has unrelated legacy siblings from
+		// pre-migration configuration. reset must clear the canonical preset
+		// entries AND leave the legacy siblings untouched (not freeze them
+		// into canonical by writing back the merged Global value).
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelManagement',
+			{
+				version: 1,
+				models: {
+					'glm-5.2': { endpointRoute: 'china-anthropic', visionMode: 'mcp' },
+					'glm-5-turbo': { visionMode: 'mcp' },
+				},
+			},
+			ConfigurationTarget.Global,
+		);
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelEndpointOverrides',
+			{ 'other-model': 'china-anthropic' },
+			ConfigurationTarget.Global,
+		);
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelVisionModes',
+			{ 'other-model': 'native' },
+			ConfigurationTarget.Global,
+		);
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		// Canonical collapsed to default → user override cleared.
+		expect(
+			__getConfigurationValueAtScope('glm-copilot.modelManagement', ConfigurationTarget.Global),
+		).toBeUndefined();
+		// Legacy siblings still in legacy, NOT promoted into canonical.
+		const ep = __getConfigurationValueAtScope(
+			'glm-copilot.modelEndpointOverrides',
+			ConfigurationTarget.Global,
+		) as Record<string, unknown> | undefined;
+		const vm = __getConfigurationValueAtScope(
+			'glm-copilot.modelVisionModes',
+			ConfigurationTarget.Global,
+		) as Record<string, unknown> | undefined;
+		expect(ep?.['other-model']).toBe('china-anthropic');
+		expect(vm?.['other-model']).toBe('native');
 	});
 });

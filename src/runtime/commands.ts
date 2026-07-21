@@ -2,6 +2,7 @@ import vscode from 'vscode';
 import { CREDENTIAL_CHANNELS, formatCredentialChannel } from '../auth';
 import {
 	inspectEffectiveModelManagementConfiguration,
+	inspectModelManagementConfiguration,
 	mergeModelManagementConfigurations,
 	resetModelManagementConfiguration,
 	resolveDefaultConnection,
@@ -111,11 +112,14 @@ async function resetCodingPlanPreset(): Promise<void> {
 	//    then write back only if something actually changed. If the trimmed
 	//    value collapses to the package.json default shape `{version:1}` the
 	//    user override is cleared entirely so settings.json stays clean.
-	//    Reading `.globalValue` (not the merged `.effective`) prevents
-	//    workspace/folder overrides from being promoted into user-global.
+	//    Reads the CANONICAL user-scope value via `inspectModelManagementConfiguration`
+	//    (not `inspectEffectiveModelManagementConfiguration`) so legacy
+	//    sibling models in the same Global scope are NOT merged into the
+	//    snapshot we write back — otherwise they'd be permanently promoted
+	//    to canonical and later legacy edits would be silently overridden.
 	try {
 		const resource = getActiveWorkspaceFolderResource();
-		const current = inspectEffectiveModelManagementConfiguration(resource).globalValue;
+		const current = inspectModelManagementConfiguration(resource).globalValue;
 		if (!current) {
 			skipped += 1;
 		} else {
@@ -135,61 +139,79 @@ async function resetCodingPlanPreset(): Promise<void> {
 		errors.push(`modelManagement: ${toErrorMessage(error)}`);
 	}
 
-	// 1b. Legacy cleanup — modelEndpointOverrides and modelVisionModes may
-	//     contain stale values that re-fill the canonical modelManagement on
-	//     the next read, undoing the reset. Value-aware: only delete entries
-	//     whose current value still matches what applyCodingPlanPreset wrote.
-	//     Other model entries in the same legacy map are preserved, and the
-	//     map is set to undefined when it becomes empty so settings.json
-	//     stays clean.
-	try {
-		const epInspect = config.inspect<Record<string, unknown>>('modelEndpointOverrides');
-		const epValue = epInspect?.globalValue;
-		if (epValue && typeof epValue === 'object' && !Array.isArray(epValue)) {
-			const cleaned = { ...epValue };
-			if (cleaned['glm-5.2'] === 'china-anthropic') {
-				delete cleaned['glm-5.2'];
-				const updated = Object.keys(cleaned).length > 0 ? cleaned : undefined;
-				await config.update('modelEndpointOverrides', updated, target);
-				reset += 1;
-			} else {
-				skipped += 1;
-			}
-		} else {
-			skipped += 1;
+	// 1b. Legacy cleanup — modelEndpointOverrides (route) and modelVisionModes
+	//     (vision) may contain stale values that re-fill the canonical
+	//     modelManagement on the next read, undoing the reset. The two maps are
+	//     evaluated JOINTLY per model id: glm-5.2 is only cleared when BOTH its
+	//     endpointRoute (from modelEndpointOverrides) AND visionMode (from
+	//     modelVisionModes) still match the preset, mirroring the canonical
+	//     subset rule. This prevents half-matching combinations like
+	//     `route=china-anthropic + vision=native` from losing just the route,
+	//     or `route=china-standard + vision=mcp` from losing just the vision.
+	//     glm-5-turbo only carries a visionMode so it falls back to a
+	//     single-field match. Each map writes independently (1 op each) so a
+	//     failure on one still surfaces via `errors` and the other map's
+	//     cleanup is attempted. Empty maps are set to undefined so settings.json
+	//     stays clean. Other model entries in the same map are preserved.
+	const epInspect = config.inspect<Record<string, unknown>>('modelEndpointOverrides');
+	const vmInspect = config.inspect<Record<string, unknown>>('modelVisionModes');
+	const epValue =
+		epInspect?.globalValue &&
+		typeof epInspect.globalValue === 'object' &&
+		!Array.isArray(epInspect.globalValue)
+			? (epInspect.globalValue as Record<string, unknown>)
+			: undefined;
+	const vmValue =
+		vmInspect?.globalValue &&
+		typeof vmInspect.globalValue === 'object' &&
+		!Array.isArray(vmInspect.globalValue)
+			? (vmInspect.globalValue as Record<string, unknown>)
+			: undefined;
+
+	const cleanedEp = epValue ? { ...epValue } : undefined;
+	const cleanedVm = vmValue ? { ...vmValue } : undefined;
+	let epMatched = false;
+	let vmMatched = false;
+	for (const id of CODING_PLAN_PRESET_TARGET_IDS) {
+		const fields = getCodingPlanPresetResetFields(id, cleanedEp?.[id], cleanedVm?.[id]);
+		if (!fields) {
+			continue;
 		}
-	} catch (error) {
-		logger.warn('Failed to clean legacy modelEndpointOverrides', error);
-		errors.push(`modelEndpointOverrides: ${toErrorMessage(error)}`);
+		if (fields.endpointRoute && cleanedEp && id in cleanedEp) {
+			delete cleanedEp[id];
+			epMatched = true;
+		}
+		if (fields.visionMode && cleanedVm && id in cleanedVm) {
+			delete cleanedVm[id];
+			vmMatched = true;
+		}
 	}
 
-	try {
-		const vmInspect = config.inspect<Record<string, unknown>>('modelVisionModes');
-		const vmValue = vmInspect?.globalValue;
-		if (vmValue && typeof vmValue === 'object' && !Array.isArray(vmValue)) {
-			const cleaned = { ...vmValue };
-			let changed = false;
-			if (cleaned['glm-5.2'] === 'mcp') {
-				delete cleaned['glm-5.2'];
-				changed = true;
-			}
-			if (cleaned['glm-5-turbo'] === 'mcp') {
-				delete cleaned['glm-5-turbo'];
-				changed = true;
-			}
-			if (changed) {
-				const updated = Object.keys(cleaned).length > 0 ? cleaned : undefined;
-				await config.update('modelVisionModes', updated, target);
-				reset += 1;
-			} else {
-				skipped += 1;
-			}
-		} else {
-			skipped += 1;
+	const epUpdated = cleanedEp && Object.keys(cleanedEp).length > 0 ? cleanedEp : undefined;
+	const vmUpdated = cleanedVm && Object.keys(cleanedVm).length > 0 ? cleanedVm : undefined;
+
+	if (epMatched) {
+		try {
+			await config.update('modelEndpointOverrides', epUpdated, target);
+			reset += 1;
+		} catch (error) {
+			logger.warn('Failed to clean legacy modelEndpointOverrides', error);
+			errors.push(`modelEndpointOverrides: ${toErrorMessage(error)}`);
 		}
-	} catch (error) {
-		logger.warn('Failed to clean legacy modelVisionModes', error);
-		errors.push(`modelVisionModes: ${toErrorMessage(error)}`);
+	} else {
+		skipped += 1;
+	}
+
+	if (vmMatched) {
+		try {
+			await config.update('modelVisionModes', vmUpdated, target);
+			reset += 1;
+		} catch (error) {
+			logger.warn('Failed to clean legacy modelVisionModes', error);
+			errors.push(`modelVisionModes: ${toErrorMessage(error)}`);
+		}
+	} else {
+		skipped += 1;
 	}
 
 	// 2. stabilizeToolList — reset only when the user-scope value is exactly
@@ -315,33 +337,77 @@ function trimCodingPlanPresetFromModelManagement(
 }
 
 /**
+ * [FORK] Model ids that `applyCodingPlanPreset` writes to. Shared by the
+ * canonical trim path and the legacy cleanup path so the same set of ids is
+ * considered eligible for value-based reset in both representations.
+ */
+const CODING_PLAN_PRESET_TARGET_IDS: ReadonlyArray<string> = ['glm-5.2', 'glm-5-turbo'];
+
+/**
+ * [FORK] Per-field result of a value-based preset eligibility check. Each
+ * present flag means "the corresponding field still matches the value
+ * `applyCodingPlanPreset` writes, so the reset path should clear it". A
+ * `null` return means the id is either not a preset target or any targeted
+ * field deviates from the preset — caller must leave the entry untouched.
+ */
+interface CodingPlanPresetResetFields {
+	readonly endpointRoute?: true;
+	readonly visionMode?: true;
+}
+
+/**
+ * [FORK] Single source of truth for value-based preset eligibility. Both the
+ * canonical reset path (modelManagement.models[id]) and the legacy reset path
+ * (modelEndpointOverrides[id] + modelVisionModes[id]) MUST call this helper
+ * so glm-5.2's dual AND-match rule (route === 'china-anthropic' AND vision
+ * === 'mcp') is applied identically across representations. Any deviation
+ * between the two paths reopens the bug where one representation clears a
+ * field the other keeps, leaving the user's combination half-reset.
+ */
+function getCodingPlanPresetResetFields(
+	id: string,
+	endpointRoute: unknown,
+	visionMode: unknown,
+): CodingPlanPresetResetFields | null {
+	if (id === 'glm-5.2') {
+		if (endpointRoute === 'china-anthropic' && visionMode === 'mcp') {
+			return { endpointRoute: true, visionMode: true };
+		}
+		return null;
+	}
+	if (id === 'glm-5-turbo') {
+		if (visionMode === 'mcp') {
+			return { visionMode: true };
+		}
+		return null;
+	}
+	return null;
+}
+
+/**
  * [FORK] Return a shallow copy of `profile` with the preset-targeted fields
  * removed, or `null` to signal "keep this entry untouched" — either because
  * the id isn't a preset target, or because any preset-targeted field
  * deviates from the value `applyCodingPlanPreset` writes (subset match).
+ * Delegates to `getCodingPlanPresetResetFields` so the canonical and legacy
+ * reset paths share one eligibility rule.
  */
 function trimCodingPlanPresetModelEntry(
 	id: string,
 	profile: ModelManagementModelConfiguration,
 ): ModelManagementModelConfiguration | null {
-	if (id === 'glm-5.2') {
-		if (profile.endpointRoute !== 'china-anthropic' || profile.visionMode !== 'mcp') {
-			return null;
-		}
-		const trimmed: ModelManagementModelConfiguration = { ...profile };
+	const fields = getCodingPlanPresetResetFields(id, profile.endpointRoute, profile.visionMode);
+	if (!fields) {
+		return null;
+	}
+	const trimmed: ModelManagementModelConfiguration = { ...profile };
+	if (fields.endpointRoute) {
 		delete trimmed.endpointRoute;
-		delete trimmed.visionMode;
-		return trimmed;
 	}
-	if (id === 'glm-5-turbo') {
-		if (profile.visionMode !== 'mcp') {
-			return null;
-		}
-		const trimmed: ModelManagementModelConfiguration = { ...profile };
+	if (fields.visionMode) {
 		delete trimmed.visionMode;
-		return trimmed;
 	}
-	return null;
+	return trimmed;
 }
 
 /**

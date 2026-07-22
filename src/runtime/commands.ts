@@ -149,10 +149,14 @@ async function resetCodingPlanPreset(): Promise<void> {
 	//     `route=china-anthropic + vision=native` from losing just the route,
 	//     or `route=china-standard + vision=mcp` from losing just the vision.
 	//     glm-5-turbo only carries a visionMode so it falls back to a
-	//     single-field match. Each map writes independently (1 op each) so a
-	//     failure on one still surfaces via `errors` and the other map's
-	//     cleanup is attempted. Empty maps are set to undefined so settings.json
-	//     stays clean. Other model entries in the same map are preserved.
+	//     single-field match. The route and vision writes form ONE atomic
+	//     logical unit: if the route write fails the vision write is not
+	//     attempted; if the vision write fails the route write is rolled back
+	//     to its original value so a later retry still sees the full eligible
+	//     combination and can complete instead of getting stuck half-reset.
+	//     Only when both writes succeed does the unit count as one reset.
+	//     Empty maps are set to undefined so settings.json stays clean. Other
+	//     model entries in the same map are preserved.
 	const epInspect = config.inspect<Record<string, unknown>>('modelEndpointOverrides');
 	const vmInspect = config.inspect<Record<string, unknown>>('modelVisionModes');
 	const epValue =
@@ -190,28 +194,47 @@ async function resetCodingPlanPreset(): Promise<void> {
 	const epUpdated = cleanedEp && Object.keys(cleanedEp).length > 0 ? cleanedEp : undefined;
 	const vmUpdated = cleanedVm && Object.keys(cleanedVm).length > 0 ? cleanedVm : undefined;
 
-	if (epMatched) {
-		try {
-			await config.update('modelEndpointOverrides', epUpdated, target);
-			reset += 1;
-		} catch (error) {
-			logger.warn('Failed to clean legacy modelEndpointOverrides', error);
-			errors.push(`modelEndpointOverrides: ${toErrorMessage(error)}`);
-		}
-	} else {
+	if (!epMatched && !vmMatched) {
 		skipped += 1;
-	}
-
-	if (vmMatched) {
-		try {
-			await config.update('modelVisionModes', vmUpdated, target);
-			reset += 1;
-		} catch (error) {
-			logger.warn('Failed to clean legacy modelVisionModes', error);
-			errors.push(`modelVisionModes: ${toErrorMessage(error)}`);
-		}
 	} else {
-		skipped += 1;
+		// Atomic legacy cleanup unit: route first, then vision. Roll back the
+		// route write if the vision write fails so the next reset retry still
+		// sees the full eligible combination instead of a stuck half-state.
+		let epWritten = false;
+		let unitFailed = false;
+		if (epMatched) {
+			try {
+				await config.update('modelEndpointOverrides', epUpdated, target);
+				epWritten = true;
+			} catch (error) {
+				logger.warn('Failed to clean legacy modelEndpointOverrides', error);
+				errors.push(`modelEndpointOverrides: ${toErrorMessage(error)}`);
+				unitFailed = true;
+			}
+		}
+		if (!unitFailed && vmMatched) {
+			try {
+				await config.update('modelVisionModes', vmUpdated, target);
+			} catch (error) {
+				logger.warn('Failed to clean legacy modelVisionModes', error);
+				errors.push(`modelVisionModes: ${toErrorMessage(error)}`);
+				if (epWritten) {
+					try {
+						await config.update('modelEndpointOverrides', epValue, target);
+					} catch (rollbackError) {
+						logger.warn(
+							'Failed to rollback modelEndpointOverrides after modelVisionModes failure',
+							rollbackError,
+						);
+						errors.push(`modelEndpointOverrides rollback: ${toErrorMessage(rollbackError)}`);
+					}
+				}
+				unitFailed = true;
+			}
+		}
+		if (!unitFailed) {
+			reset += 1;
+		}
 	}
 
 	// 2. stabilizeToolList — reset only when the user-scope value is exactly
@@ -247,7 +270,7 @@ async function resetCodingPlanPreset(): Promise<void> {
 		}
 	}
 
-	const totalOps = 2 + Object.keys(BUILTIN_MCP_SERVERS).length + 2; // +2 legacy fields
+	const totalOps = 2 + Object.keys(BUILTIN_MCP_SERVERS).length + 1; // +1 atomic legacy unit
 	const skippedHint = skipped > 0 ? `\n${t('command.resetCodingPlanPreset.skipped', skipped)}` : '';
 
 	if (errors.length > 0) {

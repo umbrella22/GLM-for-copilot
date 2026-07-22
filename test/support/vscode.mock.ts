@@ -315,6 +315,18 @@ export function __setConfigurationUpdateFailure(
 	configurationUpdateFailures.push({ key, target, message });
 }
 
+export function __clearConfigurationUpdateFailure(key: string, target?: ConfigurationTarget): void {
+	for (let i = configurationUpdateFailures.length - 1; i >= 0; i--) {
+		const entry = configurationUpdateFailures[i];
+		if (
+			entry.key === key &&
+			(target === undefined || entry.target === undefined || entry.target === target)
+		) {
+			configurationUpdateFailures.splice(i, 1);
+		}
+	}
+}
+
 function getConfigurationValuesForTarget(
 	target: ConfigurationTarget,
 	resource?: Uri,

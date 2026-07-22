@@ -11,6 +11,7 @@ import {
 import { BUILTIN_MCP_SERVERS } from '../../src/mcp/builtin';
 import {
 	__clearConfigurationValues,
+	__clearConfigurationUpdateFailure,
 	__getOpenedExternal,
 	__getConfigurationValueAtScope,
 	__resetCommandState,
@@ -673,10 +674,10 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
 		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
 
-		// 0/8 surfaced as an error message.
+		// 0/7 surfaced as an error message.
 		const errors = __getWindowMessages().error;
 		expect(errors.length).toBeGreaterThan(0);
-		expect(errors.join(' ')).toMatch(/0\/8/);
+		expect(errors.join(' ')).toMatch(/0\/7/);
 	});
 
 	it('reports partial failure when some ops throw and others succeed', async () => {
@@ -699,8 +700,8 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 
 		const warnings = __getWindowMessages().warning;
 		expect(warnings.length).toBeGreaterThan(0);
-		// 1 op succeeded out of 8 total → "1/8".
-		expect(warnings.join(' ')).toMatch(/1\/8/);
+		// 1 op succeeded out of 7 total → "1/7".
+		expect(warnings.join(' ')).toMatch(/1\/7/);
 	});
 
 	// -- Legacy cleanup regression tests (PR #16 R3) --
@@ -801,7 +802,7 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 		expect(vm?.['glm-4.6v-flash']).toBe('native');
 	});
 
-	it('reports partial failure when a legacy cleanup write throws', async () => {
+	it('rolls back modelEndpointOverrides when modelVisionModes write fails (R5 atomic)', async () => {
 		// Seed matching legacy values and force modelVisionModes write to fail.
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelEndpointOverrides',
@@ -818,16 +819,109 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
 		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
 
-		const warnings = __getWindowMessages().warning;
-		expect(warnings.length).toBeGreaterThan(0);
-		expect(warnings.join(' ')).toContain('modelVisionModes');
-		// modelEndpointOverrides cleanup succeeded.
+		// The atomic unit failed: nothing was reset, so it surfaces as an error.
+		const errors = __getWindowMessages().error;
+		expect(errors.length).toBeGreaterThan(0);
+		expect(errors.join(' ')).toContain('modelVisionModes');
+		// modelEndpointOverrides was rolled back to its original value — NOT
+		// left cleared, so a retry still sees the eligible combination.
+		const ep = __getConfigurationValueAtScope(
+			'glm-copilot.modelEndpointOverrides',
+			ConfigurationTarget.Global,
+		) as Record<string, unknown> | undefined;
+		expect(ep?.['glm-5.2']).toBe('china-anthropic');
+		// modelVisionModes retain their original values too.
+		const vm = __getConfigurationValueAtScope(
+			'glm-copilot.modelVisionModes',
+			ConfigurationTarget.Global,
+		) as Record<string, unknown> | undefined;
+		expect(vm?.['glm-5.2']).toBe('mcp');
+		expect(vm?.['glm-5-turbo']).toBe('mcp');
+	});
+
+	it('recovers on retry after a legacy vision write failure (R5 retry)', async () => {
+		// Seed matching legacy values, force the vision write to fail on the
+		// first attempt, then clear the failure and retry — both maps must end
+		// up fully cleaned, proving the rollback left no stuck half-state.
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelEndpointOverrides',
+			{ 'glm-5.2': 'china-anthropic' },
+			ConfigurationTarget.Global,
+		);
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelVisionModes',
+			{ 'glm-5.2': 'mcp', 'glm-5-turbo': 'mcp' },
+			ConfigurationTarget.Global,
+		);
+		__setConfigurationUpdateFailure('glm-copilot.modelVisionModes');
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		// First attempt: vision failed, route rolled back — nothing cleaned.
+		expect(
+			(
+				__getConfigurationValueAtScope(
+					'glm-copilot.modelEndpointOverrides',
+					ConfigurationTarget.Global,
+				) as Record<string, unknown> | undefined
+			)?.['glm-5.2'],
+		).toBe('china-anthropic');
+
+		// Clear the failure and retry.
+		__clearConfigurationUpdateFailure('glm-copilot.modelVisionModes');
+		__setWarningMessageButton('Reset');
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		// Second attempt: both maps fully cleaned.
 		expect(
 			__getConfigurationValueAtScope(
 				'glm-copilot.modelEndpointOverrides',
 				ConfigurationTarget.Global,
 			),
 		).toBeUndefined();
+		const vm = __getConfigurationValueAtScope(
+			'glm-copilot.modelVisionModes',
+			ConfigurationTarget.Global,
+		) as Record<string, unknown> | undefined;
+		expect(vm?.['glm-5.2']).toBeUndefined();
+		expect(vm?.['glm-5-turbo']).toBeUndefined();
+	});
+
+	it('does not touch modelVisionModes when modelEndpointOverrides write fails (R5 reverse)', async () => {
+		// Reverse direction: route write fails first → vision write is never
+		// attempted, so vision stays at its original value untouched.
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelEndpointOverrides',
+			{ 'glm-5.2': 'china-anthropic' },
+			ConfigurationTarget.Global,
+		);
+		__setConfigurationValueAtScope(
+			'glm-copilot.modelVisionModes',
+			{ 'glm-5.2': 'mcp', 'glm-5-turbo': 'mcp' },
+			ConfigurationTarget.Global,
+		);
+		__setConfigurationUpdateFailure('glm-copilot.modelEndpointOverrides');
+		__setWarningMessageButton('Reset');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+		await vscode.commands.executeCommand('glm-copilot.resetCodingPlanPreset');
+
+		const errors = __getWindowMessages().error;
+		expect(errors.length).toBeGreaterThan(0);
+		expect(errors.join(' ')).toContain('modelEndpointOverrides');
+		// Route write failed → it was never cleared.
+		const ep = __getConfigurationValueAtScope(
+			'glm-copilot.modelEndpointOverrides',
+			ConfigurationTarget.Global,
+		) as Record<string, unknown> | undefined;
+		expect(ep?.['glm-5.2']).toBe('china-anthropic');
+		// Vision write was not attempted → original values preserved.
+		const vm = __getConfigurationValueAtScope(
+			'glm-copilot.modelVisionModes',
+			ConfigurationTarget.Global,
+		) as Record<string, unknown> | undefined;
+		expect(vm?.['glm-5.2']).toBe('mcp');
+		expect(vm?.['glm-5-turbo']).toBe('mcp');
 	});
 
 	// -- Legacy × canonical interaction regression tests (PR #16 R4) --

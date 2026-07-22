@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.9.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.8.0...v0.9.0) (2026-07-22)
+
+
+### Features
+
+* **commands:** add applyCodingPlanPreset one-click preset (stacked on [#15](https://github.com/umbrella22/GLM-for-copilot/issues/15)) ([ee25743](https://github.com/umbrella22/GLM-for-copilot/commit/ee257430f4db240c5cdd04347d2d4962d0afebc2))
+
+
+### Bug Fixes
+
+* **pr16-r3:** address legacy cleanup review — value-based reset + legacy field cleanup ([323d500](https://github.com/umbrella22/GLM-for-copilot/commit/323d5006c790e320e5a47b5580fbb6956deb13b0))
+* **pr16-r4:** canonical-only reset read + shared legacy eligibility ([9716df1](https://github.com/umbrella22/GLM-for-copilot/commit/9716df1148cbefa32e6b6edbf84074cfa63ca701))
+* **pr16-r5:** atomic legacy route/vision reset with rollback ([dfc6071](https://github.com/umbrella22/GLM-for-copilot/commit/dfc6071b379558bc508bc30f55eade623cb214b0))
+
 ## [0.8.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.7.0...v0.8.0) (2026-07-20)
 
 

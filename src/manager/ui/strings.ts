@@ -10,6 +10,9 @@ export interface ModelManagerStrings {
 	loading: string;
 	modelsHeading: string;
 	modelsDescription: string;
+	byokUtilityWarning: string;
+	byokUtilityDetail: string;
+	openByokUtilitySettings: string;
 	model: string;
 	apiModelId: string;
 	connection: string;
@@ -101,6 +104,9 @@ export function getModelManagerStrings(): ModelManagerStrings {
 		loading: t('manager.loading'),
 		modelsHeading: t('manager.models.heading'),
 		modelsDescription: t('manager.models.description'),
+		byokUtilityWarning: t('manager.byokUtility.warning'),
+		byokUtilityDetail: t('manager.byokUtility.detail'),
+		openByokUtilitySettings: t('manager.byokUtility.openSettings'),
 		model: t('manager.column.model'),
 		apiModelId: t('manager.column.apiModelId'),
 		connection: t('manager.column.connection'),

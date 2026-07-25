@@ -58,7 +58,10 @@ export class ModelManagerPanel implements vscode.Disposable {
 			vscode.workspace.onDidChangeConfiguration((event) => {
 				if (
 					event.affectsConfiguration(`${CONFIG_SECTION}.modelManagement`) ||
-					event.affectsConfiguration(`${CONFIG_SECTION}.visionModel`)
+					event.affectsConfiguration(`${CONFIG_SECTION}.visionModel`) ||
+					event.affectsConfiguration('chat.byokUtilityModelDefault') ||
+					event.affectsConfiguration('chat.utilityModel') ||
+					event.affectsConfiguration('chat.utilitySmallModel')
 				) {
 					void this.refreshFromExternalChange();
 				}
@@ -156,6 +159,9 @@ export class ModelManagerPanel implements vscode.Disposable {
 					return;
 				case 'showLogs':
 					this.vision.showLogs();
+					return;
+				case 'openByokUtilitySettings':
+					await vscode.commands.executeCommand('glm-copilot.openByokUtilitySettings');
 					return;
 				case 'testVision':
 					await this.testVision(message);

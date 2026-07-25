@@ -74,6 +74,10 @@ const zh: Translations = {
 	'manager.loading': '正在加载...',
 	'manager.models.heading': '模型',
 	'manager.models.description': '查看模型实际使用的 API ID、连接线路和图片处理方式。',
+	'manager.byokUtility.warning': 'BYOK utility model 尚未选择',
+	'manager.byokUtility.detail':
+		'VS Code 1.128+ 可将 utility 请求交给当前 GLM（mainAgent，可能产生额外 BYOK 用量），或交给 Copilot utility model（copilot）。显式 chat.utilityModel / chat.utilitySmallModel 会优先于默认策略。',
+	'manager.byokUtility.openSettings': '打开 VS Code 设置',
 	'manager.column.model': '模型',
 	'manager.column.apiModelId': 'API 模型 ID',
 	'manager.column.connection': '连接',
@@ -499,6 +503,10 @@ const en: Translations = {
 	'manager.models.heading': 'Models',
 	'manager.models.description':
 		'Review the API model ID, connection route, and image handling used by each model.',
+	'manager.byokUtility.warning': 'Choose a BYOK utility model policy',
+	'manager.byokUtility.detail':
+		'VS Code 1.128+ can send utility requests to the current GLM (mainAgent, which may add BYOK usage) or the Copilot utility model (copilot). Explicit chat.utilityModel and chat.utilitySmallModel values take precedence over this default policy.',
+	'manager.byokUtility.openSettings': 'Open VS Code settings',
 	'manager.column.model': 'Model',
 	'manager.column.apiModelId': 'API model ID',
 	'manager.column.connection': 'Connection',

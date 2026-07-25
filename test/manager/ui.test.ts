@@ -67,6 +67,11 @@ function createState(): ManagerPanelState {
 			},
 			test: { status: 'idle' },
 		},
+		byokUtility: {
+			defaultMode: 'unknown',
+			utilityModelConfigured: false,
+			utilitySmallModelConfigured: false,
+		},
 	};
 }
 
@@ -170,5 +175,26 @@ describe('model manager UI', () => {
 		expect(isManagerWebviewMessage({ type: 'refresh' })).toBe(true);
 		expect(isManagerWebviewMessage({ type: 'unknown' })).toBe(false);
 		expect(isManagerWebviewMessage(null)).toBe(false);
+	});
+
+	it('renders the BYOK utility compatibility hint only for the none policy', () => {
+		const state = createState();
+		state.byokUtility = {
+			defaultMode: 'none',
+			utilityModelConfigured: false,
+			utilitySmallModelConfigured: false,
+		};
+		const html = getModelManagerHtml(
+			{ cspSource: 'vscode-webview://manager' } as vscode.Webview,
+			state,
+		);
+		expect(html).toContain('"defaultMode":"none"');
+		expect(html).toContain("state.byokUtility.defaultMode === 'none'");
+		expect(html).toContain("post('openByokUtilitySettings')");
+		const hiddenState = getModelManagerHtml(
+			{ cspSource: 'vscode-webview://manager' } as vscode.Webview,
+			{ ...state, byokUtility: { ...state.byokUtility, defaultMode: 'copilot' } },
+		);
+		expect(hiddenState).toContain('"defaultMode":"copilot"');
 	});
 });

@@ -362,6 +362,19 @@ describe('vision message resolution', () => {
 		expect(textPartValue(result.messages[0]?.content[0])).toBe(replayText);
 	});
 
+	it('preserves the describer output inside the untrusted-content boundary', async () => {
+		const description = '  src/main.cpp:42: [unclear]\n  raw output  ';
+		const result = await resolveImageMessages([userMessage([imagePart()])], token, async () => ({
+			id: 'vision-model',
+			source: 'vscode-lm',
+			describe: vi.fn().mockResolvedValue(description),
+		}));
+
+		expect(textPartValue(result.messages[0]?.content[0])).toBe(
+			`${IMAGE_DESCRIPTION_PREFIX}${description}${IMAGE_DESCRIPTION_SUFFIX}`,
+		);
+	});
+
 	it('inserts unavailable text and a notice when no vision describer exists', async () => {
 		const result = await resolveImageMessages(
 			[userMessage([imagePart()])],

@@ -5,6 +5,7 @@ import { join } from 'path';
 import vscode from 'vscode';
 import { getRequestDumpEnabled } from '../../config';
 import { LANGUAGE_MODEL_CHAT_SYSTEM_ROLE } from '../../consts';
+import { getByokUtilitySettings } from '../../host-settings';
 import {
 	getGLMContentText,
 	isGLMContentPartArray,
@@ -74,6 +75,7 @@ interface CustomizationsSummary {
 
 interface HostSettingsSummary {
 	copilotFreezeCustomizationsIndex: boolean | 'unknown';
+	chatByokUtilityModelDefault: ReturnType<typeof getByokUtilitySettings>['defaultMode'];
 	chatUtilityModel: string | 'unknown';
 	chatUtilitySmallModel: string | 'unknown';
 	chatPlanAgentDefaultModel: string | 'unknown';
@@ -934,11 +936,13 @@ function summarizeGLMCustomizations(messages: readonly GLMMessage[]): Customizat
 }
 
 function summarizeHostSettings(): HostSettingsSummary {
+	const byokUtility = getByokUtilitySettings();
 	return {
 		copilotFreezeCustomizationsIndex: getBooleanSetting(
 			'github.copilot.chat',
 			'freezeCustomizationsIndex',
 		),
+		chatByokUtilityModelDefault: byokUtility.defaultMode,
 		chatUtilityModel: getStringSetting('chat', 'utilityModel'),
 		chatUtilitySmallModel: getStringSetting('chat', 'utilitySmallModel'),
 		chatPlanAgentDefaultModel: getStringSetting('chat', 'planAgent.defaultModel'),
@@ -1222,6 +1226,7 @@ function logRequestDump(
 function formatHostSettingsSummary(settings: HostSettingsSummary): string {
 	return (
 		`hostFreezeCustomizationsIndex=${settings.copilotFreezeCustomizationsIndex}` +
+		` chatByokUtilityModelDefault=${settings.chatByokUtilityModelDefault}` +
 		` chatUtilityModel=${formatSettingValue(settings.chatUtilityModel)}` +
 		` chatUtilitySmallModel=${formatSettingValue(settings.chatUtilitySmallModel)}` +
 		` chatPlanAgentDefaultModel=${formatSettingValue(settings.chatPlanAgentDefaultModel)}` +

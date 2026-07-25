@@ -339,6 +339,19 @@ export function getModelManagerStyle(): string {
 			text-align: center;
 			text-wrap: pretty;
 		}
+		.compatibility-notice {
+			display: grid;
+			gap: 8px;
+			max-width: 900px;
+			margin: 16px 0;
+			padding: 12px 14px;
+			border: 1px solid var(--vscode-inputValidation-warningBorder, var(--vscode-panel-border));
+			border-left: 3px solid var(--vscode-editorWarning-foreground, #cca700);
+			background: var(--vscode-textBlockQuote-background, transparent);
+		}
+		.compatibility-notice-title {
+			font-weight: 600;
+		}
 		.connection-editor,
 		.vision-editor {
 			padding-bottom: 24px;

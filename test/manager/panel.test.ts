@@ -113,6 +113,21 @@ describe('model manager panel', () => {
 		});
 	});
 
+	it('delegates the utility compatibility action to the read-only navigation command', async () => {
+		const executeCommand = vi.spyOn(vscode.commands, 'executeCommand');
+		const manager = new ModelManagerPanel(createContext(), { onDidChange() {} });
+		manager.open();
+		await vi.waitFor(() => expect(__getLastWebviewPanel()?.webview.html).not.toBe(''));
+
+		await __emitWebviewMessage({ type: 'openByokUtilitySettings' });
+
+		expect(executeCommand).toHaveBeenCalledWith('glm-copilot.openByokUtilitySettings');
+		expect(
+			__getConfigurationValueAtScope('chat.byokUtilityModelDefault', ConfigurationTarget.Global),
+		).toBe(undefined);
+		executeCommand.mockRestore();
+	});
+
 	it('reports a failed save without replacing the Webview state', async () => {
 		const manager = new ModelManagerPanel(createContext(), {
 			onDidChange() {},

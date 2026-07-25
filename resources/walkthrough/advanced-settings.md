@@ -10,7 +10,15 @@ If GLM shows up in the editor chat but is missing from the new agent window / ba
 }
 ```
 
-If the agent still fails with `No utility model is configured for 'copilot-utility-small' while the selected main model is BYOK`, that is a known VS Code Copilot regression ([microsoft/vscode#324007](https://github.com/microsoft/vscode/issues/324007)) — the editor chat keeps working while the upstream issue is open.
+For VS Code 1.128+ errors such as `No utility model is configured for 'copilot-utility-small' while the selected main model is BYOK`, set the host utility policy explicitly. Use [GLM: Open BYOK Utility Model Settings](command:glm-copilot.openByokUtilitySettings), or add:
+
+```json
+{
+  "chat.byokUtilityModelDefault": "mainAgent"
+}
+```
+
+`mainAgent` uses the selected GLM for utility requests and may add BYOK usage. `copilot` uses the Copilot utility model. Explicit `chat.utilityModel` and `chat.utilitySmallModel` values take precedence. The extension does not write this host setting or change `isBYOK`.
 
 ## Manage models and connections
 

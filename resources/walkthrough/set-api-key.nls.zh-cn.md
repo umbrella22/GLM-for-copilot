@@ -10,3 +10,5 @@
 - `GLM: 清除 API Key`：移除一个通道
 - `GLM: 获取 API Key`：打开一个通道的 Key 管理页面
 - `GLM: 查询 Coding Plan 用量`：查询所有活跃 Coding Plan 通道
+
+如果 VS Code 1.128+ 的 BYOK agent 报告未配置 utility model，请打开 [GLM: 打开 BYOK Utility Model 设置](command:glm-copilot.openByokUtilitySettings)，选择 `mainAgent` 或 `copilot`。扩展不会自动修改这个 host 设置。

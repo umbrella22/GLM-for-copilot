@@ -29,6 +29,39 @@ afterEach(async () => {
 });
 
 describe('response outcome dumps', () => {
+	it('records the BYOK utility host policy in request snapshots', async () => {
+		__setConfigurationValue('chat.byokUtilityModelDefault', 'none');
+		const run = dumpGLMRequest(
+			{ model: 'glm-5.2', messages: [{ role: 'user', content: 'hello' }], stream: true },
+			{
+				globalStorageUri: vscode.Uri.file(storageRoot!),
+				segment: SEGMENT,
+				vscodeModelId: 'glm-5.2',
+				isThinkingModel: true,
+				thinkingEffort: 'max',
+				maxTokens: undefined,
+				inputMessages: [],
+				resolvedMessages: [],
+				requestOptions: {},
+			},
+		);
+		expect(run).toBeDefined();
+		run!.finish(createOutcome());
+		const segmentRoot = join(storageRoot!, 'request-dumps', SEGMENT.segmentId);
+		const dumpName = await waitForOutcomeFile(segmentRoot);
+		const request = JSON.parse(
+			await readFile(
+				join(segmentRoot, dumpName.replace(/\.outcome\.json$/u, '.resolved.json')),
+				'utf8',
+			),
+		);
+		expect(request.hostSettings).toMatchObject({
+			chatByokUtilityModelDefault: 'none',
+			chatUtilityModel: 'unknown',
+			chatUtilitySmallModel: 'unknown',
+		});
+	});
+
 	it('pairs a sanitized response outcome with the originating request basename', async () => {
 		const run = dumpGLMRequest(
 			{

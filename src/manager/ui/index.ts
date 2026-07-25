@@ -4,6 +4,8 @@ export { getModelManagerStyle } from './style';
 export type {
 	ManagerCredentialChannel,
 	ManagerCredentialRow,
+	ManagerByokUtilityModelDefault,
+	ManagerByokUtilityState,
 	ManagerDefaultConnectionState,
 	ManagerEndpointPreset,
 	ManagerHostMessage,

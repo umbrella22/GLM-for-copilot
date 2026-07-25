@@ -55,6 +55,22 @@ describe('runtime commands', () => {
 
 		expect(__getOpenedExternal()?.toString()).toBe(expectedUrl);
 	});
+
+	it('opens the VS Code BYOK utility setting without writing host configuration', async () => {
+		const executeCommand = vi.spyOn(vscode.commands, 'executeCommand');
+		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
+
+		await vscode.commands.executeCommand('glm-copilot.openByokUtilitySettings');
+
+		expect(executeCommand).toHaveBeenCalledWith(
+			'workbench.action.openSettings',
+			'@id:chat.byokUtilityModelDefault',
+		);
+		expect(
+			__getConfigurationValueAtScope('chat.byokUtilityModelDefault', ConfigurationTarget.Global),
+		).toBe(undefined);
+		executeCommand.mockRestore();
+	});
 });
 
 describe('runtime commands — cleanupStoredImages (FORK)', () => {

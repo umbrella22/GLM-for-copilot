@@ -22,6 +22,8 @@ export type ManagerCredentialChannel =
 
 export type ManagerVisionMode = 'proxy' | 'native' | 'mcp'; // [FORK] +mcp
 
+export type ManagerByokUtilityModelDefault = 'none' | 'mainAgent' | 'copilot' | 'unknown';
+
 export type ManagerVisionProxySource = 'auto' | 'vscode-lm' | 'api-endpoint';
 
 export type ManagerVisionEndpointType =
@@ -139,6 +141,12 @@ export interface ManagerVisionState {
 	test: ManagerVisionTestState;
 }
 
+export interface ManagerByokUtilityState {
+	defaultMode: ManagerByokUtilityModelDefault;
+	utilityModelConfigured: boolean;
+	utilitySmallModelConfigured: boolean;
+}
+
 export interface ManagerPanelState {
 	activeView: ManagerViewId;
 	revision: number;
@@ -150,6 +158,7 @@ export interface ManagerPanelState {
 	selectedModelId?: string;
 	credentials: readonly ManagerCredentialRow[];
 	vision: ManagerVisionState;
+	byokUtility: ManagerByokUtilityState;
 	busy?: boolean;
 	status?: ManagerStatus;
 }
@@ -234,7 +243,8 @@ export type ManagerWebviewMessage =
 			};
 	  }
 	| { type: 'clearVisionApiKey' }
-	| { type: 'showLogs' };
+	| { type: 'showLogs' }
+	| { type: 'openByokUtilitySettings' };
 
 const MANAGER_MESSAGE_TYPES: ReadonlySet<ManagerWebviewMessage['type']> = new Set([
 	'ready',
@@ -253,6 +263,7 @@ const MANAGER_MESSAGE_TYPES: ReadonlySet<ManagerWebviewMessage['type']> = new Se
 	'testVision',
 	'clearVisionApiKey',
 	'showLogs',
+	'openByokUtilitySettings',
 ]);
 
 /**

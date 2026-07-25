@@ -23,7 +23,11 @@ import type { ConversationSegment } from '../segment';
 import { ACTIVATE_TOOL_PREFIX } from '../tools/consts';
 import type { ActivatePreflightInspection } from '../tools/preflight';
 import type { VisionResolutionStats as VisionPipelineStats, VisionProxySource } from '../vision';
-import { IMAGE_DESCRIPTION_UNAVAILABLE } from '../vision/consts';
+import {
+	IMAGE_DESCRIPTION_PREFIX,
+	IMAGE_DESCRIPTION_UNAVAILABLE,
+	LEGACY_IMAGE_DESCRIPTION_PREFIX,
+} from '../vision/consts';
 import { formatConversationSegmentTrace } from './segment-trace';
 import type { ContextUsageSource, TokenCountSource } from '../context-usage';
 
@@ -998,7 +1002,7 @@ function summarizeVisionResolution(
 	for (const [index, message] of inputMessages.entries()) {
 		const imageParts = countImageDataParts(message);
 		const inputText = getMessageText(message);
-		if (countLiteral(inputText, '[Image Description:') > 0) {
+		if (countImageDescriptionMarkers(inputText) > 0) {
 			stats.historyDescriptionMessages += 1;
 		}
 
@@ -1011,8 +1015,7 @@ function summarizeVisionResolution(
 			const resolvedText = resolvedMessage ? getMessageText(resolvedMessage) : '';
 			const newDescriptions = Math.max(
 				0,
-				countLiteral(resolvedText, '[Image Description:') -
-					countLiteral(inputText, '[Image Description:'),
+				countImageDescriptionMarkers(resolvedText) - countImageDescriptionMarkers(inputText),
 			);
 			const newFailures = Math.max(
 				0,
@@ -1799,7 +1802,7 @@ function summarizeMessage(
 	const hasReasoningContent = message.reasoning_content !== undefined;
 	const hasEmptyReasoningContent = hasReasoningContent && reasoningChars === 0;
 	const contentText = getGLMContentText(message.content);
-	const imageDescriptionCount = countLiteral(contentText, '[Image Description:');
+	const imageDescriptionCount = countImageDescriptionMarkers(contentText);
 	const unableImageCount = countLiteral(contentText, IMAGE_DESCRIPTION_UNAVAILABLE);
 	const urlCount = countRegex(contentText, /https?:\/\//g);
 	const codeFenceCount = countLiteral(contentText, '```');
@@ -2011,7 +2014,7 @@ function summarizeStats(messages: GLMMessage[], toolCount: number): CacheTraceSt
 			largeMessages += 1;
 		}
 
-		const imageDescriptions = countLiteral(contentText, '[Image Description:');
+		const imageDescriptions = countImageDescriptionMarkers(contentText);
 		if (imageDescriptions > 0) {
 			imageDescriptionMessages += 1;
 			imageDescriptionParts += imageDescriptions;
@@ -2234,6 +2237,13 @@ function countLiteral(value: string, needle: string): number {
 		index = value.indexOf(needle, index + needle.length);
 	}
 	return count;
+}
+
+function countImageDescriptionMarkers(value: string): number {
+	return (
+		countLiteral(value, IMAGE_DESCRIPTION_PREFIX) +
+		countLiteral(value, LEGACY_IMAGE_DESCRIPTION_PREFIX)
+	);
 }
 
 function countRegex(value: string, regex: RegExp): number {

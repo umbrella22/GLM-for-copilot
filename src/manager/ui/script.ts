@@ -158,6 +158,18 @@ export function getModelManagerScript(initialState: string, initialStrings: stri
 					});
 					add.id = 'addModelButton';
 					viewRoot.append(createViewHeader(strings.modelsHeading, strings.modelsDescription, add));
+					if (state.byokUtility && state.byokUtility.defaultMode === 'none') {
+						const notice = element('section', 'compatibility-notice');
+						notice.append(
+							element('div', 'compatibility-notice-title', strings.byokUtilityWarning),
+						);
+						notice.append(element('p', 'hint', strings.byokUtilityDetail));
+						const action = button(strings.openByokUtilitySettings, 'secondary', () =>
+							post('openByokUtilitySettings'),
+						);
+						notice.append(action);
+						viewRoot.append(notice);
+					}
 
 				if (!state.models.length) {
 					viewRoot.append(element('div', 'empty-state', strings.noModels));

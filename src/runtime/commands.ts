@@ -28,6 +28,12 @@ export function registerCommands(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand('glm-copilot.openSettings', () =>
 			vscode.commands.executeCommand('workbench.action.openSettings', 'glm-copilot'),
 		),
+		vscode.commands.registerCommand('glm-copilot.openByokUtilitySettings', () =>
+			vscode.commands.executeCommand(
+				'workbench.action.openSettings',
+				'@id:chat.byokUtilityModelDefault',
+			),
+		),
 		// [FORK] Value-based reset of the Coding Plan preset fields: clears only
 		// those items whose current user-scope value still matches the preset
 		// value. Items the user has modified away from the preset are left

@@ -17,6 +17,7 @@ import {
 	saveModelManagementConfiguration,
 } from '../config';
 import { CONFIG_SECTION, MODELS } from '../consts';
+import { getByokUtilitySettings } from '../host-settings';
 import { resolveEndpointApiMode, resolveEndpointBaseUrl } from '../endpoint';
 import { t } from '../i18n';
 import type {
@@ -29,6 +30,7 @@ import type {
 } from '../types';
 import type {
 	ManagerCredentialRow,
+	ManagerByokUtilityState,
 	ManagerDefaultConnectionState,
 	ManagerModelDraft,
 	ManagerModelRow,
@@ -99,6 +101,7 @@ export async function buildModelManagerState(
 		selectedModelId,
 		credentials,
 		vision: options.vision,
+		byokUtility: getByokUtilitySettings(resource) satisfies ManagerByokUtilityState,
 		...(options.status ? { status: options.status } : {}),
 		...(options.busy ? { busy: true } : {}),
 	};

@@ -74,6 +74,35 @@ describe('model manager state', () => {
 		expect(state.defaultConnection.endpoint).toBe('china-coding');
 	});
 
+	it('reports the read-only BYOK utility policy and explicit utility settings', async () => {
+		__setConfigurationValueAtScope(
+			'chat.byokUtilityModelDefault',
+			'none',
+			ConfigurationTarget.Global,
+		);
+		__setConfigurationValueAtScope(
+			'chat.utilitySmallModel',
+			'copilot-utility-small',
+			ConfigurationTarget.Global,
+		);
+		const state = await buildModelManagerState({
+			auth: createAuth(),
+			scope: 'global',
+			revision: 1,
+			activeView: 'models',
+			vision,
+		});
+
+		expect(state.byokUtility).toEqual({
+			defaultMode: 'none',
+			utilityModelConfigured: false,
+			utilitySmallModelConfigured: true,
+		});
+		expect(
+			__getConfigurationValueAtScope('chat.byokUtilityModelDefault', ConfigurationTarget.Global),
+		).toBe('none');
+	});
+
 	it('writes default connection changes into the selected canonical scope', async () => {
 		await saveManagedConnection(
 			'global',

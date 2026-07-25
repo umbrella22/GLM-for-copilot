@@ -201,7 +201,15 @@
 }
 ```
 
-如果 agent 仍报错 `No utility model is configured for 'copilot-utility-small' while the selected main model is BYOK`，这是 VS Code Copilot 端的已知回归 —— 参见 [microsoft/vscode#324007](https://github.com/microsoft/vscode/issues/324007)。在上游修复前，编辑器聊天中的 GLM 通常仍可正常使用。
+如果 VS Code 1.128+ 中 agent 报错 `No utility model is configured for 'copilot-utility-small' while the selected main model is BYOK`，请显式设置 host utility 策略。这个设置由 VS Code 管理，扩展不会自动写入。可运行 **GLM: 打开 BYOK Utility Model 设置**，或将下面内容加入 `settings.json`：
+
+```json
+{
+  "chat.byokUtilityModelDefault": "mainAgent"
+}
+```
+
+`mainAgent` 会把 utility 请求交给当前 GLM，可能产生额外 BYOK 用量；设为 `"copilot"` 则使用 Copilot utility model。显式配置的 `chat.utilityModel` 和 `chat.utilitySmallModel` 会优先于默认策略。若保持 `"none"`，模型管理仍会显示兼容提示，直到选择 `mainAgent` 或 `copilot`。此 workaround 不会修改模型的 `isBYOK`。
 
 ### 通过中转/代理使用时报 HTTP 400 `Invalid schema for function '...'`
 

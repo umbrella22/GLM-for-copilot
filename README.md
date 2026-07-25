@@ -201,7 +201,15 @@ Recent VS Code versions gate custom providers from the background agent and the 
 }
 ```
 
-If the agent still refuses to start with `No utility model is configured for 'copilot-utility-small' while the selected main model is BYOK`, that is a known VS Code Copilot regression — see [microsoft/vscode#324007](https://github.com/microsoft/vscode/issues/324007). Switching the editor chat to GLM usually works while the upstream issue is open.
+If the agent fails with `No utility model is configured for 'copilot-utility-small' while the selected main model is BYOK` on VS Code 1.128+, set the host utility policy explicitly. This is a VS Code configuration behavior; the extension does not write it automatically. Open **GLM: Open BYOK Utility Model Settings**, or add this to `settings.json`:
+
+```json
+{
+  "chat.byokUtilityModelDefault": "mainAgent"
+}
+```
+
+`mainAgent` routes utility requests to the selected GLM and may create additional BYOK usage. Set `"copilot"` to use the Copilot utility model. Explicit `chat.utilityModel` and `chat.utilitySmallModel` values take precedence over the default policy. To leave utility routing disabled, use `"none"`; the Model Manager will continue showing this compatibility hint until `mainAgent` or `copilot` is selected. No `isBYOK` flag is changed by this workaround.
 
 ### HTTP 400 `Invalid schema for function '...'` from a proxy or relay
 

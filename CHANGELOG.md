@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.9.0...v0.10.0) (2026-07-25)
+
+
+### Features
+
+* add BYOK utility model settings and enhance vision prompt handling ([263cd0e](https://github.com/umbrella22/GLM-for-copilot/commit/263cd0e7341a65d6331977cf681b8ebc2f34b32b))
+
 ## [0.9.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.8.0...v0.9.0) (2026-07-22)
 
 

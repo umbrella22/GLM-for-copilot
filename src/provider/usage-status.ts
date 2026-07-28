@@ -3,19 +3,21 @@ import { CREDENTIAL_CHANNELS, formatCredentialChannel } from '../auth';
 import { t } from '../i18n';
 import type { CredentialChannel } from '../types';
 import { formatMoney, type UsageCostEstimate } from './pricing/usage';
-import type { GLMTokenQuotaMetric, GLMTokenQuotaUsage } from './usage';
+import type { GLMCountQuotaMetric, GLMTokenQuotaMetric, GLMTokenQuotaUsage } from './usage';
 
 const STATUS_BAR_PRIORITY = 92;
-const PROGRESS_BAR_WIDTH = 220;
-const PROGRESS_BAR_HEIGHT = 4;
+const PROGRESS_BAR_WIDTH = 320;
+const PROGRESS_BAR_HEIGHT = 6;
 const QUERY_USAGE_COMMAND = 'glm-copilot.queryUsage';
 const OPEN_SETTINGS_COMMAND = 'glm-copilot.openSettings';
 
 export class UsageStatus implements vscode.Disposable {
 	private readonly item: vscode.StatusBarItem;
 	private readonly quotas = new Map<CredentialChannel, GLMTokenQuotaUsage>();
+	private readonly quotaUpdatedAt = new Map<CredentialChannel, number>();
 	private readonly balanceSessionTotals = new Map<CredentialChannel, number>();
 	private readonly lastBalanceEstimates = new Map<CredentialChannel, UsageCostEstimate>();
+	private readonly balanceUpdatedAt = new Map<CredentialChannel, number>();
 	private activeChannels = new Set<CredentialChannel>();
 	private defaultChannel: CredentialChannel = 'china-coding';
 
@@ -38,12 +40,14 @@ export class UsageStatus implements vscode.Disposable {
 
 	reportQuota(channel: CredentialChannel, quota: GLMTokenQuotaUsage): void {
 		this.quotas.set(channel, quota);
+		this.quotaUpdatedAt.set(channel, Date.now());
 		this.activeChannels.add(channel);
 		this.render();
 	}
 
 	clearQuota(channel: CredentialChannel): void {
 		this.quotas.delete(channel);
+		this.quotaUpdatedAt.delete(channel);
 		this.render();
 	}
 
@@ -56,6 +60,7 @@ export class UsageStatus implements vscode.Disposable {
 		const sessionTotal = (this.balanceSessionTotals.get(channel) ?? 0) + estimate.totalCost;
 		this.balanceSessionTotals.set(channel, sessionTotal);
 		this.lastBalanceEstimates.set(channel, estimate);
+		this.balanceUpdatedAt.set(channel, Date.now());
 		this.activeChannels.add(channel);
 		this.render();
 	}
@@ -66,8 +71,10 @@ export class UsageStatus implements vscode.Disposable {
 
 	reset(): void {
 		this.quotas.clear();
+		this.quotaUpdatedAt.clear();
 		this.balanceSessionTotals.clear();
 		this.lastBalanceEstimates.clear();
+		this.balanceUpdatedAt.clear();
 		this.activeChannels.clear();
 		this.hide();
 	}
@@ -75,6 +82,7 @@ export class UsageStatus implements vscode.Disposable {
 	/** Reset active connection/quota state without losing session PAYG totals. */
 	resetConnections(): void {
 		this.quotas.clear();
+		this.quotaUpdatedAt.clear();
 		this.activeChannels.clear();
 		this.hide();
 	}
@@ -112,8 +120,10 @@ export class UsageStatus implements vscode.Disposable {
 		this.item.tooltip = createCombinedUsageTooltip({
 			channels: orderedChannels,
 			quotas: this.quotas,
+			quotaUpdatedAt: this.quotaUpdatedAt,
 			lastBalanceEstimates: this.lastBalanceEstimates,
 			balanceSessionTotals: this.balanceSessionTotals,
+			balanceUpdatedAt: this.balanceUpdatedAt,
 			hasCodingChannel,
 		});
 		this.item.show();
@@ -123,8 +133,10 @@ export class UsageStatus implements vscode.Disposable {
 interface CombinedUsageTooltipOptions {
 	channels: readonly CredentialChannel[];
 	quotas: ReadonlyMap<CredentialChannel, GLMTokenQuotaUsage>;
+	quotaUpdatedAt: ReadonlyMap<CredentialChannel, number>;
 	lastBalanceEstimates: ReadonlyMap<CredentialChannel, UsageCostEstimate>;
 	balanceSessionTotals: ReadonlyMap<CredentialChannel, number>;
+	balanceUpdatedAt: ReadonlyMap<CredentialChannel, number>;
 	hasCodingChannel: boolean;
 }
 
@@ -133,9 +145,10 @@ export function createCombinedUsageTooltip(
 ): vscode.MarkdownString {
 	const command = options.hasCodingChannel ? QUERY_USAGE_COMMAND : OPEN_SETTINGS_COMMAND;
 	const tooltip = createInteractiveTooltip(
-		t('usage.status.combinedTitle'),
+		t('usage.status.name'),
 		command,
 		options.hasCodingChannel ? 'refresh' : 'settings-gear',
+		options.hasCodingChannel ? t('usage.tooltip.refresh') : t('usage.tooltip.settings'),
 	);
 	for (const [index, channel] of options.channels.entries()) {
 		if (index > 0) {
@@ -148,7 +161,7 @@ export function createCombinedUsageTooltip(
 				tooltip.appendMarkdown(t('usage.status.waiting'));
 				continue;
 			}
-			appendQuotaContent(tooltip, quota);
+			appendQuotaContent(tooltip, quota, options.quotaUpdatedAt.get(channel));
 			continue;
 		}
 		appendBalanceContent(
@@ -156,22 +169,46 @@ export function createCombinedUsageTooltip(
 			options.lastBalanceEstimates.get(channel),
 			options.balanceSessionTotals.get(channel),
 		);
+		appendLastUpdated(tooltip, options.balanceUpdatedAt.get(channel));
 	}
 	return tooltip;
 }
 
 export function createUsageQuotaTooltip(quota: GLMTokenQuotaUsage): vscode.MarkdownString {
-	const tooltip = createInteractiveTooltip(t('usage.status.title'), QUERY_USAGE_COMMAND, 'refresh');
+	const tooltip = createInteractiveTooltip(
+		t('usage.status.title'),
+		QUERY_USAGE_COMMAND,
+		'refresh',
+		t('usage.tooltip.refresh'),
+	);
 	appendQuotaContent(tooltip, quota);
 	return tooltip;
 }
 
-function appendQuotaContent(tooltip: vscode.MarkdownString, quota: GLMTokenQuotaUsage): void {
-	appendQuotaMetric(tooltip, t('usage.status.fiveHours'), quota.fiveHours);
+function appendQuotaContent(
+	tooltip: vscode.MarkdownString,
+	quota: GLMTokenQuotaUsage,
+	updatedAt?: number,
+): void {
+	appendPlanSummary(tooltip, quota);
+	appendPercentageMetric(
+		tooltip,
+		t('usage.status.session'),
+		t('usage.status.window.fiveHours'),
+		quota.fiveHours,
+	);
 	if (quota.sevenDays) {
-		appendQuotaMetric(tooltip, t('usage.status.sevenDays'), quota.sevenDays);
+		appendPercentageMetric(
+			tooltip,
+			t('usage.status.weekly'),
+			t('usage.status.window.sevenDays'),
+			quota.sevenDays,
+		);
 	}
-	appendQuotaResetTimes(tooltip, quota);
+	if (quota.mcpMonthlyQuota) {
+		appendCountMetric(tooltip, quota.mcpMonthlyQuota);
+	}
+	appendLastUpdated(tooltip, updatedAt);
 }
 
 export function createBalanceUsageTooltip(
@@ -182,6 +219,7 @@ export function createBalanceUsageTooltip(
 		t('usage.balance.title'),
 		OPEN_SETTINGS_COMMAND,
 		'settings-gear',
+		t('usage.tooltip.settings'),
 	);
 	appendBalanceContent(tooltip, estimate, sessionTotal);
 	return tooltip;
@@ -214,42 +252,87 @@ function createInteractiveTooltip(
 	title: string,
 	command: string,
 	icon: string,
+	actionLabel: string,
 ): vscode.MarkdownString {
 	const tooltip = new vscode.MarkdownString('', true);
 	tooltip.supportHtml = true;
 	tooltip.supportThemeIcons = true;
 	tooltip.isTrusted = { enabledCommands: [command] };
 	tooltip.appendMarkdown(
-		`<table width="100%"><tr><td><b>${title}</b></td><td align="right"><a href="command:${command}">$(${icon})</a></td></tr></table>\n\n---\n\n`,
+		`<table width="100%"><tr><td><b>${escapeHtmlText(title)}</b></td><td align="right"><a href="command:${command}">$(${icon})&nbsp; ${escapeHtmlText(actionLabel)}</a></td></tr></table>\n\n---\n\n`,
 	);
 	return tooltip;
+}
+
+function appendPlanSummary(tooltip: vscode.MarkdownString, quota: GLMTokenQuotaUsage): void {
+	const rows = [
+		quota.planName
+			? `<tr><td>${escapeHtmlText(t('usage.tooltip.plan'))}</td><td align="right"><b>${escapeHtmlText(quota.planName)}</b></td></tr>`
+			: undefined,
+		quota.renewsAt
+			? `<tr><td>${escapeHtmlText(t('usage.tooltip.renews'))}</td><td align="right">${escapeHtmlText(formatSubscriptionDate(quota.renewsAt))}</td></tr>`
+			: undefined,
+	].filter((row): row is string => row !== undefined);
+	if (rows.length > 0) {
+		tooltip.appendMarkdown(`<table width="100%">${rows.join('')}</table>\n\n`);
+	}
+}
+
+function appendPercentageMetric(
+	tooltip: vscode.MarkdownString,
+	label: string,
+	window: string,
+	metric: GLMTokenQuotaMetric,
+): void {
+	const percentage = clampPercentage(metric.percentage);
+	appendQuotaMetric(
+		tooltip,
+		label,
+		window,
+		formatPercentage(percentage),
+		percentage,
+		metric.nextResetTime,
+	);
+}
+
+function appendCountMetric(tooltip: vscode.MarkdownString, metric: GLMCountQuotaMetric): void {
+	const percentage = clampPercentage(metric.limit > 0 ? (metric.used / metric.limit) * 100 : 0);
+	appendQuotaMetric(
+		tooltip,
+		t('usage.status.mcpMonthlyQuota'),
+		t('usage.status.window.monthly'),
+		`${formatCount(metric.used)} / ${formatCount(metric.limit)}`,
+		percentage,
+		metric.nextResetTime,
+	);
 }
 
 function appendQuotaMetric(
 	tooltip: vscode.MarkdownString,
 	label: string,
-	metric: GLMTokenQuotaMetric,
+	window: string,
+	valueLabel: string,
+	percentage: number,
+	nextResetTime: number | undefined,
 ): void {
-	const percentage = clampPercentage(metric.percentage);
 	const progressBarUri = createProgressBarDataUri(percentage);
+	const resetLabel = formatResetCountdown(nextResetTime);
 	tooltip.appendMarkdown(
-		`<table width="100%"><tr><td><b>${label}</b></td><td align="right"><b>${formatPercentage(percentage)}</b> ${t('usage.status.used')}</td></tr><tr><td colspan="2"><img src="${progressBarUri}" width="100%" height="${PROGRESS_BAR_HEIGHT}" /></td></tr></table>\n\n`,
+		`<table width="100%"><tr><td><b>${escapeHtmlText(label)}</b></td><td align="right">${escapeHtmlText(window)}</td></tr><tr><td colspan="2"><img src="${progressBarUri}" width="100%" height="${PROGRESS_BAR_HEIGHT}" /></td></tr><tr><td colspan="2"><b>${escapeHtmlText(valueLabel)}</b>${resetLabel ? `<br>${escapeHtmlText(resetLabel)}` : ''}</td></tr></table>\n\n`,
 	);
 }
 
-function appendQuotaResetTimes(tooltip: vscode.MarkdownString, quota: GLMTokenQuotaUsage): void {
-	const rows = [
-		formatResetTimeRow(t('usage.status.fiveHoursResetTime'), quota.fiveHours.nextResetTime),
-		formatResetTimeRow(t('usage.status.sevenDaysResetTime'), quota.sevenDays?.nextResetTime),
-	].filter((row): row is string => row !== undefined);
-	if (rows.length > 0) {
-		tooltip.appendMarkdown(`<table width="100%">${rows.join('')}</table>`);
+function appendLastUpdated(tooltip: vscode.MarkdownString, value: number | undefined): void {
+	if (value === undefined) {
+		return;
 	}
-}
-
-function formatResetTimeRow(label: string, value: number | undefined): string | undefined {
-	const resetTime = formatResetTime(value);
-	return resetTime ? `<tr><td>${label}</td><td align="right">${resetTime}</td></tr>` : undefined;
+	const date = new Date(value);
+	if (Number.isNaN(date.getTime())) {
+		return;
+	}
+	tooltip.appendMarkdown(
+		`\n\n---\n\n${escapeHtmlText(t('usage.tooltip.lastUpdated', date.toLocaleTimeString()))}`,
+	);
 }
 
 function createProgressBarDataUri(percentage: number): string {
@@ -259,7 +342,7 @@ function createProgressBarDataUri(percentage: number): string {
 		filledWidth > 0
 			? `<rect x="0" y="0" width="${filledWidth}" height="${PROGRESS_BAR_HEIGHT}" rx="${radius}" fill="#3794ff" />`
 			: '';
-	const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${PROGRESS_BAR_WIDTH}" height="${PROGRESS_BAR_HEIGHT}" viewBox="0 0 ${PROGRESS_BAR_WIDTH} ${PROGRESS_BAR_HEIGHT}"><rect x="0" y="0" width="${PROGRESS_BAR_WIDTH}" height="${PROGRESS_BAR_HEIGHT}" rx="${radius}" fill="#3c3c3c" />${fill}</svg>`;
+	const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${PROGRESS_BAR_WIDTH}" height="${PROGRESS_BAR_HEIGHT}" viewBox="0 0 ${PROGRESS_BAR_WIDTH} ${PROGRESS_BAR_HEIGHT}"><rect x="0" y="0" width="${PROGRESS_BAR_WIDTH}" height="${PROGRESS_BAR_HEIGHT}" rx="${radius}" fill="#808080" fill-opacity="0.35" />${fill}</svg>`;
 	return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
@@ -267,21 +350,48 @@ function formatPercentage(value: number): string {
 	return `${Math.round(clampPercentage(value))}%`;
 }
 
-function formatResetTime(value: number | undefined): string | undefined {
+function formatResetCountdown(value: number | undefined, now = Date.now()): string | undefined {
 	if (value === undefined) {
 		return undefined;
 	}
-	const date = new Date(value);
-	if (Number.isNaN(date.getTime())) {
+	if (!Number.isFinite(value)) {
 		return undefined;
 	}
-	const year = date.getFullYear();
-	const month = String(date.getMonth() + 1).padStart(2, '0');
-	const day = String(date.getDate()).padStart(2, '0');
-	const hours = String(date.getHours()).padStart(2, '0');
-	const minutes = String(date.getMinutes()).padStart(2, '0');
-	const seconds = String(date.getSeconds()).padStart(2, '0');
-	return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+	const remaining = value - now;
+	if (remaining <= 0) {
+		return t('usage.tooltip.resetNow');
+	}
+	return t('usage.tooltip.resetsIn', formatDuration(remaining));
+}
+
+function formatDuration(milliseconds: number): string {
+	const totalMinutes = Math.max(1, Math.ceil(milliseconds / 60_000));
+	const days = Math.floor(totalMinutes / 1_440);
+	const hours = Math.floor((totalMinutes % 1_440) / 60);
+	const minutes = totalMinutes % 60;
+	const parts: string[] = [];
+	if (days > 0) {
+		parts.push(t('usage.tooltip.duration.days', days));
+	}
+	if (hours > 0) {
+		parts.push(t('usage.tooltip.duration.hours', hours));
+	}
+	if (minutes > 0 && days === 0) {
+		parts.push(t('usage.tooltip.duration.minutes', minutes));
+	}
+	return parts.join(' ');
+}
+
+function formatSubscriptionDate(value: string): string {
+	if (/^\d{4}-\d{2}-\d{2}$/u.test(value)) {
+		return value;
+	}
+	const timestamp = Date.parse(value);
+	return Number.isFinite(timestamp) ? new Date(timestamp).toLocaleString() : value;
+}
+
+function formatCount(value: number): string {
+	return new Intl.NumberFormat(vscode.env.language, { maximumFractionDigits: 2 }).format(value);
 }
 
 function escapeHtmlText(value: string): string {
@@ -294,5 +404,5 @@ function escapeHtmlText(value: string): string {
 }
 
 function clampPercentage(value: number): number {
-	return Math.max(0, Math.min(100, value));
+	return Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0));
 }

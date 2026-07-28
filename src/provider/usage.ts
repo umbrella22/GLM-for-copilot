@@ -21,9 +21,18 @@ export interface GLMTokenQuotaMetric {
 	nextResetTime?: number;
 }
 
+export interface GLMCountQuotaMetric {
+	used: number;
+	limit: number;
+	nextResetTime?: number;
+}
+
 export interface GLMTokenQuotaUsage {
 	fiveHours: GLMTokenQuotaMetric;
 	sevenDays?: GLMTokenQuotaMetric;
+	mcpMonthlyQuota?: GLMCountQuotaMetric;
+	planName?: string;
+	renewsAt?: string;
 }
 
 export function supportsGLMPlanUsage(baseUrl: string): boolean {
@@ -95,52 +104,120 @@ export async function queryGLMTokenQuotaUsage(
 	const controller = new AbortController();
 	const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(USAGE_TIMEOUT_MS)]);
 	try {
-		const quotaLimit = await queryUsageEndpoint(
-			`${baseDomain}/api/monitor/usage/quota/limit`,
-			authToken,
-			signal,
+		const [quotaResult, subscriptionResult] = await Promise.allSettled([
+			queryUsageEndpoint(`${baseDomain}/api/monitor/usage/quota/limit`, authToken, signal),
+			queryUsageEndpoint(`${baseDomain}/api/biz/subscription/list`, authToken, signal),
+		]);
+		if (quotaResult.status === 'rejected') {
+			throw quotaResult.reason;
+		}
+		return parseGLMTokenQuotaUsage(
+			quotaResult.value,
+			subscriptionResult.status === 'fulfilled' ? subscriptionResult.value : undefined,
 		);
-		return parseGLMTokenQuotaUsage(quotaLimit);
 	} finally {
 		controller.abort();
 	}
 }
 
 /** Parse the ordered token-quota windows returned by the GLM Coding Plan endpoint. */
-export function parseGLMTokenQuotaUsage(quotaLimit: unknown): GLMTokenQuotaUsage | undefined {
+export function parseGLMTokenQuotaUsage(
+	quotaLimit: unknown,
+	subscription?: unknown,
+): GLMTokenQuotaUsage | undefined {
 	if (!isRecord(quotaLimit) || !Array.isArray(quotaLimit.limits)) {
 		return undefined;
 	}
 
-	const tokenLimits = quotaLimit.limits.flatMap((item): GLMTokenQuotaMetric[] => {
-		if (!isRecord(item) || item.type !== 'TOKENS_LIMIT') {
-			return [];
-		}
-		const percentage = item.percentage;
-		if (typeof percentage !== 'number' || !Number.isFinite(percentage)) {
-			return [];
-		}
-		const nextResetTime = item.nextResetTime;
-		return [
-			{
-				percentage,
-				...(typeof nextResetTime === 'number' && Number.isFinite(nextResetTime)
-					? { nextResetTime }
-					: {}),
-			},
-		];
-	});
+	const tokenLimits = quotaLimit.limits.flatMap(
+		(item): { metric: GLMTokenQuotaMetric; unit?: number }[] => {
+			if (!isRecord(item) || (item.type !== 'TOKENS_LIMIT' && item.name !== 'TOKENS_LIMIT')) {
+				return [];
+			}
+			const percentage = item.percentage;
+			if (typeof percentage !== 'number' || !Number.isFinite(percentage)) {
+				return [];
+			}
+			const nextResetTime = item.nextResetTime;
+			const unit = item.unit;
+			return [
+				{
+					metric: {
+						percentage,
+						...(typeof nextResetTime === 'number' && Number.isFinite(nextResetTime)
+							? { nextResetTime }
+							: {}),
+					},
+					...(typeof unit === 'number' && Number.isFinite(unit) ? { unit } : {}),
+				},
+			];
+		},
+	);
 
-	const fiveHours = tokenLimits[0];
+	const hasIdentifiedWindow = tokenLimits.some((item) => item.unit !== undefined);
+	const fiveHours =
+		tokenLimits.find((item) => item.unit === 3)?.metric ??
+		(hasIdentifiedWindow ? undefined : tokenLimits[0]?.metric);
 	if (!fiveHours) {
 		return undefined;
 	}
+	const sevenDays =
+		tokenLimits.find((item) => item.unit === 6)?.metric ??
+		(hasIdentifiedWindow
+			? undefined
+			: tokenLimits.find((item) => item.metric !== fiveHours)?.metric);
+	const monthlyMcpLimit = quotaLimit.limits.find((item): boolean => {
+		return isRecord(item) && (item.type === 'TIME_LIMIT' || item.name === 'TIME_LIMIT');
+	});
+	const mcpMonthlyQuota = parseCountQuotaMetric(monthlyMcpLimit);
+	const plan = parseSubscription(subscription);
 
-	// The endpoint orders token windows from shortest to longest. Some plans
-	// expose only the first (5-hour) window; the second (7-day) window is optional.
+	// Current responses identify the 5-hour and weekly windows with unit 3 and 6.
+	// Older responses omitted unit, so preserve their shortest-to-longest ordering as a fallback.
 	return {
 		fiveHours,
-		...(tokenLimits[1] ? { sevenDays: tokenLimits[1] } : {}),
+		...(sevenDays ? { sevenDays } : {}),
+		...(mcpMonthlyQuota ? { mcpMonthlyQuota } : {}),
+		...plan,
+	};
+}
+
+function parseCountQuotaMetric(value: unknown): GLMCountQuotaMetric | undefined {
+	if (!isRecord(value)) {
+		return undefined;
+	}
+	const used = value.currentValue;
+	const limit = value.usage;
+	if (
+		typeof used !== 'number' ||
+		!Number.isFinite(used) ||
+		typeof limit !== 'number' ||
+		!Number.isFinite(limit)
+	) {
+		return undefined;
+	}
+	const nextResetTime = value.nextResetTime;
+	return {
+		used,
+		limit,
+		...(typeof nextResetTime === 'number' && Number.isFinite(nextResetTime)
+			? { nextResetTime }
+			: {}),
+	};
+}
+
+function parseSubscription(value: unknown): Pick<GLMTokenQuotaUsage, 'planName' | 'renewsAt'> {
+	const first = Array.isArray(value) ? value[0] : undefined;
+	if (!isRecord(first)) {
+		return {};
+	}
+	return {
+		...(typeof first.productName === 'string' && first.productName.trim()
+			? { planName: first.productName }
+			: {}),
+		...(typeof first.nextRenewTime === 'string' && first.nextRenewTime.trim()
+			? { renewsAt: first.nextRenewTime }
+			: {}),
 	};
 }
 
@@ -207,7 +284,7 @@ async function queryUsageEndpoint(
 	const response = await fetch(url, {
 		method: 'GET',
 		headers: {
-			Authorization: authToken,
+			Authorization: formatUsageAuthorization(url, authToken),
 			'Accept-Language': 'en-US,en',
 			'Content-Type': 'application/json',
 		},
@@ -228,6 +305,11 @@ async function queryUsageEndpoint(
 	} catch {
 		return text;
 	}
+}
+
+function formatUsageAuthorization(url: string, authToken: string): string {
+	const platform = identifyOfficialGLMPlatform(url);
+	return platform === 'zai' && !/^Bearer\s/iu.test(authToken) ? `Bearer ${authToken}` : authToken;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

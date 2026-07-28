@@ -69,7 +69,7 @@ New and updated API keys live in VS Code's `SecretStorage` (OS keychain on macOS
 
 ### Cost Visibility
 
-After each completed GLM response, the extension reports usage to Copilot metadata and writes it to logs. The status bar headline follows the active resource's default channel; its tooltip combines active Coding Plan quotas and Standard API costs. Estimates use CNY for domestic BigModel endpoints and USD for Z.ai endpoints.
+After each completed GLM response, the extension reports usage to Copilot metadata and writes it to logs. The status bar headline follows the active resource's default channel; hover it to inspect Coding Plan subscription details, token and monthly MCP quotas, reset countdowns, and Standard API session costs. Click the status item or its hover action to refresh Coding Plan usage. Estimates use CNY for domestic BigModel endpoints and USD for Z.ai endpoints.
 
 ### Runtime Footprint
 

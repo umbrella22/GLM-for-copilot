@@ -69,7 +69,7 @@
 
 ### 费用可见
 
-每次 GLM 响应完成后，扩展会将用量上报到 Copilot 元数据并写入日志。状态栏主文案跟随当前资源的默认通道，悬浮提示合并展示所有活跃 Coding Plan 配额和标准 API 费用。国内 BigModel endpoint 使用 CNY，Z.ai endpoint 使用 USD。
+每次 GLM 响应完成后，扩展会将用量上报到 Copilot 元数据并写入日志。状态栏主文案跟随当前资源的默认通道；鼠标悬停后可集中查看 Coding Plan 套餐信息、token 与 MCP 每月额度、重置倒计时，以及标准 API 会话费用。点击状态栏或悬浮窗中的操作即可刷新 Coding Plan 用量。国内 BigModel endpoint 使用 CNY，Z.ai endpoint 使用 USD。
 
 ### 运行时组成
 

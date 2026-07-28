@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UsageCostEstimate } from '../../src/provider/pricing/usage';
 import { UsageStatus } from '../../src/provider/usage-status';
 import {
@@ -12,10 +12,15 @@ describe('GLM usage quota status', () => {
 
 	beforeEach(() => {
 		__resetCommandState();
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date(2026, 6, 18, 11, 21, 47));
 		status = new UsageStatus();
 	});
 
-	afterEach(() => status.dispose());
+	afterEach(() => {
+		status.dispose();
+		vi.useRealTimers();
+	});
 
 	it('renders only the five-hour progress bar when weekly usage is absent', () => {
 		const nextResetTime = new Date(2026, 6, 18, 12, 30, 47).getTime();
@@ -30,29 +35,38 @@ describe('GLM usage quota status', () => {
 		expect(item.command).toBe('glm-copilot.queryUsage');
 		expect(item.tooltip).toBeInstanceOf(MarkdownString);
 		const markdown = item.tooltip as MarkdownString;
+		expect(markdown.supportHtml).toBe(true);
 		expect(markdown.supportThemeIcons).toBe(true);
 		expect(markdown.isTrusted).toEqual({
 			enabledCommands: ['glm-copilot.queryUsage'],
 		});
 		const tooltip = markdown.value;
-		expect(tooltip).toContain('GLM connection usage');
+		expect(tooltip).toContain('GLM usage');
+		expect(tooltip).toContain('Refresh');
 		expect(tooltip).toContain('China · Coding Plan');
-		expect(tooltip).toContain('5-hour usage');
-		expect(tooltip).not.toContain('Weekly usage');
+		expect(tooltip).toContain('Session');
+		expect(tooltip).toContain('5h rolling');
+		expect(tooltip).not.toContain('7-day rolling');
 		expect(tooltip).toContain('data:image/svg+xml');
-		expect(tooltip).toContain('5-hour reset');
-		expect(tooltip).toContain('2026-07-18 12:30:47');
-		expect(tooltip).not.toContain('Weekly reset');
+		expect(tooltip).toContain('Resets in 1h 9m');
+		expect(tooltip).toContain('Last updated:');
 		expect(tooltip).not.toContain('Click to refresh usage');
 	});
 
-	it('renders separate reset times for the five-hour and weekly windows', () => {
+	it('renders plan, renewal, weekly, and monthly MCP details in the hover', () => {
 		const fiveHoursReset = new Date(2026, 6, 18, 12, 30, 47).getTime();
 		const sevenDaysReset = new Date(2026, 6, 22, 8, 15, 12).getTime();
 		status.setActiveChannels('china-coding', ['china-coding']);
 		status.reportQuota('china-coding', {
 			fiveHours: { percentage: 125, nextResetTime: fiveHoursReset },
 			sevenDays: { percentage: -5, nextResetTime: sevenDaysReset },
+			mcpMonthlyQuota: {
+				used: 1_095,
+				limit: 4_000,
+				nextResetTime: new Date(2026, 7, 1, 0, 0, 0).getTime(),
+			},
+			planName: 'GLM Coding Max & Team',
+			renewsAt: '2026-09-22',
 		});
 
 		const item = __getLastStatusBarItem();
@@ -60,12 +74,15 @@ describe('GLM usage quota status', () => {
 		if (!item) throw new Error('Expected a status bar item');
 		expect(item.text).toBe('$(pulse) GLM 5h 100%');
 		const tooltip = (item.tooltip as MarkdownString).value;
-		expect(tooltip).toContain('Weekly usage');
-		expect(tooltip).toContain('<b>0%</b> used');
-		expect(tooltip).toContain('5-hour reset');
-		expect(tooltip).toContain('2026-07-18 12:30:47');
-		expect(tooltip).toContain('Weekly reset');
-		expect(tooltip).toContain('2026-07-22 08:15:12');
+		expect(tooltip).toContain('GLM Coding Max &amp; Team');
+		expect(tooltip).toContain('2026-09-22');
+		expect(tooltip).toContain('Weekly');
+		expect(tooltip).toContain('7-day rolling');
+		expect(tooltip).toContain('<b>0%</b>');
+		expect(tooltip).toContain('Monthly MCP quota');
+		expect(tooltip).toContain('Monthly');
+		expect(tooltip).toContain('1,095 / 4,000');
+		expect(tooltip).toContain('Resets in 13d 12h');
 	});
 
 	it('renders a pay-as-you-go waiting state before the first request', () => {
@@ -81,7 +98,8 @@ describe('GLM usage quota status', () => {
 		expect(markdown.isTrusted).toEqual({
 			enabledCommands: ['glm-copilot.openSettings'],
 		});
-		expect(markdown.value).toContain('GLM connection usage');
+		expect(markdown.value).toContain('GLM usage');
+		expect(markdown.value).toContain('Settings');
 		expect(markdown.value).toContain('China · Standard API');
 		expect(markdown.value).toContain('Cost will appear after the next request completes.');
 	});

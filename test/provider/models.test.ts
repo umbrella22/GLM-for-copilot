@@ -61,10 +61,18 @@ describe('model metadata helpers', () => {
 			imageInput: true,
 		});
 		expect(info.configurationSchema?.properties.reasoningEffort.default).toBe('max');
-		expect(info.inputCost).toBe('¥8');
-		expect(info.outputCost).toBe('¥28');
-		expect(info.cacheCost).toBe('¥2');
+		expect(info.inputCost).toBe(8);
+		expect(info.outputCost).toBe(28);
+		expect(info.cacheCost).toBe(2);
 		expect(info.priceCategory).toBe('high');
+	});
+
+	it('publishes numeric USD credits for the native model-picker cost table', () => {
+		const info = toChatInfo(MODELS[0], true, 'USD');
+
+		expect(info.inputCost).toBe(1.4);
+		expect(info.outputCost).toBe(4.4);
+		expect(info.cacheCost).toBe(0.26);
 	});
 
 	it('carries the resource-scoped configuration snapshot with picker metadata', () => {

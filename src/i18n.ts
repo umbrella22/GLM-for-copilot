@@ -96,7 +96,8 @@ const zh: Translations = {
 	'manager.visionMode.native': '原生图片',
 	'manager.visionMode.nativeHint': '原生图片会在发送前缩放，并共享 2.5 MiB 图片上下文预算。',
 	'manager.visionMode.mcp': 'MCP 工具', // [FORK]
-	'manager.visionMode.mcpHint': // [FORK]
+	// [FORK]
+	'manager.visionMode.mcpHint':
 		'图片会从请求中剥离并存到本地文件，在对话中只保留一个指向文件路径的简短提示。由具备图像能力的 MCP 工具按需读取。适合纯文本模型（如走 Anthropic 接口的文本模型），避免 base64 无谓浪费上下文。',
 	'manager.field.contextWindow': '上下文窗口（tokens）',
 	'manager.field.maxOutput': '最大输出（tokens）',
@@ -316,13 +317,23 @@ const zh: Translations = {
 	'usage.queryPartiallyFailed': '部分连接通道用量刷新失败（{0} 个），其余结果已更新。',
 	'usage.status.name': 'GLM 用量',
 	'usage.status.title': 'GLM Coding Plan',
-	'usage.status.combinedTitle': 'GLM 多通道用量',
 	'usage.status.waiting': '正在等待套餐用量刷新。',
-	'usage.status.fiveHours': '5 小时用量',
-	'usage.status.sevenDays': '一周用量',
-	'usage.status.used': '已使用',
-	'usage.status.fiveHoursResetTime': '5 小时重置时间',
-	'usage.status.sevenDaysResetTime': '一周重置时间',
+	'usage.status.session': '会话',
+	'usage.status.weekly': '每周',
+	'usage.status.mcpMonthlyQuota': 'MCP 每月额度',
+	'usage.status.window.fiveHours': '5 小时滚动',
+	'usage.status.window.sevenDays': '7 天滚动',
+	'usage.status.window.monthly': '每月',
+	'usage.tooltip.refresh': '刷新',
+	'usage.tooltip.settings': '设置',
+	'usage.tooltip.plan': '套餐',
+	'usage.tooltip.renews': '续期时间',
+	'usage.tooltip.resetsIn': '{0} 后重置',
+	'usage.tooltip.resetNow': '即将重置',
+	'usage.tooltip.duration.days': '{0} 天',
+	'usage.tooltip.duration.hours': '{0} 小时',
+	'usage.tooltip.duration.minutes': '{0} 分钟',
+	'usage.tooltip.lastUpdated': '最后更新：{0}',
 	'usage.balance.title': 'GLM 按量付费',
 	'usage.balance.waiting': '费用将在下一次请求完成后显示。',
 	'usage.balance.lastRequest': '本次请求',
@@ -332,7 +343,6 @@ const zh: Translations = {
 	'usage.balance.input': '输入',
 	'usage.balance.cachedInput': '缓存输入',
 	'usage.balance.output': '输出',
-
 	// Errors
 	'error.http.400': '[{0}] 请求体格式错误。请根据错误信息提示修改请求体。',
 	'error.http.401':
@@ -413,33 +423,43 @@ const zh: Translations = {
 	'extension.welcomeFailed': '欢迎引导加载异常',
 	'extension.openRequestDumpsFolderFailed':
 		'打开请求 dump 目录失败，请运行 "GLM: 显示日志" 查看详情。',
-	'command.resetCodingPlanPreset.confirm': // [FORK]
+	// [FORK]
+	'command.resetCodingPlanPreset.confirm':
 		'将 GLM Coding Plan 一键预设恢复为默认值？仅恢复当前值与预设写入一致的项：GLM-5.2 的 endpointRoute/visionMode、GLM-5-Turbo 的 visionMode、4 个内置 MCP 服务开关、工具列表稳定化。你手动修改过的项会被自动跳过。不影响其他自定义配置（自定义 MCP 服务、API Key、工作区级别设置、图片提示词等）。',
 	'command.resetCodingPlanPreset.confirmYes': '恢复', // [FORK]
 	'command.resetCodingPlanPreset.done': '已恢复 GLM Coding Plan 预设为默认值（{0} 项复位）。', // [FORK]
-	'command.resetCodingPlanPreset.partial': // [FORK]
+	// [FORK]
+	'command.resetCodingPlanPreset.partial':
 		'已部分恢复 GLM Coding Plan 预设（{0}/{1} 项）。失败项：\n{2}',
-	'command.resetCodingPlanPreset.failed': // [FORK]
+	// [FORK]
+	'command.resetCodingPlanPreset.failed':
 		'恢复 GLM Coding Plan 预设失败（{0}/{1} 项）。原因：\n{2}',
 	'command.resetCodingPlanPreset.skipped': '被跳过的项（{0} 个）保留了你手动修改的值。', // [FORK]
-	'command.applyCodingPlanPreset.confirm': // [FORK]
+	// [FORK]
+	'command.applyCodingPlanPreset.confirm':
 		'为 GLM Coding Plan 套餐应用推荐配置？这将写入用户级覆盖：GLM-5.2 走国内 Anthropic 线路 + MCP 图片模式，GLM-5-Turbo 走 MCP 图片模式，启用 4 个内置 MCP 服务，并启用工具列表稳定化。仅影响用户级配置，工作区配置不变。',
 	'command.applyCodingPlanPreset.confirmYes': '应用', // [FORK]
 	'command.applyCodingPlanPreset.done': '已为 GLM Coding Plan 套餐应用推荐配置（{0} 项写入）。', // [FORK]
-	'command.applyCodingPlanPreset.partial': // [FORK]
+	// [FORK]
+	'command.applyCodingPlanPreset.partial':
 		'已为 GLM Coding Plan 套餐部分应用推荐配置（{0}/{1} 项写入）。失败项：\n{2}',
-	'command.applyCodingPlanPreset.failed': // [FORK]
+	// [FORK]
+	'command.applyCodingPlanPreset.failed':
 		'应用 GLM Coding Plan 推荐配置失败（{0}/{1} 项写入）。原因：\n{2}',
-	'command.cleanupStoredImages.confirm': // [FORK]
+	// [FORK]
+	'command.cleanupStoredImages.confirm':
 		'删除所有已存储的 MCP 图片？此操作不可撤销；其他正在进行的会话或将来重放的历史会话可能仍会引用这些图片。',
 	'command.cleanupStoredImages.confirmYes': '删除', // [FORK]
 	'command.cleanupStoredImages.done': '已删除 {0} 个已存储的 MCP 图片。', // [FORK]
 	'command.cleanupStoredImages.failed': '清理已存储图片失败，请运行 “GLM: 显示日志” 查看详情。', // [FORK]
-	'vision.mcp.conflict.toolCallingDisabled': // [FORK]
+	// [FORK]
+	'vision.mcp.conflict.toolCallingDisabled':
 		'当前模型的图片处理方式为 “MCP 工具”，但工具调用已被禁用。MCP 图片模式依赖工具调用读取本地图片，二者不能同时关闭。请打开 “GLM: 管理模型与连接” 启用此模型的工具调用，或将图片处理方式改为 “视觉代理 / 原生图片”。',
-	'vision.mcp.fallbackToProxy': // [FORK] PR #15 F2
+	// [FORK] PR #15 F2
+	'vision.mcp.fallbackToProxy':
 		'当前会话未检测到可用的图片 MCP 工具，已自动回退到视觉代理模式处理本请求的图片。如需使用 MCP 图片模式，请在设置中启用一个能读取本地图片的工具（如官方 zai-mcp-server），或通过 “glm-copilot.mcp.imageCapableTools” 添加聊天工具列表中的完整运行时 ID。\n\n',
-	'vision.mcp.conflict.noImageTool': // [FORK] PR #15 F2
+	// [FORK] PR #15 F2
+	'vision.mcp.conflict.noImageTool':
 		'当前模型的图片处理方式为 “MCP 工具”，但本会话没有可用的图片 MCP 工具，且未配置视觉代理。MCP 图片模式需要一个能读取本地图片的工具。请：（1）启用一个支持本地图片路径的 MCP 工具（如官方 zai-mcp-server）；或（2）通过 “glm-copilot.mcp.imageCapableTools” 添加聊天工具列表中的完整运行时 ID；或（3）配置视觉代理（在 “GLM: 管理模型与连接” 中设置视觉代理模型）。',
 };
 
@@ -526,7 +546,8 @@ const en: Translations = {
 	'manager.visionMode.nativeHint':
 		'Native images are resized before sending and share a 2.5 MiB image context budget.',
 	'manager.visionMode.mcp': 'MCP tools', // [FORK]
-	'manager.visionMode.mcpHint': // [FORK]
+	// [FORK]
+	'manager.visionMode.mcpHint':
 		'Images are stripped from the request and persisted to disk; only a short file-path prompt is left in the conversation. An image-capable MCP tool reads them on demand. Best for text-only models (e.g. a Claude-compatible text model behind the Anthropic endpoint) where base64 would waste context.',
 	'manager.field.contextWindow': 'Context window (tokens)',
 	'manager.field.maxOutput': 'Maximum output (tokens)',
@@ -770,13 +791,23 @@ const en: Translations = {
 		'Usage refresh failed for {0} connection channel(s); other results were updated.',
 	'usage.status.name': 'GLM usage',
 	'usage.status.title': 'GLM Coding Plan',
-	'usage.status.combinedTitle': 'GLM connection usage',
 	'usage.status.waiting': 'Waiting for Coding Plan usage to refresh.',
-	'usage.status.fiveHours': '5-hour usage',
-	'usage.status.sevenDays': 'Weekly usage',
-	'usage.status.used': 'used',
-	'usage.status.fiveHoursResetTime': '5-hour reset',
-	'usage.status.sevenDaysResetTime': 'Weekly reset',
+	'usage.status.session': 'Session',
+	'usage.status.weekly': 'Weekly',
+	'usage.status.mcpMonthlyQuota': 'Monthly MCP quota',
+	'usage.status.window.fiveHours': '5h rolling',
+	'usage.status.window.sevenDays': '7-day rolling',
+	'usage.status.window.monthly': 'Monthly',
+	'usage.tooltip.refresh': 'Refresh',
+	'usage.tooltip.settings': 'Settings',
+	'usage.tooltip.plan': 'Plan',
+	'usage.tooltip.renews': 'Renews',
+	'usage.tooltip.resetsIn': 'Resets in {0}',
+	'usage.tooltip.resetNow': 'Resetting now',
+	'usage.tooltip.duration.days': '{0}d',
+	'usage.tooltip.duration.hours': '{0}h',
+	'usage.tooltip.duration.minutes': '{0}m',
+	'usage.tooltip.lastUpdated': 'Last updated: {0}',
 	'usage.balance.title': 'GLM pay-as-you-go',
 	'usage.balance.waiting': 'Cost will appear after the next request completes.',
 	'usage.balance.lastRequest': 'Last request',
@@ -786,7 +817,6 @@ const en: Translations = {
 	'usage.balance.input': 'Input',
 	'usage.balance.cachedInput': 'Cached input',
 	'usage.balance.output': 'Output',
-
 	// Errors
 	'error.http.400':
 		'[{0}] Invalid request body format. Please modify your request body according to the hints in the error message.',
@@ -890,36 +920,47 @@ const en: Translations = {
 	'extension.welcomeFailed': 'Failed to show GLM welcome prompt',
 	'extension.openRequestDumpsFolderFailed':
 		'Failed to open request dumps folder. Run "GLM: Show Logs" for details.',
-	'command.resetCodingPlanPreset.confirm': // [FORK]
+	// [FORK]
+	'command.resetCodingPlanPreset.confirm':
 		'Reset the GLM Coding Plan one-click preset to defaults? Only items whose current values match the preset are reset: GLM-5.2 endpointRoute/visionMode, GLM-5-Turbo visionMode, the 4 built-in MCP server toggles, and stabilize tool list. Items you have manually modified are automatically skipped. Other custom settings (custom MCP servers, API keys, workspace-scoped settings, image prompts, …) are not affected.',
 	'command.resetCodingPlanPreset.confirmYes': 'Reset', // [FORK]
-	'command.resetCodingPlanPreset.done': // [FORK]
+	// [FORK]
+	'command.resetCodingPlanPreset.done':
 		'Reset the GLM Coding Plan preset to defaults ({0} item(s) reset).',
-	'command.resetCodingPlanPreset.partial': // [FORK]
+	// [FORK]
+	'command.resetCodingPlanPreset.partial':
 		'Partially reset the GLM Coding Plan preset ({0}/{1} item(s)). Failures:\n{2}',
-	'command.resetCodingPlanPreset.failed': // [FORK]
+	// [FORK]
+	'command.resetCodingPlanPreset.failed':
 		'Failed to reset the GLM Coding Plan preset ({0}/{1} item(s)). Reasons:\n{2}',
 	'command.resetCodingPlanPreset.skipped': 'Skipped item(s) ({0}) kept your manual edits.', // [FORK]
-	'command.applyCodingPlanPreset.confirm': // [FORK]
+	// [FORK]
+	'command.applyCodingPlanPreset.confirm':
 		'Apply the recommended setup for the GLM Coding Plan subscription? This writes user-level overrides: GLM-5.2 on the domestic Anthropic route + MCP vision mode, GLM-5-Turbo on MCP vision mode, all 4 built-in MCP servers enabled, and stabilize tool list enabled. Only user-scope configuration is affected; workspace settings are untouched.',
 	'command.applyCodingPlanPreset.confirmYes': 'Apply', // [FORK]
 	'command.applyCodingPlanPreset.done':
 		'Applied the recommended setup for the GLM Coding Plan subscription ({0} item(s) written).', // [FORK]
-	'command.applyCodingPlanPreset.partial': // [FORK]
+	// [FORK]
+	'command.applyCodingPlanPreset.partial':
 		'Applied the GLM Coding Plan recommended setup partially ({0}/{1} item(s) written). Failures:\n{2}',
-	'command.applyCodingPlanPreset.failed': // [FORK]
+	// [FORK]
+	'command.applyCodingPlanPreset.failed':
 		'Failed to apply the GLM Coding Plan recommended setup ({0}/{1} item(s) written). Reasons:\n{2}',
-	'command.cleanupStoredImages.confirm': // [FORK]
+	// [FORK]
+	'command.cleanupStoredImages.confirm':
 		'Delete all stored MCP images? This cannot be undone; other ongoing or future-replayed conversations may still reference these files.',
 	'command.cleanupStoredImages.confirmYes': 'Delete', // [FORK]
 	'command.cleanupStoredImages.done': 'Deleted {0} stored MCP image(s).', // [FORK]
 	'command.cleanupStoredImages.failed':
 		'Failed to clean up stored images. Run "GLM: Show Logs" for details.', // [FORK]
-	'vision.mcp.conflict.toolCallingDisabled': // [FORK]
+	// [FORK]
+	'vision.mcp.conflict.toolCallingDisabled':
 		'This model\'s vision mode is "MCP tool", but tool calling is disabled. MCP vision mode relies on tool calls to read local image files, so the two cannot be combined with tool calling off. Open "GLM: Manage Models and Connections" to enable tool calling for this model, or switch its vision mode to "Vision proxy / Native image".',
-	'vision.mcp.fallbackToProxy': // [FORK] PR #15 F2
+	// [FORK] PR #15 F2
+	'vision.mcp.fallbackToProxy':
 		'No image-capable MCP tool is available in this session; this request\'s images are being handled by the vision proxy instead. To use MCP image mode, enable a tool whose schema accepts a local image path (for example the official zai-mcp-server), or add the exact runtime tool ID via "glm-copilot.mcp.imageCapableTools".\n\n',
-	'vision.mcp.conflict.noImageTool': // [FORK] PR #15 F2
+	// [FORK] PR #15 F2
+	'vision.mcp.conflict.noImageTool':
 		'This model\'s vision mode is "MCP tool", but no image-capable MCP tool is available in this session and no vision proxy is configured. MCP image mode needs a tool whose schema can read the stored local image path. Either (1) enable an image-capable MCP tool (for example the official zai-mcp-server); (2) add the exact runtime tool ID via "glm-copilot.mcp.imageCapableTools"; or (3) configure a vision proxy (set a vision proxy model under "GLM: Manage Models and Connections").',
 };
 

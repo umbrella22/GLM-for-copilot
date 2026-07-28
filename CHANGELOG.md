@@ -1,5 +1,53 @@
 # Changelog
 
+## [0.11.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.10.1...v0.11.0) (2026-07-28)
+
+
+### Features
+
+* add BYOK utility model settings and enhance vision prompt handling ([263cd0e](https://github.com/umbrella22/GLM-for-copilot/commit/263cd0e7341a65d6331977cf681b8ebc2f34b32b))
+* Add GLM API pattern recognition and usage status update functionality ([d3761d2](https://github.com/umbrella22/GLM-for-copilot/commit/d3761d2ca85277dcc4635b70d663e1beb4e3ccf2))
+* add vision proxy panel styles and implement action URL handling ([0101028](https://github.com/umbrella22/GLM-for-copilot/commit/0101028586e9533742f2d21c499736bcab3024d7))
+* **commands:** add applyCodingPlanPreset one-click preset (stacked on [#15](https://github.com/umbrella22/GLM-for-copilot/issues/15)) ([ee25743](https://github.com/umbrella22/GLM-for-copilot/commit/ee257430f4db240c5cdd04347d2d4962d0afebc2))
+* **commands:** add applyCodingPlanPreset one-click preset command ([7cd6bd5](https://github.com/umbrella22/GLM-for-copilot/commit/7cd6bd5864c6e9d32cc0497e41184407609ce62a))
+* **commands:** add resetToDefaults to restore fork defaults ([#16](https://github.com/umbrella22/GLM-for-copilot/issues/16)) ([e985607](https://github.com/umbrella22/GLM-for-copilot/commit/e9856073a2bd077041c5102c5f8760cb7ab06026))
+* enhance configuration and command handling ([5b03555](https://github.com/umbrella22/GLM-for-copilot/commit/5b03555e11ddbfddd3582c16110f8ade892d4f15))
+* Enhance GLM usage tracking and reporting ([83339eb](https://github.com/umbrella22/GLM-for-copilot/commit/83339eb15fc6001d7a8c3e5555489f5f87cf6b65))
+* **mcp:** add MCP server provider + mcp vision mode ([339d0d1](https://github.com/umbrella22/GLM-for-copilot/commit/339d0d1001b6e0f61ce889791438d5d3776e0de3))
+* update ([008f641](https://github.com/umbrella22/GLM-for-copilot/commit/008f6419f233946b5fa80449fbeda99be0d65d76))
+* **vision,mcp:** strip image-capable MCP tools for non-mcp vision modes ([13914cb](https://github.com/umbrella22/GLM-for-copilot/commit/13914cb0d23c0d8083d2eabbcf5279b6369f0b3b))
+* **vision,mcp:** strip image-capable MCP tools for non-mcp vision modes ([#18](https://github.com/umbrella22/GLM-for-copilot/issues/18)) ([5248209](https://github.com/umbrella22/GLM-for-copilot/commit/5248209279c3ec1e9ac4788c2be01160c930f28e))
+
+
+### Bug Fixes
+
+* Add GLM business error code handling and related internationalization support ([74f1e92](https://github.com/umbrella22/GLM-for-copilot/commit/74f1e92dc825ea5b13632716a67edc7ab1a5f0a7))
+* **commands:** applyCodingPlanPreset reads user-scope config only ([#16](https://github.com/umbrella22/GLM-for-copilot/issues/16) F1) ([96a4af2](https://github.com/umbrella22/GLM-for-copilot/commit/96a4af2e286cd3650a47989eb86b1e49d9732825))
+* **commands:** preserve __proto__ model id via null-proto merge helper ([#16](https://github.com/umbrella22/GLM-for-copilot/issues/16) F3) ([41113fd](https://github.com/umbrella22/GLM-for-copilot/commit/41113fd88b4dd28e2dac88bbb3f21be54c236494))
+* **commands:** replace resetToDefaults with value-aware resetCodingPlanPreset ([#16](https://github.com/umbrella22/GLM-for-copilot/issues/16)) ([373c3bf](https://github.com/umbrella22/GLM-for-copilot/commit/373c3bf5e0c35208ff927b422509ab4173a5f482))
+* **commands:** surface partial-write failures in applyCodingPlanPreset ([#16](https://github.com/umbrella22/GLM-for-copilot/issues/16) F2) ([e0c20df](https://github.com/umbrella22/GLM-for-copilot/commit/e0c20dfc18fe2481d3a763ac2cd9b05adf6800d1))
+* enhance context usage reporting and diagnostics ([0c84b80](https://github.com/umbrella22/GLM-for-copilot/commit/0c84b8007e6e572b4c111fc38331fb97f2a3618d))
+* enhance message conversion logic and refactor currency handling in GLMChatProvider ([0195560](https://github.com/umbrella22/GLM-for-copilot/commit/01955600685d51899e40825c64400732d59f1bbd))
+* enhance replay marker handling and segment tracing ([1d7b9a2](https://github.com/umbrella22/GLM-for-copilot/commit/1d7b9a23a3eec08da41c4048dbb2f868ab84e5f0))
+* improve code formatting and structure in multiple files ([1922986](https://github.com/umbrella22/GLM-for-copilot/commit/1922986a2ef280886ab723a7e2e9ae98b092ee8c))
+* **mcp:** address [#15](https://github.com/umbrella22/GLM-for-copilot/issues/15) review findings F1-F7 ([b9eb154](https://github.com/umbrella22/GLM-for-copilot/commit/b9eb154bbf2f95291e5aacd313630e68519efb4d))
+* **mcp:** align public schema with parse capability ([#15](https://github.com/umbrella22/GLM-for-copilot/issues/15) F3) ([6fb3812](https://github.com/umbrella22/GLM-for-copilot/commit/6fb381220b99400b6810e76b4c6f95a402a82ce4))
+* **mcp:** correct MCP tool id format in image-capable detection ([#15](https://github.com/umbrella22/GLM-for-copilot/issues/15) F2 runtime) ([969773b](https://github.com/umbrella22/GLM-for-copilot/commit/969773b5d746371421fa1cb5c19c80575a0f87a2))
+* **mcp:** harden server and vision boundaries ([bb53f52](https://github.com/umbrella22/GLM-for-copilot/commit/bb53f52163d8d5e055a8a89829f0b446fe11980a))
+* **pr16-r3:** address legacy cleanup review — value-based reset + legacy field cleanup ([323d500](https://github.com/umbrella22/GLM-for-copilot/commit/323d5006c790e320e5a47b5580fbb6956deb13b0))
+* **pr16-r4:** canonical-only reset read + shared legacy eligibility ([9716df1](https://github.com/umbrella22/GLM-for-copilot/commit/9716df1148cbefa32e6b6edbf84074cfa63ca701))
+* **pr16-r5:** atomic legacy route/vision reset with rollback ([dfc6071](https://github.com/umbrella22/GLM-for-copilot/commit/dfc6071b379558bc508bc30f55eade623cb214b0))
+* Refactor pricing cost handling to use numeric values instead of formatted strings; update usage status to include additional quota metrics and improve tooltip rendering ([4624ece](https://github.com/umbrella22/GLM-for-copilot/commit/4624ecef148f6b56914b65c1c7b7fc60d40de3db))
+* Refactor stream handling and diagnostics migration ([f390e36](https://github.com/umbrella22/GLM-for-copilot/commit/f390e3693cffc723b356e7fccded59577cd0ef03))
+* revert version to 0.1.0 in package.json and release-please-manifest.json ([c1d749c](https://github.com/umbrella22/GLM-for-copilot/commit/c1d749c2b74bf02342a19baf0c14a4afb5978377))
+* update default values for publish options in rescue workflow ([a3907b0](https://github.com/umbrella22/GLM-for-copilot/commit/a3907b058455acf41b0fddd568d5e37cf92f8c82))
+* update devDependencies for @vscode/vsce and ovsx, and add minimumReleaseAgeExclude for ovsx ([096e96e](https://github.com/umbrella22/GLM-for-copilot/commit/096e96e92c09f80c7645ab56b9be3485858f2511))
+* update GitHub Actions workflows to use latest action versions an… ([eaba3af](https://github.com/umbrella22/GLM-for-copilot/commit/eaba3af43fc5eaf7b5038fcd88d3b453a86a1b37))
+* update GitHub Actions workflows to use latest action versions and improve pnpm setup ([9c2a4fe](https://github.com/umbrella22/GLM-for-copilot/commit/9c2a4fedeef46577ac576451e763da75d1a601e3))
+* update publisher name in package.json to 'ikaros' ([6967284](https://github.com/umbrella22/GLM-for-copilot/commit/69672845cacb75d1ed31e36411b2decb821bc8b1))
+* update remaining [#17](https://github.com/umbrella22/GLM-for-copilot/issues/17) references to [#18](https://github.com/umbrella22/GLM-for-copilot/issues/18) in comments ([#18](https://github.com/umbrella22/GLM-for-copilot/issues/18)) ([8812ccd](https://github.com/umbrella22/GLM-for-copilot/commit/8812ccd6d71fdc83cc559fc6652aff2311c15b15))
+* update workflows to use latest action versions and improve VSIX packaging process ([f32825e](https://github.com/umbrella22/GLM-for-copilot/commit/f32825e02c5e2c17ed84c2bfb02d3e38a9a2df75))
+
 ## [0.10.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.9.0...v0.10.0) (2026-07-25)
 
 

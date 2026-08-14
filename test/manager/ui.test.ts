@@ -27,17 +27,17 @@ function createState(): ManagerPanelState {
 		},
 		models: [
 			{
-				id: 'glm-5.2',
-				name: 'GLM-5.2 </script><script>fail()</script>',
-				apiModelId: 'glm-5.2',
+				id: 'glm-5.3',
+				name: 'GLM-5.3 </script><script>fail()</script>',
+				apiModelId: 'glm-5.3',
 				connectionLabel: 'Follow default',
 				visionMode: 'proxy',
 				visionModeLabel: 'Vision proxy',
 				status: { label: 'Ready', tone: 'success' },
 				isCustom: false,
 				draft: {
-					name: 'GLM-5.2',
-					apiModelId: 'glm-5.2',
+					name: 'GLM-5.3',
+					apiModelId: 'glm-5.3',
 					endpointRoute: 'default',
 					visionMode: 'proxy',
 				},
@@ -90,7 +90,7 @@ describe('model manager UI', () => {
 		expect(html).toContain('script-src &#39;nonce-');
 		expect(html).toContain('img-src vscode-webview://manager data:');
 		expect(html).not.toContain('</script><script>fail()');
-		expect(html).toContain('GLM-5.2 \\u003c/script>\\u003cscript>fail()\\u003c/script>');
+		expect(html).toContain('GLM-5.3 \\u003c/script>\\u003cscript>fail()\\u003c/script>');
 	});
 
 	it('keeps interactive motion explicit and accessible', () => {

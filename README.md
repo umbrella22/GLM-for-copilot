@@ -20,13 +20,13 @@
   <img src="resources/screenshots/01-picker.png" alt="GLM models in the Copilot Chat model picker, with the per-model Thinking Effort dropdown (None / High / Max)" width="800">
 </p>
 
-Love GLM's price-performance but don't want to give up GitHub Copilot's agent mode, tool calling, and polished UI? This extension drops **GLM-5.2, GLM-4.6V-Flash, GLM-5V-Turbo, and GLM-5-Turbo** straight into the Copilot Chat model selector — with **vision**, **thinking mode**, and your own API keys.
+Love GLM's price-performance but don't want to give up GitHub Copilot's agent mode, tool calling, and polished UI? This extension drops **GLM-5.3, GLM-4.6V-Flash, GLM-5V-Turbo, and GLM-5-Turbo** straight into the Copilot Chat model selector — with **vision**, **thinking mode**, and your own API keys.
 
 ## Why this extension?
 
 - **Don't replace Copilot — power it up.** No new sidebar, no new chat UI to learn. Just a new model in the picker you already use.
 - **Agent mode, tool calling, instructions, MCP, skills — all of it still works.** Copilot's entire stack, now running on GLM.
-- **Vision where each model needs it.** GLM-4.6V-Flash and GLM-5V-Turbo receive images directly by default. GLM-5.2 and GLM-5-Turbo use the transparent Vision Proxy, which describes images with GLM-4.6V-Flash before passing text along. You can also choose `mcp` mode per model to store images locally for a compatible MCP tool to read.
+- **Vision where each model needs it.** GLM-4.6V-Flash and GLM-5V-Turbo receive images directly by default. GLM-5.3 and GLM-5-Turbo use the transparent Vision Proxy, which describes images with GLM-4.6V-Flash before passing text along. You can also choose `mcp` mode per model to store images locally for a compatible MCP tool to read.
 - **Estimated per-turn cost.** When the GLM API returns usage, the extension estimates the official list-price cost, reports it to Copilot usage metadata, writes it to logs, and shows the latest turn in the status bar.
 - **BYOK, pay GLM directly.** Your API key, your bill, your rate limits. Stored in the OS keychain, never on disk.
 
@@ -40,7 +40,7 @@ All four models show up alongside GPT-4o, Claude, and friends in Copilot Chat's 
 
 When a model uses `proxy` mode, the automatic proxy asks GLM-4.6V-Flash to describe the screenshot before the selected model receives the prompt. If GLM-4.6V-Flash is unavailable on its configured endpoint, the extension falls back to another installed Copilot/VS Code vision model. You can also force a VS Code model or a custom API endpoint from **GLM: Open Vision Proxy in Model Manager**. GLM-4.6V-Flash and GLM-5V-Turbo use `native` mode by default and receive resized image data directly.
 
-This keeps GLM-5.2 focused on coding/reasoning while GLM-4.6V-Flash handles multimodal extraction.
+This keeps GLM-5.3 focused on coding/reasoning while GLM-4.6V-Flash handles multimodal extraction.
 
 <p align="center">
   <img src="resources/screenshots/03-vision.png" alt="Dropping an image into Copilot Chat and GLM responding to it via the vision proxy" width="800">
@@ -60,7 +60,7 @@ Because this plugs into Copilot's native provider API, you get the full stack fo
 - **Prompt caching stats** — GLM's cache hit rate logged in the output channel so you can see the savings
 
 <p align="center">
-  <img src="resources/screenshots/04-agent.png" alt="GLM-5.2 running Copilot's agent mode with tool calls" width="800">
+  <img src="resources/screenshots/04-agent.png" alt="GLM-5.3 running Copilot's agent mode with tool calls" width="800">
 </p>
 
 ### Secure by Default
@@ -100,12 +100,12 @@ Install from the registry used by your editor:
 
 ## Models
 
-| Model              | Best For                                           |
-| ------------------ | -------------------------------------------------- |
-| **GLM-5.2**        | Complex refactors, agent tasks, deep reasoning     |
-| **GLM-4.6V-Flash** | Multimodal questions, screenshots, visual context  |
-| **GLM-5V-Turbo**   | High-capacity native multimodal tasks via Standard API |
-| **GLM-5-Turbo**    | Fast everyday coding, quick edits, cheap iteration |
+| Model              | Best For                                                             |
+| ------------------ | -------------------------------------------------------------------- |
+| **GLM-5.3**        | Latest flagship — agentic coding, long-horizon tasks, deep reasoning |
+| **GLM-4.6V-Flash** | Multimodal questions, screenshots, visual context                    |
+| **GLM-5V-Turbo**   | High-capacity native multimodal tasks via Standard API               |
+| **GLM-5-Turbo**    | Fast everyday coding, quick edits, cheap iteration                   |
 
 All four support optional thinking mode and tool calling. GLM-5V-Turbo is available through the pay-as-you-go Standard API only; by default it follows the global endpoint region while using that region's Standard API key. GLM-4.6V-Flash and GLM-5V-Turbo receive images natively.
 
@@ -123,23 +123,23 @@ A custom Base URL is an optional compatibility override for models using the `de
 
 ### Advanced settings
 
-| Setting | Default | Description |
-| --- | --- | --- |
-| `glm-copilot.modelManagement` | `{ "version": 1 }` | Versioned manager state. Normal edits belong in **GLM: Manage Models and Connections**. The object supports `defaultConnection`, per-model `models` entries (`apiModelId`, `endpointRoute`, `visionMode`), and a `customModels` map. Values merge from User to Workspace to Workspace Folder; `customModels[id] = null` removes an inherited custom model. |
-| `glm-copilot.maxTokens` | `0` | Max output tokens (`0` = no limit). Useful for cost control. |
-| `glm-copilot.debugMode` | `minimal` | Diagnostic mode: token usage only, privacy-preserving metadata, or verbose request dumps under extension global storage. |
-| `glm-copilot.visionModel` | _(auto)_ | Compatibility value managed from the Vision Proxy view. New saves use `vendor/id`; legacy bare model IDs remain readable. |
-| `glm-copilot.visionPrompt` | _(built-in)_ | Prompt used to describe image attachments in proxy mode. |
-| `glm-copilot.imageHandlingPrompt` | _(built-in)_ | System instruction used in effective `mcp` mode, including text-only turns for prompt-cache stability. |
-| `glm-copilot.imageStoredPrompt` | _(built-in)_ | Per-image local-file prompt. `{0}` is the image label and `{1}` is the path. |
-| `glm-copilot.mcp.zai-mcp-server.enabled` | `false` | Application-level opt-in for the official stdio MCP server (includes vision tools). |
-| `glm-copilot.mcp.web-search-prime.enabled` | `false` | Application-level opt-in for the official HTTP web-search MCP server. |
-| `glm-copilot.mcp.web-reader.enabled` | `false` | Application-level opt-in for the official HTTP web-reader MCP server. |
-| `glm-copilot.mcp.zread.enabled` | `false` | Application-level opt-in for the official HTTP zread MCP server. |
-| `glm-copilot.mcp.imageCleanupMode` | `manual` | Keep stored images until **GLM: Clean Up Stored Images**, or opt into a 7-day TTL cleanup on activation. |
-| `glm-copilot.mcp.imageCapableTools` | `[]` | Exact runtime tool IDs to trust as image readers. Official tools are detected from their required local-image-path schema; do not use short names or guessed prefixes. |
-| `glm-copilot.mcp.servers` | `{}` | Advanced application-scoped overrides and complete custom server definitions. Built-in servers are defined by the extension; their `enabled` field here is ignored. |
-| `glm-copilot.experimental.stabilizeToolList` | `false` | Pre-activates available tools to make the GLM `tools` parameter more stable across turns. It can increase input tokens. |
+| Setting                                      | Default            | Description                                                                                                                                                                                                                                                                                                                                                |
+| -------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `glm-copilot.modelManagement`                | `{ "version": 1 }` | Versioned manager state. Normal edits belong in **GLM: Manage Models and Connections**. The object supports `defaultConnection`, per-model `models` entries (`apiModelId`, `endpointRoute`, `visionMode`), and a `customModels` map. Values merge from User to Workspace to Workspace Folder; `customModels[id] = null` removes an inherited custom model. |
+| `glm-copilot.maxTokens`                      | `0`                | Max output tokens (`0` = no limit). Useful for cost control.                                                                                                                                                                                                                                                                                               |
+| `glm-copilot.debugMode`                      | `minimal`          | Diagnostic mode: token usage only, privacy-preserving metadata, or verbose request dumps under extension global storage.                                                                                                                                                                                                                                   |
+| `glm-copilot.visionModel`                    | _(auto)_           | Compatibility value managed from the Vision Proxy view. New saves use `vendor/id`; legacy bare model IDs remain readable.                                                                                                                                                                                                                                  |
+| `glm-copilot.visionPrompt`                   | _(built-in)_       | Prompt used to describe image attachments in proxy mode.                                                                                                                                                                                                                                                                                                   |
+| `glm-copilot.imageHandlingPrompt`            | _(built-in)_       | System instruction used in effective `mcp` mode, including text-only turns for prompt-cache stability.                                                                                                                                                                                                                                                     |
+| `glm-copilot.imageStoredPrompt`              | _(built-in)_       | Per-image local-file prompt. `{0}` is the image label and `{1}` is the path.                                                                                                                                                                                                                                                                               |
+| `glm-copilot.mcp.zai-mcp-server.enabled`     | `false`            | Application-level opt-in for the official stdio MCP server (includes vision tools).                                                                                                                                                                                                                                                                        |
+| `glm-copilot.mcp.web-search-prime.enabled`   | `false`            | Application-level opt-in for the official HTTP web-search MCP server.                                                                                                                                                                                                                                                                                      |
+| `glm-copilot.mcp.web-reader.enabled`         | `false`            | Application-level opt-in for the official HTTP web-reader MCP server.                                                                                                                                                                                                                                                                                      |
+| `glm-copilot.mcp.zread.enabled`              | `false`            | Application-level opt-in for the official HTTP zread MCP server.                                                                                                                                                                                                                                                                                           |
+| `glm-copilot.mcp.imageCleanupMode`           | `manual`           | Keep stored images until **GLM: Clean Up Stored Images**, or opt into a 7-day TTL cleanup on activation.                                                                                                                                                                                                                                                   |
+| `glm-copilot.mcp.imageCapableTools`          | `[]`               | Exact runtime tool IDs to trust as image readers. Official tools are detected from their required local-image-path schema; do not use short names or guessed prefixes.                                                                                                                                                                                     |
+| `glm-copilot.mcp.servers`                    | `{}`               | Advanced application-scoped overrides and complete custom server definitions. Built-in servers are defined by the extension; their `enabled` field here is ignored.                                                                                                                                                                                        |
+| `glm-copilot.experimental.stabilizeToolList` | `false`            | Pre-activates available tools to make the GLM `tools` parameter more stable across turns. It can increase input tokens.                                                                                                                                                                                                                                    |
 
 Thinking Effort is configured from Copilot Chat's model picker for each GLM model.
 

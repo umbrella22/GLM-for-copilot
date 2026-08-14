@@ -57,7 +57,7 @@
   "glm-copilot.config.debugMode.verbose.label": "详细",
   "glm-copilot.config.debugMode.verbose.description": "包含敏感的提示词内容，仅供本地调试。",
   "glm-copilot.config.modelIdOverrides.description": "覆盖任意内置或自定义 GLM 模型实际发送到 API 的模型 ID。默认预填官方 GLM ID；只有 endpoint 需要不同 API 模型名时才需要为自定义模型添加映射。",
-  "glm-copilot.config.modelIdOverrides.glm-5.2.description": "GLM-5.2 的 API 模型 ID。",
+  "glm-copilot.config.modelIdOverrides.glm-5.3.description": "GLM-5.3 的 API 模型 ID。",
   "glm-copilot.config.modelIdOverrides.glm-4.6v-flash.description": "GLM-4.6V-Flash 的 API 模型 ID，也会用于自动视觉代理模式。",
   "glm-copilot.config.modelIdOverrides.glm-5v-turbo.description": "GLM-5V-Turbo 的 API 模型 ID。",
   "glm-copilot.config.modelIdOverrides.glm-5-turbo.description": "GLM-5-Turbo 的 API 模型 ID。",

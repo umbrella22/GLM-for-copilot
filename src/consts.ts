@@ -66,18 +66,19 @@ export const WALKTHROUGH_ID = 'umbrella22.glm-for-copilot#glmGettingStarted';
 /** Available GLM models exposed through the language model provider. */
 export const MODELS: ModelDefinition[] = [
 	{
-		id: 'glm-5.2',
-		name: 'GLM-5.2',
+		id: 'glm-5.3',
+		name: 'GLM-5.3',
 		family: 'glm',
-		version: '5.2',
-		detail: 'Flagship coding and reasoning model',
+		version: '5.3',
+		// Zhipu's latest flagship base model (official description).
+		detail: 'Latest flagship base model',
 		// Copilot treats input + output as one shared context window.
 		maxInputTokens: 868_928,
 		maxOutputTokens: 131_072,
 		capabilities: {
 			toolCalling: GLM_TOOLS_LIMIT,
 			// The extension accepts images for this model through the transparent
-			// GLM-4.6V-Flash vision proxy before sending text to GLM-5.2.
+			// GLM-4.6V-Flash vision proxy before sending text to GLM-5.3.
 			imageInput: true,
 			thinking: true,
 		},

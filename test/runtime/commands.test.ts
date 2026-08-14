@@ -143,7 +143,7 @@ describe('runtime commands — applyCodingPlanPreset (FORK)', () => {
 		expect(cfg.get('experimental.stabilizeToolList')).toBe(true);
 	});
 
-	it('writes Coding Plan model overrides for glm-5.2 and glm-5-turbo', async () => {
+	it('writes Coding Plan model overrides for glm-5.3 and glm-5-turbo', async () => {
 		__setWarningMessageButton('Apply');
 		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
 		await vscode.commands.executeCommand('glm-copilot.applyCodingPlanPreset');
@@ -154,8 +154,8 @@ describe('runtime commands — applyCodingPlanPreset (FORK)', () => {
 			'glm-copilot.modelManagement',
 			ConfigurationTarget.Global,
 		) as { models?: Record<string, { endpointRoute?: string; visionMode?: string }> };
-		expect(mm?.models?.['glm-5.2']?.endpointRoute).toBe('china-anthropic');
-		expect(mm?.models?.['glm-5.2']?.visionMode).toBe('mcp');
+		expect(mm?.models?.['glm-5.3']?.endpointRoute).toBe('china-anthropic');
+		expect(mm?.models?.['glm-5.3']?.visionMode).toBe('mcp');
 		expect(mm?.models?.['glm-5-turbo']?.visionMode).toBe('mcp');
 		// glm-5-turbo should NOT get a route override (only visionMode).
 		expect(mm?.models?.['glm-5-turbo']?.endpointRoute).toBeUndefined();
@@ -190,7 +190,7 @@ describe('runtime commands — applyCodingPlanPreset (FORK)', () => {
 		// Existing per-model override preserved.
 		expect(mm?.models?.['glm-4.6v-flash']).toMatchObject({ visionMode: 'native' });
 		// Preset added on top.
-		expect(mm?.models?.['glm-5.2']).toMatchObject({
+		expect(mm?.models?.['glm-5.3']).toMatchObject({
 			endpointRoute: 'china-anthropic',
 			visionMode: 'mcp',
 		});
@@ -220,7 +220,7 @@ describe('runtime commands — applyCodingPlanPreset (FORK)', () => {
 		// Workspace-only model is NOT promoted to Global.
 		expect(Object.prototype.hasOwnProperty.call(models, 'workspace-only-model')).toBe(false);
 		// Preset overrides are still applied at Global.
-		expect(models['glm-5.2']).toMatchObject({
+		expect(models['glm-5.3']).toMatchObject({
 			endpointRoute: 'china-anthropic',
 			visionMode: 'mcp',
 		});
@@ -355,7 +355,7 @@ describe('runtime commands — applyCodingPlanPreset (FORK)', () => {
 		expect(Object.prototype.hasOwnProperty.call(mm?.models, '__proto__')).toBe(true);
 		expect(mm?.models?.['__proto__']).toMatchObject({ visionMode: 'native' });
 		// Preset still applies on the known-safe keys.
-		expect(mm?.models?.['glm-5.2']).toMatchObject({
+		expect(mm?.models?.['glm-5.3']).toMatchObject({
 			endpointRoute: 'china-anthropic',
 			visionMode: 'mcp',
 		});
@@ -498,7 +498,7 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 				version: 1,
 				defaultConnection: { endpoint: 'china-standard' },
 				models: {
-					'glm-5.2': { endpointRoute: 'china-anthropic', visionMode: 'mcp' },
+					'glm-5.3': { endpointRoute: 'china-anthropic', visionMode: 'mcp' },
 					'glm-5-turbo': { visionMode: 'mcp' },
 					'glm-4.6v-flash': { visionMode: 'native' },
 				},
@@ -519,7 +519,7 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 			customModels?: Record<string, unknown>;
 		};
 		// Preset entries removed.
-		expect(mm?.models?.['glm-5.2']).toBeUndefined();
+		expect(mm?.models?.['glm-5.3']).toBeUndefined();
 		expect(mm?.models?.['glm-5-turbo']).toBeUndefined();
 		// Non-preset entry preserved.
 		expect(mm?.models?.['glm-4.6v-flash']).toMatchObject({ visionMode: 'native' });
@@ -528,14 +528,14 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 		expect(mm?.customModels?.['my-team-model']).toBeDefined();
 	});
 
-	it('keeps the glm-5.2 entry untouched when visionMode was changed by the user', async () => {
+	it('keeps the glm-5.3 entry untouched when visionMode was changed by the user', async () => {
 		// User changed visionMode from preset 'mcp' to 'native' but left endpointRoute alone.
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelManagement',
 			{
 				version: 1,
 				models: {
-					'glm-5.2': { endpointRoute: 'china-anthropic', visionMode: 'native' },
+					'glm-5.3': { endpointRoute: 'china-anthropic', visionMode: 'native' },
 				},
 			},
 			ConfigurationTarget.Global,
@@ -549,7 +549,7 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 			ConfigurationTarget.Global,
 		) as { models?: Record<string, { endpointRoute?: string; visionMode?: string }> };
 		// Subset didn't match → entire entry preserved (no field stripped).
-		expect(mm?.models?.['glm-5.2']).toEqual({
+		expect(mm?.models?.['glm-5.3']).toEqual({
 			endpointRoute: 'china-anthropic',
 			visionMode: 'native',
 		});
@@ -575,14 +575,14 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 		expect(mm?.models?.['glm-5-turbo']).toEqual({ visionMode: 'proxy' });
 	});
 
-	it('drops only preset fields when glm-5.2 has extra user fields (apiModelId)', async () => {
+	it('drops only preset fields when glm-5.3 has extra user fields (apiModelId)', async () => {
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelManagement',
 			{
 				version: 1,
 				models: {
-					'glm-5.2': {
-						apiModelId: 'custom-5.2-id',
+					'glm-5.3': {
+						apiModelId: 'custom-5.3-id',
 						endpointRoute: 'china-anthropic',
 						visionMode: 'mcp',
 					},
@@ -601,7 +601,7 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 			models?: Record<string, { apiModelId?: string; endpointRoute?: string; visionMode?: string }>;
 		};
 		// Preset fields removed, user-added apiModelId preserved.
-		expect(mm?.models?.['glm-5.2']).toEqual({ apiModelId: 'custom-5.2-id' });
+		expect(mm?.models?.['glm-5.3']).toEqual({ apiModelId: 'custom-5.3-id' });
 	});
 
 	it('skips stabilizeToolList when user set it to false (no preset match)', async () => {
@@ -657,7 +657,7 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 			{
 				version: 1,
 				models: {
-					'glm-5.2': { endpointRoute: 'china-anthropic', visionMode: 'mcp' },
+					'glm-5.3': { endpointRoute: 'china-anthropic', visionMode: 'mcp' },
 					'glm-5-turbo': { visionMode: 'mcp' },
 				},
 			},
@@ -667,12 +667,12 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 		// to write, then make those writes fail as well.
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelEndpointOverrides',
-			{ 'glm-5.2': 'china-anthropic' },
+			{ 'glm-5.3': 'china-anthropic' },
 			ConfigurationTarget.Global,
 		);
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelVisionModes',
-			{ 'glm-5.2': 'mcp', 'glm-5-turbo': 'mcp' },
+			{ 'glm-5.3': 'mcp', 'glm-5-turbo': 'mcp' },
 			ConfigurationTarget.Global,
 		);
 		// Force every update() to throw. The key is registered without a
@@ -726,12 +726,12 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 		// Legacy-only values matching the preset — no canonical modelManagement.
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelEndpointOverrides',
-			{ 'glm-5.2': 'china-anthropic', 'other-model': 'same-region-standard' },
+			{ 'glm-5.3': 'china-anthropic', 'other-model': 'same-region-standard' },
 			ConfigurationTarget.Global,
 		);
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelVisionModes',
-			{ 'glm-5.2': 'mcp', 'glm-5-turbo': 'mcp' },
+			{ 'glm-5.3': 'mcp', 'glm-5-turbo': 'mcp' },
 			ConfigurationTarget.Global,
 		);
 		__setWarningMessageButton('Reset');
@@ -743,7 +743,7 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 			'glm-copilot.modelEndpointOverrides',
 			ConfigurationTarget.Global,
 		) as Record<string, unknown> | undefined;
-		expect(ep?.['glm-5.2']).toBeUndefined();
+		expect(ep?.['glm-5.3']).toBeUndefined();
 		// Non-preset model entry preserved.
 		expect(ep?.['other-model']).toBe('same-region-standard');
 
@@ -751,7 +751,7 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 			'glm-copilot.modelVisionModes',
 			ConfigurationTarget.Global,
 		) as Record<string, unknown> | undefined;
-		expect(vm?.['glm-5.2']).toBeUndefined();
+		expect(vm?.['glm-5.3']).toBeUndefined();
 		expect(vm?.['glm-5-turbo']).toBeUndefined();
 	});
 
@@ -762,7 +762,7 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 			{
 				version: 1,
 				models: {
-					'glm-5.2': { endpointRoute: 'china-anthropic', visionMode: 'mcp' },
+					'glm-5.3': { endpointRoute: 'china-anthropic', visionMode: 'mcp' },
 					'glm-5-turbo': { visionMode: 'mcp' },
 				},
 			},
@@ -770,12 +770,12 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 		);
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelEndpointOverrides',
-			{ 'glm-5.2': 'china-anthropic' },
+			{ 'glm-5.3': 'china-anthropic' },
 			ConfigurationTarget.Global,
 		);
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelVisionModes',
-			{ 'glm-5.2': 'mcp', 'glm-5-turbo': 'mcp' },
+			{ 'glm-5.3': 'mcp', 'glm-5-turbo': 'mcp' },
 			ConfigurationTarget.Global,
 		);
 		__setWarningMessageButton('Reset');
@@ -822,12 +822,12 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 		// Seed matching legacy values and force modelVisionModes write to fail.
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelEndpointOverrides',
-			{ 'glm-5.2': 'china-anthropic' },
+			{ 'glm-5.3': 'china-anthropic' },
 			ConfigurationTarget.Global,
 		);
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelVisionModes',
-			{ 'glm-5.2': 'mcp', 'glm-5-turbo': 'mcp' },
+			{ 'glm-5.3': 'mcp', 'glm-5-turbo': 'mcp' },
 			ConfigurationTarget.Global,
 		);
 		__setConfigurationUpdateFailure('glm-copilot.modelVisionModes');
@@ -845,13 +845,13 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 			'glm-copilot.modelEndpointOverrides',
 			ConfigurationTarget.Global,
 		) as Record<string, unknown> | undefined;
-		expect(ep?.['glm-5.2']).toBe('china-anthropic');
+		expect(ep?.['glm-5.3']).toBe('china-anthropic');
 		// modelVisionModes retain their original values too.
 		const vm = __getConfigurationValueAtScope(
 			'glm-copilot.modelVisionModes',
 			ConfigurationTarget.Global,
 		) as Record<string, unknown> | undefined;
-		expect(vm?.['glm-5.2']).toBe('mcp');
+		expect(vm?.['glm-5.3']).toBe('mcp');
 		expect(vm?.['glm-5-turbo']).toBe('mcp');
 	});
 
@@ -861,12 +861,12 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 		// up fully cleaned, proving the rollback left no stuck half-state.
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelEndpointOverrides',
-			{ 'glm-5.2': 'china-anthropic' },
+			{ 'glm-5.3': 'china-anthropic' },
 			ConfigurationTarget.Global,
 		);
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelVisionModes',
-			{ 'glm-5.2': 'mcp', 'glm-5-turbo': 'mcp' },
+			{ 'glm-5.3': 'mcp', 'glm-5-turbo': 'mcp' },
 			ConfigurationTarget.Global,
 		);
 		__setConfigurationUpdateFailure('glm-copilot.modelVisionModes');
@@ -881,7 +881,7 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 					'glm-copilot.modelEndpointOverrides',
 					ConfigurationTarget.Global,
 				) as Record<string, unknown> | undefined
-			)?.['glm-5.2'],
+			)?.['glm-5.3'],
 		).toBe('china-anthropic');
 
 		// Clear the failure and retry.
@@ -900,7 +900,7 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 			'glm-copilot.modelVisionModes',
 			ConfigurationTarget.Global,
 		) as Record<string, unknown> | undefined;
-		expect(vm?.['glm-5.2']).toBeUndefined();
+		expect(vm?.['glm-5.3']).toBeUndefined();
 		expect(vm?.['glm-5-turbo']).toBeUndefined();
 	});
 
@@ -909,12 +909,12 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 		// attempted, so vision stays at its original value untouched.
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelEndpointOverrides',
-			{ 'glm-5.2': 'china-anthropic' },
+			{ 'glm-5.3': 'china-anthropic' },
 			ConfigurationTarget.Global,
 		);
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelVisionModes',
-			{ 'glm-5.2': 'mcp', 'glm-5-turbo': 'mcp' },
+			{ 'glm-5.3': 'mcp', 'glm-5-turbo': 'mcp' },
 			ConfigurationTarget.Global,
 		);
 		__setConfigurationUpdateFailure('glm-copilot.modelEndpointOverrides');
@@ -930,13 +930,13 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 			'glm-copilot.modelEndpointOverrides',
 			ConfigurationTarget.Global,
 		) as Record<string, unknown> | undefined;
-		expect(ep?.['glm-5.2']).toBe('china-anthropic');
+		expect(ep?.['glm-5.3']).toBe('china-anthropic');
 		// Vision write was not attempted → original values preserved.
 		const vm = __getConfigurationValueAtScope(
 			'glm-copilot.modelVisionModes',
 			ConfigurationTarget.Global,
 		) as Record<string, unknown> | undefined;
-		expect(vm?.['glm-5.2']).toBe('mcp');
+		expect(vm?.['glm-5.3']).toBe('mcp');
 		expect(vm?.['glm-5-turbo']).toBe('mcp');
 	});
 
@@ -979,18 +979,18 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 		expect(vm?.['other-model']).toBe('native');
 	});
 
-	it('preserves glm-5.2 legacy entries when route matches but vision does not (R4 F2a)', async () => {
-		// glm-5.2: route=china-anthropic + vision=native → subset does NOT
-		// match. The legacy path must keep BOTH maps intact for glm-5.2,
+	it('preserves glm-5.3 legacy entries when route matches but vision does not (R4 F2a)', async () => {
+		// glm-5.3: route=china-anthropic + vision=native → subset does NOT
+		// match. The legacy path must keep BOTH maps intact for glm-5.3,
 		// mirroring the canonical subset rule.
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelEndpointOverrides',
-			{ 'glm-5.2': 'china-anthropic' },
+			{ 'glm-5.3': 'china-anthropic' },
 			ConfigurationTarget.Global,
 		);
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelVisionModes',
-			{ 'glm-5.2': 'native' },
+			{ 'glm-5.3': 'native' },
 			ConfigurationTarget.Global,
 		);
 		__setWarningMessageButton('Reset');
@@ -1005,23 +1005,23 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 			'glm-copilot.modelVisionModes',
 			ConfigurationTarget.Global,
 		) as Record<string, unknown> | undefined;
-		// Neither map should lose its glm-5.2 entry — the dual-field preset
+		// Neither map should lose its glm-5.3 entry — the dual-field preset
 		// match failed, so both halves stay.
-		expect(ep?.['glm-5.2']).toBe('china-anthropic');
-		expect(vm?.['glm-5.2']).toBe('native');
+		expect(ep?.['glm-5.3']).toBe('china-anthropic');
+		expect(vm?.['glm-5.3']).toBe('native');
 	});
 
-	it('preserves glm-5.2 legacy entries when vision matches but route does not (R4 F2b)', async () => {
-		// glm-5.2: route=china-standard + vision=mcp → subset does NOT match.
-		// The legacy path must keep BOTH maps intact for glm-5.2.
+	it('preserves glm-5.3 legacy entries when vision matches but route does not (R4 F2b)', async () => {
+		// glm-5.3: route=china-standard + vision=mcp → subset does NOT match.
+		// The legacy path must keep BOTH maps intact for glm-5.3.
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelEndpointOverrides',
-			{ 'glm-5.2': 'china-standard' },
+			{ 'glm-5.3': 'china-standard' },
 			ConfigurationTarget.Global,
 		);
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelVisionModes',
-			{ 'glm-5.2': 'mcp' },
+			{ 'glm-5.3': 'mcp' },
 			ConfigurationTarget.Global,
 		);
 		__setWarningMessageButton('Reset');
@@ -1036,8 +1036,8 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 			'glm-copilot.modelVisionModes',
 			ConfigurationTarget.Global,
 		) as Record<string, unknown> | undefined;
-		expect(ep?.['glm-5.2']).toBe('china-standard');
-		expect(vm?.['glm-5.2']).toBe('mcp');
+		expect(ep?.['glm-5.3']).toBe('china-standard');
+		expect(vm?.['glm-5.3']).toBe('mcp');
 	});
 
 	it('does not promote legacy siblings to canonical when canonical already has preset entries', async () => {
@@ -1051,7 +1051,7 @@ describe('runtime commands — resetCodingPlanPreset (FORK)', () => {
 			{
 				version: 1,
 				models: {
-					'glm-5.2': { endpointRoute: 'china-anthropic', visionMode: 'mcp' },
+					'glm-5.3': { endpointRoute: 'china-anthropic', visionMode: 'mcp' },
 					'glm-5-turbo': { visionMode: 'mcp' },
 				},
 			},

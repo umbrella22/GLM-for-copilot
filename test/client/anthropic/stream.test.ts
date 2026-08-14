@@ -33,7 +33,7 @@ describe('Anthropic stream usage', () => {
 			createReader([
 				{
 					type: 'message_start',
-					message: { id: 'msg_1', model: 'glm-5.2', usage: { input_tokens: 0 } },
+					message: { id: 'msg_1', model: 'glm-5.3', usage: { input_tokens: 0 } },
 				},
 				{
 					type: 'message_delta',
@@ -67,7 +67,7 @@ describe('Anthropic stream usage', () => {
 					type: 'message_start',
 					message: {
 						id: 'msg_1',
-						model: 'glm-5.2',
+						model: 'glm-5.3',
 						usage: { input_tokens: 100, cache_read_input_tokens: 40 },
 					},
 				},

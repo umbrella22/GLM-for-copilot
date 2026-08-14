@@ -20,13 +20,13 @@
   <img src="resources/screenshots/01-picker.png" alt="GLM 模型出现在 Copilot Chat 模型选择器中，带有可按模型独立设置的思考深度下拉菜单（停用 / 标准 / 深度）" width="800">
 </p>
 
-喜欢 GLM 的性价比，但不想放弃 GitHub Copilot 的 Agent 模式、工具调用和成熟的交互体验？本扩展将 **GLM-5.2、GLM-4.6V-Flash、GLM-5V-Turbo 和 GLM-5-Turbo** 直接接入 Copilot Chat 模型选择器，支持**视觉识别**、**思考模式**，使用你自己的 API Key。
+喜欢 GLM 的性价比，但不想放弃 GitHub Copilot 的 Agent 模式、工具调用和成熟的交互体验？本扩展将 **GLM-5.3、GLM-4.6V-Flash、GLM-5V-Turbo 和 GLM-5-Turbo** 直接接入 Copilot Chat 模型选择器，支持**视觉识别**、**思考模式**，使用你自己的 API Key。
 
 ## 为什么选这个扩展？
 
 - **不是替换 Copilot，而是增强它。** 没有新的侧边栏，没有新的聊天界面需要学习。只是在你已经在用的模型选择器中多了一个选项。
 - **Agent 模式、工具调用、Instructions、MCP、Skills——全部正常运作。** Copilot 的完整能力栈，现在跑在 GLM 上。
-- **按模型需要处理视觉任务。** GLM-4.6V-Flash 和 GLM-5V-Turbo 默认直接接收图片；GLM-5.2 和 GLM-5-Turbo 默认通过透明视觉代理将图片转换为描述。每个模型也可单独选择 `mcp` 模式，将图片存储到本地供兼容的 MCP 工具读取。
+- **按模型需要处理视觉任务。** GLM-4.6V-Flash 和 GLM-5V-Turbo 默认直接接收图片；GLM-5.3 和 GLM-5-Turbo 默认通过透明视觉代理将图片转换为描述。每个模型也可单独选择 `mcp` 模式，将图片存储到本地供兼容的 MCP 工具读取。
 - **按轮次估算费用。** 当 GLM API 返回 usage 时，扩展会按官方标价估算本轮费用，上报到 Copilot usage 元数据、写入日志，并在状态栏显示最近一轮费用。
 - **需自行提供 API Key，直接向 GLM 付费。** 你的 API Key，你的账单，你的速率限制。密钥存储在操作系统密钥链中，不会以明文形式写入磁盘。
 
@@ -40,7 +40,7 @@
 
 模型使用 `proxy` 模式时，自动视觉代理会优先让 GLM-4.6V-Flash 描述图片，再把描述交给当前选中的 GLM 模型。如果 GLM-4.6V-Flash 在其配置端点不可用，则回退到已安装的 Copilot/VS Code 视觉模型。你也可以通过 **GLM: 在模型管理中打开视觉代理** 强制选择 VS Code 模型或自定义 API 端点。GLM-4.6V-Flash 和 GLM-5V-Turbo 默认使用 `native` 模式，直接接收缩放后的图片数据。
 
-这样 GLM-5.2 可以继续专注编码与推理，视觉抽取交给 GLM-4.6V-Flash。
+这样 GLM-5.3 可以继续专注编码与推理，视觉抽取交给 GLM-4.6V-Flash。
 
 <p align="center">
   <img src="resources/screenshots/03-vision.png" alt="将图片拖入 Copilot Chat，GLM 通过视觉代理响应" width="800">
@@ -60,7 +60,7 @@
 - **Prompt 缓存统计**——在输出通道中记录 GLM 缓存命中率，直观看到成本节省
 
 <p align="center">
-  <img src="resources/screenshots/04-agent.png" alt="GLM-5.2 运行 Copilot 的 Agent 模式，执行工具调用" width="800">
+  <img src="resources/screenshots/04-agent.png" alt="GLM-5.3 运行 Copilot 的 Agent 模式，执行工具调用" width="800">
 </p>
 
 ### 安全优先
@@ -100,12 +100,12 @@
 
 ## 模型
 
-| 模型               | 适用场景                         |
-| ------------------ | -------------------------------- |
-| **GLM-5.2**        | 复杂重构、Agent 任务、深度推理   |
-| **GLM-4.6V-Flash** | 多模态问答、截图理解、视觉上下文 |
-| **GLM-5V-Turbo**   | 通过标准 API 执行高容量原生多模态任务 |
-| **GLM-5-Turbo**    | 日常快速编码、小改动、低成本迭代 |
+| 模型               | 适用场景                                      |
+| ------------------ | --------------------------------------------- |
+| **GLM-5.3**        | 最新旗舰模型 — Agent 编程、长期任务、深度推理 |
+| **GLM-4.6V-Flash** | 多模态问答、截图理解、视觉上下文              |
+| **GLM-5V-Turbo**   | 通过标准 API 执行高容量原生多模态任务         |
+| **GLM-5-Turbo**    | 日常快速编码、小改动、低成本迭代              |
 
 四者均支持可选的思考模式和工具调用。GLM-5V-Turbo 仅通过按量付费标准 API 提供；默认跟随全局 endpoint 的地区，并使用该地区的标准 API Key。GLM-4.6V-Flash 和 GLM-5V-Turbo 默认直接接收图片。
 
@@ -123,23 +123,23 @@
 
 ### 高级设置
 
-| 设置项 | 默认值 | 说明 |
-| --- | --- | --- |
-| `glm-copilot.modelManagement` | `{ "version": 1 }` | 版本化管理页状态。常规修改应在 **GLM: 管理模型与连接** 中完成。对象包含 `defaultConnection`、按模型记录的 `models`（`apiModelId`、`endpointRoute`、`visionMode`）和 `customModels` 映射。配置按用户、工作区、工作区文件夹合并；`customModels[id] = null` 可删除继承的自定义模型。 |
-| `glm-copilot.maxTokens` | `0` | 最大输出 Token 数（`0` = 不限制），可用于成本控制。 |
-| `glm-copilot.debugMode` | `minimal` | 诊断模式：仅 Token 用量、隐私安全元数据或扩展全局存储中的详细请求 dump。 |
-| `glm-copilot.visionModel` | _(自动)_ | 由视觉代理视图维护的兼容值。新版保存为 `vendor/id`，旧版裸模型 ID 仍可读取。 |
-| `glm-copilot.visionPrompt` | _(内置)_ | 代理图片模式用于描述图片附件的提示词。 |
-| `glm-copilot.imageHandlingPrompt` | _(内置)_ | 生效的 `mcp` 模式使用的系统提示词，包括纯文本回合（用于保持 prompt cache 稳定）。 |
-| `glm-copilot.imageStoredPrompt` | _(内置)_ | 单张图片的本地文件提示词；`{0}` 是图片标签，`{1}` 是文件路径。 |
-| `glm-copilot.mcp.zai-mcp-server.enabled` | `false` | 官方 stdio MCP 服务的应用级显式开关（含视觉工具）。 |
-| `glm-copilot.mcp.web-search-prime.enabled` | `false` | 官方 HTTP 网页搜索 MCP 服务的应用级显式开关。 |
-| `glm-copilot.mcp.web-reader.enabled` | `false` | 官方 HTTP 网页读取 MCP 服务的应用级显式开关。 |
-| `glm-copilot.mcp.zread.enabled` | `false` | 官方 HTTP zread MCP 服务的应用级显式开关。 |
-| `glm-copilot.mcp.imageCleanupMode` | `manual` | 保留图片直到运行 **GLM: 清理已存储的图片**，或选择激活时执行 7 天 TTL 清理。 |
-| `glm-copilot.mcp.imageCapableTools` | `[]` | 显式信任的完整运行时工具 ID。官方工具根据必需的本地图片路径 schema 自动识别，不要填写短名或猜测前缀。 |
-| `glm-copilot.mcp.servers` | `{}` | 应用级高级覆盖和完整的自定义服务定义。内置服务由扩展代码定义，此处的 `enabled` 会被忽略。 |
-| `glm-copilot.experimental.stabilizeToolList` | `false` | 预先激活可用工具，使多轮请求中的 GLM `tools` 参数更稳定；可能增加 input tokens。 |
+| 设置项                                       | 默认值             | 说明                                                                                                                                                                                                                                                                              |
+| -------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `glm-copilot.modelManagement`                | `{ "version": 1 }` | 版本化管理页状态。常规修改应在 **GLM: 管理模型与连接** 中完成。对象包含 `defaultConnection`、按模型记录的 `models`（`apiModelId`、`endpointRoute`、`visionMode`）和 `customModels` 映射。配置按用户、工作区、工作区文件夹合并；`customModels[id] = null` 可删除继承的自定义模型。 |
+| `glm-copilot.maxTokens`                      | `0`                | 最大输出 Token 数（`0` = 不限制），可用于成本控制。                                                                                                                                                                                                                               |
+| `glm-copilot.debugMode`                      | `minimal`          | 诊断模式：仅 Token 用量、隐私安全元数据或扩展全局存储中的详细请求 dump。                                                                                                                                                                                                          |
+| `glm-copilot.visionModel`                    | _(自动)_           | 由视觉代理视图维护的兼容值。新版保存为 `vendor/id`，旧版裸模型 ID 仍可读取。                                                                                                                                                                                                      |
+| `glm-copilot.visionPrompt`                   | _(内置)_           | 代理图片模式用于描述图片附件的提示词。                                                                                                                                                                                                                                            |
+| `glm-copilot.imageHandlingPrompt`            | _(内置)_           | 生效的 `mcp` 模式使用的系统提示词，包括纯文本回合（用于保持 prompt cache 稳定）。                                                                                                                                                                                                 |
+| `glm-copilot.imageStoredPrompt`              | _(内置)_           | 单张图片的本地文件提示词；`{0}` 是图片标签，`{1}` 是文件路径。                                                                                                                                                                                                                    |
+| `glm-copilot.mcp.zai-mcp-server.enabled`     | `false`            | 官方 stdio MCP 服务的应用级显式开关（含视觉工具）。                                                                                                                                                                                                                               |
+| `glm-copilot.mcp.web-search-prime.enabled`   | `false`            | 官方 HTTP 网页搜索 MCP 服务的应用级显式开关。                                                                                                                                                                                                                                     |
+| `glm-copilot.mcp.web-reader.enabled`         | `false`            | 官方 HTTP 网页读取 MCP 服务的应用级显式开关。                                                                                                                                                                                                                                     |
+| `glm-copilot.mcp.zread.enabled`              | `false`            | 官方 HTTP zread MCP 服务的应用级显式开关。                                                                                                                                                                                                                                        |
+| `glm-copilot.mcp.imageCleanupMode`           | `manual`           | 保留图片直到运行 **GLM: 清理已存储的图片**，或选择激活时执行 7 天 TTL 清理。                                                                                                                                                                                                      |
+| `glm-copilot.mcp.imageCapableTools`          | `[]`               | 显式信任的完整运行时工具 ID。官方工具根据必需的本地图片路径 schema 自动识别，不要填写短名或猜测前缀。                                                                                                                                                                             |
+| `glm-copilot.mcp.servers`                    | `{}`               | 应用级高级覆盖和完整的自定义服务定义。内置服务由扩展代码定义，此处的 `enabled` 会被忽略。                                                                                                                                                                                         |
+| `glm-copilot.experimental.stabilizeToolList` | `false`            | 预先激活可用工具，使多轮请求中的 GLM `tools` 参数更稳定；可能增加 input tokens。                                                                                                                                                                                                  |
 
 思考深度可通过 Copilot Chat 的模型选择器对每个 GLM 模型单独设置。
 

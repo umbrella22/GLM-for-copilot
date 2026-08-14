@@ -57,7 +57,7 @@
   "glm-copilot.config.debugMode.verbose.label": "Verbose",
   "glm-copilot.config.debugMode.verbose.description": "Contains sensitive prompt content. For local debugging only.",
   "glm-copilot.config.modelIdOverrides.description": "Override the API model ID sent for any built-in or custom GLM model. Defaults are prefilled with official GLM IDs; add custom model keys only when the endpoint expects a different API model name.",
-  "glm-copilot.config.modelIdOverrides.glm-5.2.description": "API model ID for GLM-5.2.",
+  "glm-copilot.config.modelIdOverrides.glm-5.3.description": "API model ID for GLM-5.3.",
   "glm-copilot.config.modelIdOverrides.glm-4.6v-flash.description": "API model ID for GLM-4.6V-Flash, also used by automatic vision proxy mode.",
   "glm-copilot.config.modelIdOverrides.glm-5v-turbo.description": "API model ID for GLM-5V-Turbo.",
   "glm-copilot.config.modelIdOverrides.glm-5-turbo.description": "API model ID for GLM-5-Turbo.",

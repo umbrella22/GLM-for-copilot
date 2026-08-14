@@ -186,7 +186,7 @@ describe('model manager state', () => {
 			{
 				version: 1,
 				models: {
-					'glm-5.2': {
+					'glm-5.3': {
 						endpointRoute: 'international-standard',
 						visionMode: 'native',
 					},
@@ -195,9 +195,9 @@ describe('model manager state', () => {
 			ConfigurationTarget.Global,
 		);
 
-		await saveManagedModel('workspace', undefined, 'glm-5.2', {
-			name: 'GLM-5.2',
-			apiModelId: 'workspace-glm-5.2',
+		await saveManagedModel('workspace', undefined, 'glm-5.3', {
+			name: 'GLM-5.3',
+			apiModelId: 'workspace-glm-5.3',
 			endpointRoute: 'international-standard',
 			visionMode: 'native',
 		});
@@ -206,7 +206,7 @@ describe('model manager state', () => {
 			__getConfigurationValueAtScope('glm-copilot.modelManagement', ConfigurationTarget.Workspace),
 		).toEqual({
 			version: 1,
-			models: { 'glm-5.2': { apiModelId: 'workspace-glm-5.2' } },
+			models: { 'glm-5.3': { apiModelId: 'workspace-glm-5.3' } },
 		});
 
 		__setConfigurationValueAtScope(
@@ -214,7 +214,7 @@ describe('model manager state', () => {
 			{
 				version: 1,
 				models: {
-					'glm-5.2': {
+					'glm-5.3': {
 						endpointRoute: 'china-standard',
 						visionMode: 'proxy',
 					},
@@ -223,9 +223,9 @@ describe('model manager state', () => {
 			ConfigurationTarget.Global,
 		);
 
-		expect(getApiModelId('glm-5.2')).toBe('workspace-glm-5.2');
-		expect(getModelEndpointRoute('glm-5.2')).toBe('china-standard');
-		expect(getModelVisionMode('glm-5.2')).toBe('proxy');
+		expect(getApiModelId('glm-5.3')).toBe('workspace-glm-5.3');
+		expect(getModelEndpointRoute('glm-5.3')).toBe('china-standard');
+		expect(getModelVisionMode('glm-5.3')).toBe('proxy');
 	});
 
 	it('persists explicit default route and proxy choices instead of treating them as inheritance', async () => {
@@ -234,7 +234,7 @@ describe('model manager state', () => {
 			{
 				version: 1,
 				models: {
-					'glm-5.2': {
+					'glm-5.3': {
 						endpointRoute: 'china-standard',
 						visionMode: 'native',
 					},
@@ -243,9 +243,9 @@ describe('model manager state', () => {
 			ConfigurationTarget.Global,
 		);
 
-		await saveManagedModel('workspace', undefined, 'glm-5.2', {
-			name: 'GLM-5.2',
-			apiModelId: 'glm-5.2',
+		await saveManagedModel('workspace', undefined, 'glm-5.3', {
+			name: 'GLM-5.3',
+			apiModelId: 'glm-5.3',
 			endpointRoute: 'default',
 			visionMode: 'proxy',
 		});
@@ -255,11 +255,11 @@ describe('model manager state', () => {
 		).toEqual({
 			version: 1,
 			models: {
-				'glm-5.2': { endpointRoute: 'default', visionMode: 'proxy' },
+				'glm-5.3': { endpointRoute: 'default', visionMode: 'proxy' },
 			},
 		});
-		expect(getModelEndpointRoute('glm-5.2')).toBe('default');
-		expect(getModelVisionMode('glm-5.2')).toBe('proxy');
+		expect(getModelEndpointRoute('glm-5.3')).toBe('default');
+		expect(getModelVisionMode('glm-5.3')).toBe('proxy');
 	});
 
 	it('preserves current-scope explicit route and vision fields when another field changes', async () => {
@@ -268,14 +268,14 @@ describe('model manager state', () => {
 			{
 				version: 1,
 				models: {
-					'glm-5.2': { endpointRoute: 'default', visionMode: 'proxy' },
+					'glm-5.3': { endpointRoute: 'default', visionMode: 'proxy' },
 				},
 			},
 			ConfigurationTarget.Workspace,
 		);
 
-		await saveManagedModel('workspace', undefined, 'glm-5.2', {
-			name: 'GLM-5.2',
+		await saveManagedModel('workspace', undefined, 'glm-5.3', {
+			name: 'GLM-5.3',
 			apiModelId: 'workspace-provider-id',
 			endpointRoute: 'default',
 			visionMode: 'proxy',
@@ -286,7 +286,7 @@ describe('model manager state', () => {
 		).toEqual({
 			version: 1,
 			models: {
-				'glm-5.2': {
+				'glm-5.3': {
 					apiModelId: 'workspace-provider-id',
 					endpointRoute: 'default',
 					visionMode: 'proxy',
@@ -591,19 +591,19 @@ describe('model manager state', () => {
 		__setWorkspaceFolders([resource]);
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelIdOverrides',
-			{ ' glm-5.2 ': 'legacy-id', sibling: 'keep-me' },
+			{ ' glm-5.3 ': 'legacy-id', sibling: 'keep-me' },
 			ConfigurationTarget.WorkspaceFolder,
 			resource,
 		);
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelEndpointOverrides',
-			{ ' glm-5.2 ': 'international-standard' },
+			{ ' glm-5.3 ': 'international-standard' },
 			ConfigurationTarget.WorkspaceFolder,
 			resource,
 		);
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelVisionModes',
-			{ ' glm-5.2 ': 'native' },
+			{ ' glm-5.3 ': 'native' },
 			ConfigurationTarget.WorkspaceFolder,
 			resource,
 		);
@@ -616,14 +616,14 @@ describe('model manager state', () => {
 			activeView: 'models',
 			vision,
 		});
-		expect(state.models.find((model) => model.id === 'glm-5.2')).toMatchObject({
+		expect(state.models.find((model) => model.id === 'glm-5.3')).toMatchObject({
 			apiModelId: 'legacy-id',
 			visionMode: 'native',
 			canReset: true,
 			valueSourceLabel: 'Current workspace folder',
 		});
 
-		await resetManagedModel('workspace-folder', resource, 'glm-5.2');
+		await resetManagedModel('workspace-folder', resource, 'glm-5.3');
 
 		expect(
 			__getConfigurationValueAtScope(
@@ -654,8 +654,8 @@ describe('model manager state', () => {
 			activeView: 'models',
 			vision,
 		});
-		expect(state.models.find((model) => model.id === 'glm-5.2')).toMatchObject({
-			apiModelId: 'glm-5.2',
+		expect(state.models.find((model) => model.id === 'glm-5.3')).toMatchObject({
+			apiModelId: 'glm-5.3',
 			visionMode: 'proxy',
 			canReset: false,
 		});

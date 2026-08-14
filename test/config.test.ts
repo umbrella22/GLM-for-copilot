@@ -79,7 +79,7 @@ describe('configuration helpers', () => {
 
 	it('defaults GLM-4.6V-Flash to native image input and other models to the proxy', () => {
 		expect(getModelVisionMode('glm-4.6v-flash')).toBe('native');
-		expect(getModelVisionMode('glm-5.2')).toBe('proxy');
+		expect(getModelVisionMode('glm-5.3')).toBe('proxy');
 		expect(getModelVisionMode('custom-model')).toBe('proxy');
 	});
 
@@ -123,7 +123,7 @@ describe('configuration helpers', () => {
 	it('applies global baseUrl only to models using the default route', () => {
 		__setConfigurationValue('glm-copilot.baseUrl', 'https://proxy.example.com/v1');
 
-		expect(resolveModelConnection('glm-5.2')).toMatchObject({
+		expect(resolveModelConnection('glm-5.3')).toMatchObject({
 			baseUrl: 'https://proxy.example.com/v1',
 			usesGlobalBaseUrlOverride: true,
 			apiMode: undefined,
@@ -138,10 +138,10 @@ describe('configuration helpers', () => {
 	it('keeps an explicit official model route when a custom default URL uses the same credential channel', () => {
 		__setConfigurationValue('glm-copilot.baseUrl', 'https://proxy.example.com/v1');
 		__setConfigurationValue('glm-copilot.modelEndpointOverrides', {
-			'glm-5.2': 'china-coding',
+			'glm-5.3': 'china-coding',
 		});
 
-		expect(resolveModelConnection('glm-5.2')).toMatchObject({
+		expect(resolveModelConnection('glm-5.3')).toMatchObject({
 			route: 'china-coding',
 			endpoint: 'china-coding',
 			baseUrl: GLM_CN_CODING_BASE_URL,
@@ -152,12 +152,12 @@ describe('configuration helpers', () => {
 
 	it('uses explicit per-model endpoints and rejects unsupported GLM-5V-Turbo routes', () => {
 		__setConfigurationValue('glm-copilot.modelEndpointOverrides', {
-			'glm-5.2': 'international-anthropic',
+			'glm-5.3': 'international-anthropic',
 			'glm-5v-turbo': 'china-coding',
 			ignored: 'not-an-endpoint',
 		});
 
-		expect(resolveModelConnection('glm-5.2')).toMatchObject({
+		expect(resolveModelConnection('glm-5.3')).toMatchObject({
 			endpoint: 'international-anthropic',
 			protocol: 'anthropic',
 			credentialChannel: 'international-coding',
@@ -200,7 +200,7 @@ describe('model management configuration', () => {
 					baseUrl: 'https://proxy.example.com/v1',
 				},
 				models: {
-					'glm-5.2': { apiModelId: 'global-glm-5.2' },
+					'glm-5.3': { apiModelId: 'global-glm-5.3' },
 				},
 				customModels: {
 					'team-coder': { name: 'Team Coder', maxInputTokens: 1_000 },
@@ -214,7 +214,7 @@ describe('model management configuration', () => {
 			{
 				version: 1,
 				defaultConnection: { endpoint: 'international-coding', baseUrl: '' },
-				models: { 'glm-5.2': { endpointRoute: 'same-region-standard' } },
+				models: { 'glm-5.3': { endpointRoute: 'same-region-standard' } },
 				customModels: {
 					'team-coder': { thinking: false },
 					'removed-model': null,
@@ -226,7 +226,7 @@ describe('model management configuration', () => {
 			'glm-copilot.modelManagement',
 			{
 				version: 1,
-				models: { 'glm-5.2': { visionMode: 'native' } },
+				models: { 'glm-5.3': { visionMode: 'native' } },
 			},
 			ConfigurationTarget.WorkspaceFolder,
 			folder,
@@ -236,8 +236,8 @@ describe('model management configuration', () => {
 			version: 1,
 			defaultConnection: { endpoint: 'international-coding', baseUrl: '' },
 			models: {
-				'glm-5.2': {
-					apiModelId: 'global-glm-5.2',
+				'glm-5.3': {
+					apiModelId: 'global-glm-5.3',
 					endpointRoute: 'same-region-standard',
 					visionMode: 'native',
 				},
@@ -253,30 +253,30 @@ describe('model management configuration', () => {
 		});
 		expect(getBaseUrlOverride(folder)).toBeUndefined();
 		expect(getBaseUrl(folder)).toBe(GLM_INTERNATIONAL_CODING_BASE_URL);
-		expect(getApiModelId('glm-5.2', folder)).toBe('global-glm-5.2');
-		expect(getModelEndpointRoute('glm-5.2', folder)).toBe('same-region-standard');
-		expect(getModelVisionMode('glm-5.2', folder)).toBe('native');
+		expect(getApiModelId('glm-5.3', folder)).toBe('global-glm-5.3');
+		expect(getModelEndpointRoute('glm-5.3', folder)).toBe('same-region-standard');
+		expect(getModelVisionMode('glm-5.3', folder)).toBe('native');
 		expect(getCustomModels(folder).map((model) => model.id)).toContain('team-coder');
 		expect(getCustomModels(folder).map((model) => model.id)).not.toContain('removed-model');
 
 		const inspection = inspectModelManagementConfiguration(folder);
 		expect(inspection.globalValue?.defaultConnection?.endpoint).toBe('china-coding');
 		expect(inspection.workspaceValue?.defaultConnection?.baseUrl).toBe('');
-		expect(inspection.workspaceFolderValue?.models?.['glm-5.2']?.visionMode).toBe('native');
+		expect(inspection.workspaceFolderValue?.models?.['glm-5.3']?.visionMode).toBe('native');
 	});
 
 	it('uses canonical fields first while legacy settings fill missing fields', () => {
 		__setConfigurationValue('glm-copilot.endpoint', 'china-coding');
 		__setConfigurationValue('glm-copilot.baseUrl', 'https://legacy.example.com/v1');
 		__setConfigurationValue('glm-copilot.modelIdOverrides', {
-			'glm-5.2': 'legacy-api-id',
+			'glm-5.3': 'legacy-api-id',
 			'glm-5-turbo': 'legacy-turbo-id',
 		});
 		__setConfigurationValue('glm-copilot.modelEndpointOverrides', {
-			'glm-5.2': 'china-standard',
+			'glm-5.3': 'china-standard',
 		});
 		__setConfigurationValue('glm-copilot.modelVisionModes', {
-			'glm-5.2': 'proxy',
+			'glm-5.3': 'proxy',
 		});
 		__setConfigurationValue('glm-copilot.customModels', [
 			{ id: 'legacy-custom', name: 'Legacy Custom' },
@@ -286,7 +286,7 @@ describe('model management configuration', () => {
 			version: 1,
 			defaultConnection: { endpoint: 'international-standard', baseUrl: '' },
 			models: {
-				'glm-5.2': {
+				'glm-5.3': {
 					apiModelId: 'canonical-api-id',
 					endpointRoute: 'international-anthropic',
 					visionMode: 'native',
@@ -300,10 +300,10 @@ describe('model management configuration', () => {
 
 		expect(getEndpoint()).toBe('international-standard');
 		expect(getBaseUrlOverride()).toBeUndefined();
-		expect(getApiModelId('glm-5.2')).toBe('canonical-api-id');
+		expect(getApiModelId('glm-5.3')).toBe('canonical-api-id');
 		expect(getApiModelId('glm-5-turbo')).toBe('legacy-turbo-id');
-		expect(getModelEndpointRoute('glm-5.2')).toBe('international-anthropic');
-		expect(getModelVisionMode('glm-5.2')).toBe('native');
+		expect(getModelEndpointRoute('glm-5.3')).toBe('international-anthropic');
+		expect(getModelVisionMode('glm-5.3')).toBe('native');
 		expect(getCustomModels().map((model) => model.id)).toEqual([
 			'legacy-custom',
 			'canonical-custom',
@@ -320,7 +320,7 @@ describe('model management configuration', () => {
 					baseUrl: 'https://global.example.com/v1',
 				},
 				models: {
-					'glm-5.2': {
+					'glm-5.3': {
 						apiModelId: 'global-api-id',
 						endpointRoute: 'china-coding',
 						visionMode: 'proxy',
@@ -341,17 +341,17 @@ describe('model management configuration', () => {
 		__setConfigurationValueAtScope('glm-copilot.baseUrl', '', ConfigurationTarget.Workspace);
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelIdOverrides',
-			{ 'glm-5.2': 'workspace-api-id' },
+			{ 'glm-5.3': 'workspace-api-id' },
 			ConfigurationTarget.Workspace,
 		);
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelEndpointOverrides',
-			{ 'glm-5.2': 'international-anthropic' },
+			{ 'glm-5.3': 'international-anthropic' },
 			ConfigurationTarget.Workspace,
 		);
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelVisionModes',
-			{ 'glm-5.2': 'native' },
+			{ 'glm-5.3': 'native' },
 			ConfigurationTarget.Workspace,
 		);
 		__setConfigurationValueAtScope(
@@ -366,9 +366,9 @@ describe('model management configuration', () => {
 		expect(getEndpoint()).toBe('international-standard');
 		expect(getBaseUrlOverride()).toBeUndefined();
 		expect(getBaseUrl()).toBe(GLM_INTERNATIONAL_GENERAL_BASE_URL);
-		expect(getApiModelId('glm-5.2')).toBe('workspace-api-id');
-		expect(getModelEndpointRoute('glm-5.2')).toBe('international-anthropic');
-		expect(getModelVisionMode('glm-5.2')).toBe('native');
+		expect(getApiModelId('glm-5.3')).toBe('workspace-api-id');
+		expect(getModelEndpointRoute('glm-5.3')).toBe('international-anthropic');
+		expect(getModelVisionMode('glm-5.3')).toBe('native');
 		expect(getCustomModels()).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({ id: 'scope-model', name: 'Workspace Legacy' }),
@@ -377,11 +377,11 @@ describe('model management configuration', () => {
 		);
 
 		const runtimeInspection = inspectEffectiveModelManagementConfiguration();
-		expect(runtimeInspection.globalValue?.models?.['glm-5.2']?.apiModelId).toBe('global-api-id');
+		expect(runtimeInspection.globalValue?.models?.['glm-5.3']?.apiModelId).toBe('global-api-id');
 		expect(runtimeInspection.workspaceValue).toMatchObject({
 			defaultConnection: { endpoint: 'international-standard', baseUrl: '' },
 			models: {
-				'glm-5.2': {
+				'glm-5.3': {
 					apiModelId: 'workspace-api-id',
 					endpointRoute: 'international-anthropic',
 					visionMode: 'native',
@@ -398,7 +398,7 @@ describe('model management configuration', () => {
 				version: 1,
 				defaultConnection: { endpoint: 'invalid', baseUrl: '' },
 				models: {
-					'glm-5.2': {
+					'glm-5.3': {
 						apiModelId: 'upstream-id',
 						endpointRoute: 'same-region-standard',
 						visionMode: 'invalid',
@@ -413,7 +413,7 @@ describe('model management configuration', () => {
 			version: 1,
 			defaultConnection: { baseUrl: '' },
 			models: {
-				'glm-5.2': {
+				'glm-5.3': {
 					apiModelId: 'upstream-id',
 					endpointRoute: 'same-region-standard',
 				},
@@ -481,7 +481,7 @@ describe('model management configuration', () => {
 	it('saves and resets exactly one configuration scope', async () => {
 		__setWorkspaceFolders([folder]);
 		await saveModelManagementConfiguration(
-			{ version: 1, models: { 'glm-5.2': { visionMode: 'native' } } },
+			{ version: 1, models: { 'glm-5.3': { visionMode: 'native' } } },
 			ConfigurationTarget.WorkspaceFolder,
 			folder,
 		);
@@ -491,7 +491,7 @@ describe('model management configuration', () => {
 				ConfigurationTarget.WorkspaceFolder,
 				folder,
 			),
-		).toEqual({ version: 1, models: { 'glm-5.2': { visionMode: 'native' } } });
+		).toEqual({ version: 1, models: { 'glm-5.3': { visionMode: 'native' } } });
 
 		await resetModelManagementConfiguration(ConfigurationTarget.WorkspaceFolder, folder);
 		expect(
@@ -523,12 +523,12 @@ describe('migrateLegacyModelManagementSettings', () => {
 		);
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelIdOverrides',
-			{ 'glm-5.2': 'workspace-api-id' },
+			{ 'glm-5.3': 'workspace-api-id' },
 			ConfigurationTarget.Workspace,
 		);
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelVisionModes',
-			{ 'glm-5.2': 'native' },
+			{ 'glm-5.3': 'native' },
 			ConfigurationTarget.WorkspaceFolder,
 			folder,
 		);
@@ -551,7 +551,7 @@ describe('migrateLegacyModelManagementSettings', () => {
 			__getConfigurationValueAtScope('glm-copilot.modelManagement', ConfigurationTarget.Workspace),
 		).toEqual({
 			version: 1,
-			models: { 'glm-5.2': { apiModelId: 'workspace-api-id' } },
+			models: { 'glm-5.3': { apiModelId: 'workspace-api-id' } },
 		});
 		expect(
 			__getConfigurationValueAtScope(
@@ -561,7 +561,7 @@ describe('migrateLegacyModelManagementSettings', () => {
 			),
 		).toEqual({
 			version: 1,
-			models: { 'glm-5.2': { visionMode: 'native' } },
+			models: { 'glm-5.3': { visionMode: 'native' } },
 			customModels: {
 				'folder-model': {
 					id: 'folder-model',
@@ -584,8 +584,8 @@ describe('migrateLegacyModelManagementSettings', () => {
 			),
 		).toBeUndefined();
 		expect(getEndpoint(folder)).toBe('international-coding');
-		expect(getApiModelId('glm-5.2', folder)).toBe('workspace-api-id');
-		expect(getModelVisionMode('glm-5.2', folder)).toBe('native');
+		expect(getApiModelId('glm-5.3', folder)).toBe('workspace-api-id');
+		expect(getModelVisionMode('glm-5.3', folder)).toBe('native');
 		expect(getCustomModels(folder).map((model) => model.id)).toContain('folder-model');
 
 		const afterFirstRun = getModelManagementConfiguration(folder);
@@ -596,15 +596,15 @@ describe('migrateLegacyModelManagementSettings', () => {
 	it('keeps canonical conflicts while filling fields that only exist in legacy settings', async () => {
 		__setConfigurationValue('glm-copilot.endpoint', 'china-standard');
 		__setConfigurationValue('glm-copilot.modelIdOverrides', {
-			'glm-5.2': 'legacy-id',
+			'glm-5.3': 'legacy-id',
 		});
 		__setConfigurationValue('glm-copilot.modelEndpointOverrides', {
-			'glm-5.2': 'china-coding',
+			'glm-5.3': 'china-coding',
 		});
 		__setConfigurationValue('glm-copilot.modelManagement', {
 			version: 1,
 			defaultConnection: { baseUrl: '' },
-			models: { 'glm-5.2': { endpointRoute: 'international-standard' } },
+			models: { 'glm-5.3': { endpointRoute: 'international-standard' } },
 		});
 
 		await migrateLegacyModelManagementSettings();
@@ -613,7 +613,7 @@ describe('migrateLegacyModelManagementSettings', () => {
 			version: 1,
 			defaultConnection: { endpoint: 'china-standard', baseUrl: '' },
 			models: {
-				'glm-5.2': {
+				'glm-5.3': {
 					apiModelId: 'legacy-id',
 					endpointRoute: 'international-standard',
 				},
@@ -767,7 +767,7 @@ describe('migrateLegacyModelManagementSettings', () => {
 	it('preserves legacy fallback settings when the canonical write fails', async () => {
 		__setConfigurationValue('glm-copilot.endpoint', 'international-standard');
 		__setConfigurationValue('glm-copilot.modelIdOverrides', {
-			'glm-5.2': 'legacy-id',
+			'glm-5.3': 'legacy-id',
 		});
 		__setConfigurationUpdateFailure('glm-copilot.modelManagement', ConfigurationTarget.Global);
 
@@ -779,27 +779,27 @@ describe('migrateLegacyModelManagementSettings', () => {
 		);
 		expect(
 			__getConfigurationValueAtScope('glm-copilot.modelIdOverrides', ConfigurationTarget.Global),
-		).toEqual({ 'glm-5.2': 'legacy-id' });
+		).toEqual({ 'glm-5.3': 'legacy-id' });
 		expect(getEndpoint()).toBe('international-standard');
-		expect(getApiModelId('glm-5.2')).toBe('legacy-id');
+		expect(getApiModelId('glm-5.3')).toBe('legacy-id');
 	});
 
 	it('continues clearing legacy settings when one cleanup update fails', async () => {
 		__setConfigurationValue('glm-copilot.endpoint', 'international-standard');
 		__setConfigurationValue('glm-copilot.baseUrl', 'https://proxy.example.com/v1');
 		__setConfigurationValue('glm-copilot.modelIdOverrides', {
-			'glm-5.2': 'legacy-id',
+			'glm-5.3': 'legacy-id',
 		});
 		__setConfigurationValue('glm-copilot.modelEndpointOverrides', {
-			'glm-5.2': 'international-anthropic',
+			'glm-5.3': 'international-anthropic',
 		});
 		__setConfigurationValue('glm-copilot.modelVisionModes', {
-			'glm-5.2': 'native',
+			'glm-5.3': 'native',
 		});
 		__setConfigurationValue('glm-copilot.customModels', ['legacy-model']);
 		__setConfigurationValue('glm-copilot.modelManagement', {
 			version: 1,
-			models: { 'glm-5.2': { apiModelId: 'canonical-id' } },
+			models: { 'glm-5.3': { apiModelId: 'canonical-id' } },
 		});
 		__setConfigurationUpdateFailure('glm-copilot.modelIdOverrides', ConfigurationTarget.Global);
 
@@ -813,7 +813,7 @@ describe('migrateLegacyModelManagementSettings', () => {
 		);
 		expect(
 			__getConfigurationValueAtScope('glm-copilot.modelIdOverrides', ConfigurationTarget.Global),
-		).toEqual({ 'glm-5.2': 'legacy-id' });
+		).toEqual({ 'glm-5.3': 'legacy-id' });
 		expect(
 			__getConfigurationValueAtScope(
 				'glm-copilot.modelEndpointOverrides',
@@ -828,9 +828,9 @@ describe('migrateLegacyModelManagementSettings', () => {
 		).toBeUndefined();
 		expect(getEndpoint()).toBe('international-standard');
 		expect(getBaseUrl()).toBe('https://proxy.example.com/v1');
-		expect(getApiModelId('glm-5.2')).toBe('canonical-id');
-		expect(getModelEndpointRoute('glm-5.2')).toBe('international-anthropic');
-		expect(getModelVisionMode('glm-5.2')).toBe('native');
+		expect(getApiModelId('glm-5.3')).toBe('canonical-id');
+		expect(getModelEndpointRoute('glm-5.3')).toBe('international-anthropic');
+		expect(getModelVisionMode('glm-5.3')).toBe('native');
 		expect(getCustomModels().map((model) => model.id)).toContain('legacy-model');
 	});
 });
@@ -976,8 +976,8 @@ describe('endpoint preset selection', () => {
 	it('lets custom model IDs override built-in model lookup and picker registry', () => {
 		__setConfigurationValue('glm-copilot.customModels', [
 			{
-				id: 'glm-5.2',
-				name: 'Local GLM-5.2',
+				id: 'glm-5.3',
+				name: 'Local GLM-5.3',
 				maxInputTokens: 42,
 				thinking: false,
 			},
@@ -986,9 +986,9 @@ describe('endpoint preset selection', () => {
 		const models = listProviderModels();
 
 		expect(models).toHaveLength(MODELS.length);
-		expect(findModelDefinition('glm-5.2')).toMatchObject({
-			id: 'glm-5.2',
-			name: 'Local GLM-5.2',
+		expect(findModelDefinition('glm-5.3')).toMatchObject({
+			id: 'glm-5.3',
+			name: 'Local GLM-5.3',
 			maxInputTokens: 42,
 			capabilities: {
 				imageInput: true,
@@ -999,12 +999,12 @@ describe('endpoint preset selection', () => {
 
 	it('supports modelIdOverrides for arbitrary built-in or custom model IDs', () => {
 		__setConfigurationValue('glm-copilot.modelIdOverrides', {
-			'glm-5.2': 'upstream-glm-5.2',
+			'glm-5.3': 'upstream-glm-5.3',
 			' team-coder ': ' provider-team-coder ',
 			empty: '   ',
 		});
 
-		expect(getApiModelId('glm-5.2')).toBe('upstream-glm-5.2');
+		expect(getApiModelId('glm-5.3')).toBe('upstream-glm-5.3');
 		expect(getApiModelId('team-coder')).toBe('provider-team-coder');
 		expect(getApiModelId('empty')).toBe('empty');
 		expect(getApiModelId('unknown')).toBe('unknown');

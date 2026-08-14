@@ -39,7 +39,7 @@ function legacyJsonMarkerWithSegmentId(): vscode.LanguageModelDataPart {
 	const json = JSON.stringify({ segmentId: SEGMENT_ID });
 	const encoded = `json:${Buffer.from(json, 'utf8').toString('base64url')}`;
 	return new vscode.LanguageModelDataPart(
-		new TextEncoder().encode(`glm-5.2\\${encoded}`),
+		new TextEncoder().encode(`glm-5.3\\${encoded}`),
 		REPLAY_MARKER_MIME,
 	);
 }

@@ -19,12 +19,12 @@ type Translations = Record<string, string>;
 
 const zh: Translations = {
 	// Model descriptions
-	'model.glm-5.2.detail': '旗舰编码与推理模型',
-	'model.glm-5.2.tooltip':
-		'GLM-5.2，适合复杂 Agent 编程、长上下文和高强度推理任务；图片会先由 GLM-4.6V-Flash 视觉代理处理。',
+	'model.glm-5.3.detail': '旗舰基座模型',
+	'model.glm-5.3.tooltip':
+		'GLM-5.3，智谱最新旗舰模型。基于 GLM-5.2 基座，经数十倍规模的长程任务后训练，编程体感较前代提升 50%，在 Terminal Bench 3.0 等公开基准中位列开源模型第一，并具备接近 Mythos 5 的网络安全能力；图片会先由 GLM-4.6V-Flash 视觉代理处理。',
 	'model.glm-4.6v-flash.detail': '多模态视觉与编码模型',
 	'model.glm-4.6v-flash.tooltip':
-		'GLM-4.6V-Flash，适合图片理解、多模态问答，以及作为 GLM-5.2/GLM-5-Turbo 的默认视觉代理。',
+		'GLM-4.6V-Flash，适合图片理解、多模态问答，以及作为 GLM-5.3/GLM-5-Turbo 的默认视觉代理。',
 	'model.glm-5v-turbo.detail': '视觉 Agent 多模态编码模型',
 	'model.glm-5v-turbo.tooltip':
 		'GLM-5V-Turbo，适合设计稿还原、GUI Agent、视觉调试和原生多模态编码；仅通过标准 API 提供。',
@@ -425,7 +425,7 @@ const zh: Translations = {
 		'打开请求 dump 目录失败，请运行 "GLM: 显示日志" 查看详情。',
 	// [FORK]
 	'command.resetCodingPlanPreset.confirm':
-		'将 GLM Coding Plan 一键预设恢复为默认值？仅恢复当前值与预设写入一致的项：GLM-5.2 的 endpointRoute/visionMode、GLM-5-Turbo 的 visionMode、4 个内置 MCP 服务开关、工具列表稳定化。你手动修改过的项会被自动跳过。不影响其他自定义配置（自定义 MCP 服务、API Key、工作区级别设置、图片提示词等）。',
+		'将 GLM Coding Plan 一键预设恢复为默认值？仅恢复当前值与预设写入一致的项：GLM-5.3 的 endpointRoute/visionMode、GLM-5-Turbo 的 visionMode、4 个内置 MCP 服务开关、工具列表稳定化。你手动修改过的项会被自动跳过。不影响其他自定义配置（自定义 MCP 服务、API Key、工作区级别设置、图片提示词等）。',
 	'command.resetCodingPlanPreset.confirmYes': '恢复', // [FORK]
 	'command.resetCodingPlanPreset.done': '已恢复 GLM Coding Plan 预设为默认值（{0} 项复位）。', // [FORK]
 	// [FORK]
@@ -437,7 +437,7 @@ const zh: Translations = {
 	'command.resetCodingPlanPreset.skipped': '被跳过的项（{0} 个）保留了你手动修改的值。', // [FORK]
 	// [FORK]
 	'command.applyCodingPlanPreset.confirm':
-		'为 GLM Coding Plan 套餐应用推荐配置？这将写入用户级覆盖：GLM-5.2 走国内 Anthropic 线路 + MCP 图片模式，GLM-5-Turbo 走 MCP 图片模式，启用 4 个内置 MCP 服务，并启用工具列表稳定化。仅影响用户级配置，工作区配置不变。',
+		'为 GLM Coding Plan 套餐应用推荐配置？这将写入用户级覆盖：GLM-5.3 走国内 Anthropic 线路 + MCP 图片模式，GLM-5-Turbo 走 MCP 图片模式，启用 4 个内置 MCP 服务，并启用工具列表稳定化。仅影响用户级配置，工作区配置不变。',
 	'command.applyCodingPlanPreset.confirmYes': '应用', // [FORK]
 	'command.applyCodingPlanPreset.done': '已为 GLM Coding Plan 套餐应用推荐配置（{0} 项写入）。', // [FORK]
 	// [FORK]
@@ -465,12 +465,12 @@ const zh: Translations = {
 
 const en: Translations = {
 	// Model descriptions
-	'model.glm-5.2.detail': 'Flagship coding and reasoning model',
-	'model.glm-5.2.tooltip':
-		'GLM-5.2 for complex agentic coding, long context, and high-intensity reasoning. Images are described by the GLM-4.6V-Flash vision proxy first.',
+	'model.glm-5.3.detail': 'Latest flagship base model',
+	'model.glm-5.3.tooltip':
+		"GLM-5.3, Zhipu's latest flagship model. Built on the GLM-5.2 base with an order-of-magnitude larger long-horizon post-training, it delivers ~50% better coding feel over the previous generation, ranks first among open-source models on Terminal Bench 3.0, and approaches Mythos 5 on security tasks. Images are described by the GLM-4.6V-Flash vision proxy first.",
 	'model.glm-4.6v-flash.detail': 'Multimodal vision and coding model',
 	'model.glm-4.6v-flash.tooltip':
-		'GLM-4.6V-Flash for image understanding, multimodal Q&A, and the default vision proxy for GLM-5.2/GLM-5-Turbo.',
+		'GLM-4.6V-Flash for image understanding, multimodal Q&A, and the default vision proxy for GLM-5.3/GLM-5-Turbo.',
 	'model.glm-5v-turbo.detail': 'Multimodal coding model for visual agents',
 	'model.glm-5v-turbo.tooltip':
 		'GLM-5V-Turbo for design recreation, GUI agents, visual debugging, and native multimodal coding. Available through the Standard API only.',
@@ -922,7 +922,7 @@ const en: Translations = {
 		'Failed to open request dumps folder. Run "GLM: Show Logs" for details.',
 	// [FORK]
 	'command.resetCodingPlanPreset.confirm':
-		'Reset the GLM Coding Plan one-click preset to defaults? Only items whose current values match the preset are reset: GLM-5.2 endpointRoute/visionMode, GLM-5-Turbo visionMode, the 4 built-in MCP server toggles, and stabilize tool list. Items you have manually modified are automatically skipped. Other custom settings (custom MCP servers, API keys, workspace-scoped settings, image prompts, …) are not affected.',
+		'Reset the GLM Coding Plan one-click preset to defaults? Only items whose current values match the preset are reset: GLM-5.3 endpointRoute/visionMode, GLM-5-Turbo visionMode, the 4 built-in MCP server toggles, and stabilize tool list. Items you have manually modified are automatically skipped. Other custom settings (custom MCP servers, API keys, workspace-scoped settings, image prompts, …) are not affected.',
 	'command.resetCodingPlanPreset.confirmYes': 'Reset', // [FORK]
 	// [FORK]
 	'command.resetCodingPlanPreset.done':
@@ -936,7 +936,7 @@ const en: Translations = {
 	'command.resetCodingPlanPreset.skipped': 'Skipped item(s) ({0}) kept your manual edits.', // [FORK]
 	// [FORK]
 	'command.applyCodingPlanPreset.confirm':
-		'Apply the recommended setup for the GLM Coding Plan subscription? This writes user-level overrides: GLM-5.2 on the domestic Anthropic route + MCP vision mode, GLM-5-Turbo on MCP vision mode, all 4 built-in MCP servers enabled, and stabilize tool list enabled. Only user-scope configuration is affected; workspace settings are untouched.',
+		'Apply the recommended setup for the GLM Coding Plan subscription? This writes user-level overrides: GLM-5.3 on the domestic Anthropic route + MCP vision mode, GLM-5-Turbo on MCP vision mode, all 4 built-in MCP servers enabled, and stabilize tool list enabled. Only user-scope configuration is affected; workspace settings are untouched.',
 	'command.applyCodingPlanPreset.confirmYes': 'Apply', // [FORK]
 	'command.applyCodingPlanPreset.done':
 		'Applied the recommended setup for the GLM Coding Plan subscription ({0} item(s) written).', // [FORK]

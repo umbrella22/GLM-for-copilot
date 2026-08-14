@@ -769,13 +769,13 @@ describe('request preparation — strip image-capable MCP tools for non-mcp mode
 	});
 
 	it('strips image-capable MCP tools from a proxy-vision model too', async () => {
-		// glm-5.2 defaults to proxy. Vision tools are redundant (the model gets
+		// glm-5.3 defaults to proxy. Vision tools are redundant (the model gets
 		// text descriptions and cannot feed the original image to the tool) and
 		// interfering, so they are filtered here as well.
 		const prepared = await prepareChatRequest({
 			authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
 			globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
-			modelInfo: { id: 'glm-5.2' } as vscode.LanguageModelChatInformation,
+			modelInfo: { id: 'glm-5.3' } as vscode.LanguageModelChatInformation,
 			segment,
 			messages: [userMessage([new vscode.LanguageModelTextPart('hi'), imagePart()])],
 			options: optionsWithTools([imageTool('analyze_image'), tool('web_search')]),

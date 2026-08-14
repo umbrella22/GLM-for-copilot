@@ -12,7 +12,7 @@ const PROXY_BASE_URL = 'https://proxy.example.com/v1';
 
 function buildRequest(overrides: Partial<GLMRequest> = {}): GLMRequest {
 	return {
-		model: 'glm-5.2',
+		model: 'glm-5.3',
 		stream: true,
 		messages: [{ role: 'user', content: 'hi' }],
 		...overrides,

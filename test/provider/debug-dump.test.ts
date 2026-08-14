@@ -32,11 +32,11 @@ describe('response outcome dumps', () => {
 	it('records the BYOK utility host policy in request snapshots', async () => {
 		__setConfigurationValue('chat.byokUtilityModelDefault', 'none');
 		const run = dumpGLMRequest(
-			{ model: 'glm-5.2', messages: [{ role: 'user', content: 'hello' }], stream: true },
+			{ model: 'glm-5.3', messages: [{ role: 'user', content: 'hello' }], stream: true },
 			{
 				globalStorageUri: vscode.Uri.file(storageRoot!),
 				segment: SEGMENT,
-				vscodeModelId: 'glm-5.2',
+				vscodeModelId: 'glm-5.3',
 				isThinkingModel: true,
 				thinkingEffort: 'max',
 				maxTokens: undefined,
@@ -65,14 +65,14 @@ describe('response outcome dumps', () => {
 	it('pairs a sanitized response outcome with the originating request basename', async () => {
 		const run = dumpGLMRequest(
 			{
-				model: 'glm-5.2',
+				model: 'glm-5.3',
 				messages: [{ role: 'user', content: 'hello' }],
 				stream: true,
 			},
 			{
 				globalStorageUri: vscode.Uri.file(storageRoot!),
 				segment: SEGMENT,
-				vscodeModelId: 'glm-5.2',
+				vscodeModelId: 'glm-5.3',
 				isThinkingModel: true,
 				thinkingEffort: 'max',
 				maxTokens: undefined,
@@ -118,11 +118,11 @@ describe('response outcome dumps', () => {
 
 		expect(
 			dumpGLMRequest(
-				{ model: 'glm-5.2', messages: [], stream: true },
+				{ model: 'glm-5.3', messages: [], stream: true },
 				{
 					globalStorageUri: vscode.Uri.file(storageRoot!),
 					segment: SEGMENT,
-					vscodeModelId: 'glm-5.2',
+					vscodeModelId: 'glm-5.3',
 					isThinkingModel: true,
 					thinkingEffort: 'max',
 					maxTokens: undefined,

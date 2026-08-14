@@ -128,7 +128,7 @@ describe('replay marker encode/decode contract', () => {
 		});
 		const encoded = `json:${Buffer.from(json, 'utf8').toString('base64url')}`;
 		const legacy = new vscode.LanguageModelDataPart(
-			new TextEncoder().encode(`glm-5.2\\${encoded}`),
+			new TextEncoder().encode(`glm-5.3\\${encoded}`),
 			REPLAY_MARKER_MIME,
 		);
 

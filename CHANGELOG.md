@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.11.0...v0.12.0) (2026-08-14)
+
+
+### Features
+
+* Update model references from glm-5.2 to glm-5.3 across tests ([9c91b73](https://github.com/umbrella22/GLM-for-copilot/commit/9c91b73509a0c9ecf2a5231002a32eefae6f4c91))
+
 ## [0.11.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.10.1...v0.11.0) (2026-07-28)
 
 

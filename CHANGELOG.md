@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.12.0...v0.13.0) (2026-08-26)
+
+
+### Features
+
+* update vision service to support automatic GLM-5.3-Flash model selection ([a8e481b](https://github.com/umbrella22/GLM-for-copilot/commit/a8e481b2b73cb028783936b574574bc15f5b0336))
+
 ## [0.12.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.11.0...v0.12.0) (2026-08-14)
 
 

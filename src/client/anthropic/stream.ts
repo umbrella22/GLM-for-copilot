@@ -1,5 +1,5 @@
 import { logger } from '../../logger';
-import type { GLMUsage, StreamCallbacks } from '../../types';
+import type { GLMStreamTelemetry, GLMUsage, StreamCallbacks } from '../../types';
 
 // ---- Anthropic SSE event types ----
 
@@ -86,6 +86,11 @@ export async function parseAnthropicStream(
 ): Promise<void> {
 	const decoder = new TextDecoder();
 	let buffer = '';
+	const telemetry: GLMStreamTelemetry = {
+		dataChunks: 0,
+		parseFailures: 0,
+		doneSignalObserved: false,
+	};
 	const state: AnthropicStreamState = {
 		usageObserved: false,
 		inputTokens: 0,
@@ -97,71 +102,78 @@ export async function parseAnthropicStream(
 		emittedToolCallIds: new Set(),
 	};
 
-	while (true) {
-		const { done, value } = await reader.read();
-		if (done) {
-			break;
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) {
+				break;
+			}
+
+			buffer += decoder.decode(value, { stream: true });
+
+			// Anthropic SSE events are separated by double newlines.
+			// Normalise \r\n → \n first so \r\n\r\n (common behind
+			// proxies that canonicalise line-endings) is also recognised.
+			const normalized = buffer.replace(/\r\n/g, '\n');
+			const events = normalized.split('\n\n');
+			// The last segment may be incomplete
+			buffer = events.pop() || '';
+
+			for (const rawEvent of events) {
+				if (!rawEvent.trim()) {
+					continue;
+				}
+
+				const event = parseAnthropicSSEEvent(rawEvent, telemetry);
+				if (!event) {
+					continue;
+				}
+
+				processAnthropicEvent(event, state, callbacks);
+			}
 		}
 
-		buffer += decoder.decode(value, { stream: true });
-
-		// Anthropic SSE events are separated by double newlines.
-		// Normalise \r\n → \n first so that \r\n\r\n (common behind
-		// proxies that canonicalise line-endings) is also recognised.
-		const normalized = buffer.replace(/\r\n/g, '\n');
-		const events = normalized.split('\n\n');
-		// The last segment may be incomplete
-		buffer = events.pop() || '';
-
-		for (const rawEvent of events) {
+		// Flush the TextDecoder (it may buffer a partial multi-byte sequence) and
+		// process any trailing event that lacked a terminating blank line. Without
+		// this, a final `message_delta`/`message_stop` (or usage) frame can be lost
+		// when the server omits the trailing `\n\n`, which is common behind proxies/CDNs.
+		buffer += decoder.decode();
+		// Split by double newlines to handle multiple trailing events that may
+		// have been buffered without a terminating blank line (common behind
+		// proxies/CDNs). Previously only the first event in the buffer was
+		// processed and the rest were silently dropped.
+		const normalizedTail = buffer.replace(/\r\n/g, '\n');
+		const tailEvents = normalizedTail.split('\n\n');
+		for (const rawEvent of tailEvents) {
 			if (!rawEvent.trim()) {
 				continue;
 			}
-
-			const event = parseAnthropicSSEEvent(rawEvent);
-			if (!event) {
-				continue;
+			const event = parseAnthropicSSEEvent(rawEvent, telemetry);
+			if (event) {
+				processAnthropicEvent(event, state, callbacks);
 			}
-
-			processAnthropicEvent(event, state, callbacks);
 		}
+		buffer = '';
+
+		// Flush any remaining tool blocks
+		flushToolBlocks(state, callbacks);
+
+		// Report final usage
+		reportAnthropicUsage(state, callbacks);
+
+		callbacks.onDone();
+	} finally {
+		callbacks.onTelemetry?.(telemetry);
 	}
-
-	// Flush the TextDecoder (it may buffer a partial multi-byte sequence) and
-	// process any trailing event that lacked a terminating blank line. Without
-	// this, a final `message_delta`/`message_stop` (or usage) frame can be lost
-	// when the server omits the trailing `\n\n`, which is common behind proxies/CDNs.
-	buffer += decoder.decode();
-	// Split by double newlines to handle multiple trailing events that may
-	// have been buffered without a terminating blank line (common behind
-	// proxies/CDNs). Previously only the first event in the buffer was
-	// processed and the rest were silently dropped.
-	const normalizedTail = buffer.replace(/\r\n/g, '\n');
-	const tailEvents = normalizedTail.split('\n\n');
-	for (const rawEvent of tailEvents) {
-		if (!rawEvent.trim()) {
-			continue;
-		}
-		const event = parseAnthropicSSEEvent(rawEvent);
-		if (event) {
-			processAnthropicEvent(event, state, callbacks);
-		}
-	}
-	buffer = '';
-
-	// Flush any remaining tool blocks
-	flushToolBlocks(state, callbacks);
-
-	// Report final usage
-	reportAnthropicUsage(state, callbacks);
-
-	callbacks.onDone();
 }
 
 /**
  * Parse a single Anthropic SSE event from raw text.
  */
-function parseAnthropicSSEEvent(raw: string): AnthropicSSEEvent | null {
+function parseAnthropicSSEEvent(
+	raw: string,
+	telemetry: GLMStreamTelemetry,
+): AnthropicSSEEvent | null {
 	const lines = raw.split('\n');
 	let eventType = '';
 	let dataJson = '';
@@ -180,6 +192,8 @@ function parseAnthropicSSEEvent(raw: string): AnthropicSSEEvent | null {
 		return null;
 	}
 
+	telemetry.dataChunks += 1;
+
 	try {
 		const parsed = JSON.parse(dataJson) as Record<string, unknown>;
 
@@ -191,11 +205,16 @@ function parseAnthropicSSEEvent(raw: string): AnthropicSSEEvent | null {
 			return null;
 		}
 
+		if (resolvedType === 'message_stop') {
+			telemetry.doneSignalObserved = true;
+		}
+
 		return {
 			type: resolvedType as AnthropicSSEEvent['type'],
 			...parsed,
 		} as AnthropicSSEEvent;
 	} catch (e) {
+		telemetry.parseFailures += 1;
 		logger.error('Failed to parse Anthropic SSE event:', dataJson.slice(0, 200), e);
 		return null;
 	}

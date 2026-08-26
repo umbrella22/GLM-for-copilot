@@ -1,6 +1,9 @@
 import vscode from 'vscode';
 import { CONFIG_SECTION, MODELS } from './consts';
-import { DEFAULT_GLM_VISION_MODEL_ID } from './provider/vision/consts';
+import {
+	CODING_PLAN_GLM_VISION_MODEL_ID,
+	DEFAULT_GLM_VISION_MODEL_ID,
+} from './provider/vision/consts';
 import {
 	deriveEndpointPreset,
 	identifyOfficialGLMApiMode,
@@ -517,6 +520,19 @@ export function getModelIdOverrides(resource?: vscode.Uri): Record<string, strin
 		.filter(([key, value]) => key.length > 0 && value.length > 0);
 
 	return Object.fromEntries(configured);
+}
+
+/**
+ * Vision model the automatic proxy uses for the active connection.
+ *
+ * Coding Plan connections (coding + anthropic endpoints) describe images with
+ * the natively multimodal GLM-5.3-Flash; Standard API connections keep
+ * GLM-4.6V-Flash so pay-as-you-go API callers see no behavior change.
+ */
+export function getAutomaticGLMVisionModelId(resource?: vscode.Uri): string {
+	return resolveEndpointApiMode(getEndpoint(resource)) === 'coding-plan'
+		? CODING_PLAN_GLM_VISION_MODEL_ID
+		: DEFAULT_GLM_VISION_MODEL_ID;
 }
 
 /**

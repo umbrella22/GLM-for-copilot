@@ -14,7 +14,7 @@ import { toModelCostInfo, type ModelCostInformation } from './pricing/costs';
  * metadata and per-model configuration controls.
  */
 
-export type ThinkingEffort = 'none' | 'high' | 'max';
+export type ThinkingEffort = 'none' | 'low' | 'high' | 'max';
 
 export type ModelConfigurationOptions = vscode.ProvideLanguageModelChatResponseOptions & {
 	readonly modelConfiguration?: Record<string, unknown>;
@@ -64,7 +64,7 @@ export function toChatInfo(
 			imageInput: m.capabilities.imageInput,
 		},
 		...toModelCostInfo(m, pricingCurrency),
-		...(m.capabilities.thinking ? { configurationSchema: buildThinkingEffortSchema() } : {}),
+		...(m.capabilities.thinking ? { configurationSchema: buildThinkingEffortSchema(m) } : {}),
 	};
 }
 
@@ -124,6 +124,9 @@ function normalizeThinkingEffort(value: unknown): ThinkingEffort | undefined {
 			case 'off':
 			case 'disabled':
 				return 'none';
+			case 'low':
+			case 'light':
+				return 'low';
 			case 'high':
 			case 'standard':
 			case 'balanced':
@@ -138,19 +141,26 @@ function normalizeThinkingEffort(value: unknown): ThinkingEffort | undefined {
 	return undefined;
 }
 
-function buildThinkingEffortSchema() {
+/**
+ * Models whose thinking cannot be disabled (`thinkingAlwaysEnabled`) offer
+ * low/high/max instead of none/high/max — the official guidance is to keep
+ * thinking enabled and lower `reasoning_effort` rather than sending a
+ * `disabled` thinking type the API would reject.
+ */
+function buildThinkingEffortSchema(m: ModelDefinition) {
+	const efforts: readonly ThinkingEffort[] = m.thinkingAlwaysEnabled
+		? ['low', 'high', 'max']
+		: ['none', 'high', 'max'];
+	const labels = efforts.map((effort) => t(`thinking.${effort}`));
+	const descriptions = efforts.map((effort) => t(`thinking.${effort}.desc`));
 	return {
 		properties: {
 			reasoningEffort: {
 				type: 'string',
 				title: t('status.thinking'),
-				enum: ['none', 'high', 'max'],
-				enumItemLabels: [t('thinking.none'), t('thinking.high'), t('thinking.max')],
-				enumDescriptions: [
-					t('thinking.none.desc'),
-					t('thinking.high.desc'),
-					t('thinking.max.desc'),
-				],
+				enum: [...efforts],
+				enumItemLabels: labels,
+				enumDescriptions: descriptions,
 				default: 'max',
 				group: 'navigation',
 			},

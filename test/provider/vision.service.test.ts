@@ -1,7 +1,10 @@
 import * as vscode from 'vscode';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthManager } from '../../src/auth';
-import { DEFAULT_GLM_VISION_MODEL_ID } from '../../src/provider/vision/consts';
+import {
+	CODING_PLAN_GLM_VISION_MODEL_ID,
+	DEFAULT_GLM_VISION_MODEL_ID,
+} from '../../src/provider/vision/consts';
 import { createVisionService } from '../../src/provider/vision/service';
 import {
 	VISION_PROXY_CONFIG_KEY,
@@ -9,6 +12,7 @@ import {
 } from '../../src/provider/vision/sources/endpoint/config';
 import {
 	__clearConfigurationValues,
+	__getWindowMessages,
 	__resetCommandState,
 	__setConfigurationValueAtScope,
 	__setWorkspaceFolders,
@@ -40,7 +44,9 @@ describe('automatic Vision Proxy connection routing', () => {
 				version: 1,
 				defaultConnection: { endpoint: 'international-anthropic' },
 				models: {
-					[DEFAULT_GLM_VISION_MODEL_ID]: { apiModelId: 'resource-vision-model' },
+					// Anthropic endpoints are Coding Plan connections, so the
+					// automatic proxy resolves the GLM-5.3-Flash vision model.
+					[CODING_PLAN_GLM_VISION_MODEL_ID]: { apiModelId: 'resource-vision-model' },
 				},
 			},
 			ConfigurationTarget.WorkspaceFolder,
@@ -80,6 +86,77 @@ describe('automatic Vision Proxy connection routing', () => {
 				},
 			],
 		});
+	});
+
+	it('describes images with GLM-5.3-Flash on Coding Plan connections and notifies once', async () => {
+		__setConfigurationValueAtScope(
+			'glm-copilot.endpoint',
+			'china-coding',
+			ConfigurationTarget.Global,
+		);
+		const getApiKey = vi.fn().mockResolvedValue('coding-key');
+		const fetchMock = mockVisionResponse({ choices: [{ message: { content: 'description' } }] });
+		const service = createVisionService(createContext(), { getApiKey } as unknown as AuthManager);
+
+		const first = await service.get();
+		const second = await service.get();
+
+		expect(first?.id).toBe(`auto:openai-compatible:${CODING_PLAN_GLM_VISION_MODEL_ID}`);
+		expect(second?.id).toBe(`auto:openai-compatible:${CODING_PLAN_GLM_VISION_MODEL_ID}`);
+		expect(getApiKey).toHaveBeenCalledWith('china-coding', undefined);
+		expect(
+			__getWindowMessages().information.filter((message) => message.includes('GLM-5.3-Flash')),
+		).toHaveLength(1);
+		expect(
+			await first?.describe({
+				prompt: 'Describe the image',
+				images: [{ mimeType: 'image/png', data: new Uint8Array([1, 2, 3]) }],
+				token,
+			}),
+		).toBe('description');
+		expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+			'https://open.bigmodel.cn/api/coding/paas/v4/chat/completions',
+		);
+		expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
+			model: CODING_PLAN_GLM_VISION_MODEL_ID,
+			// GLM-5.3-Flash cannot disable thinking; the automatic proxy pins
+			// 'high' to balance description quality against latency.
+			reasoning_effort: 'high',
+		});
+	});
+
+	it('keeps GLM-4.6V-Flash and no switch notice on Standard API connections', async () => {
+		__setConfigurationValueAtScope(
+			'glm-copilot.endpoint',
+			'china-standard',
+			ConfigurationTarget.Global,
+		);
+		const getApiKey = vi.fn().mockResolvedValue('standard-key');
+		const fetchMock = mockVisionResponse({ choices: [{ message: { content: 'description' } }] });
+		const service = createVisionService(createContext(), { getApiKey } as unknown as AuthManager);
+
+		const describer = await service.get();
+
+		expect(describer?.id).toBe(`auto:openai-compatible:${DEFAULT_GLM_VISION_MODEL_ID}`);
+		expect(getApiKey).toHaveBeenCalledWith('china-standard', undefined);
+		expect(__getWindowMessages().information).toHaveLength(0);
+		expect(
+			await describer?.describe({
+				prompt: 'Describe the image',
+				images: [{ mimeType: 'image/png', data: new Uint8Array([1, 2, 3]) }],
+				token,
+			}),
+		).toBe('description');
+		expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+			'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+		);
+		const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body));
+		expect(body).toMatchObject({
+			model: DEFAULT_GLM_VISION_MODEL_ID,
+		});
+		// Standard API callers keep the unchanged GLM-4.6V-Flash behavior: no
+		// reasoning_effort is injected.
+		expect(body.reasoning_effort).toBeUndefined();
 	});
 
 	it('leaves an explicit Anthropic Vision Endpoint unchanged', async () => {

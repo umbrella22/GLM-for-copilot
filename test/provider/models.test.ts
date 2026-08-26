@@ -27,9 +27,14 @@ describe('model metadata helpers', () => {
 		).toBe('high');
 		expect(
 			getConfiguredThinkingEffort({
-				modelConfiguration: { thinkingEffort: 'deep' },
+				modelConfiguration: { reasoningEffort: 'deep' },
 			}),
 		).toBe('max');
+		expect(
+			getConfiguredThinkingEffort({
+				modelConfiguration: { reasoningEffort: 'light' },
+			}),
+		).toBe('low');
 	});
 
 	it('defaults thinking effort to max when no valid value is configured', () => {
@@ -61,10 +66,34 @@ describe('model metadata helpers', () => {
 			imageInput: true,
 		});
 		expect(info.configurationSchema?.properties.reasoningEffort.default).toBe('max');
+		expect(info.configurationSchema?.properties.reasoningEffort.enum).toEqual([
+			'low',
+			'high',
+			'max',
+		]);
 		expect(info.inputCost).toBe(8);
 		expect(info.outputCost).toBe(28);
 		expect(info.cacheCost).toBe(2);
 		expect(info.priceCategory).toBe('high');
+	});
+
+	it('offers low/high/max reasoning effort for models that cannot disable thinking', () => {
+		const glmFlash = toChatInfo(MODELS[2], true);
+		expect(glmFlash.configurationSchema?.properties.reasoningEffort.enum).toEqual([
+			'low',
+			'high',
+			'max',
+		]);
+
+		// GLM-4.6V-Flash is a hybrid-reasoning model that still accepts
+		// thinking.type 'disabled', so it keeps the none/high/max ladder.
+		const vision = toChatInfo(MODELS[1], true);
+		expect(vision.configurationSchema?.properties.reasoningEffort.enum).toEqual([
+			'none',
+			'high',
+			'max',
+		]);
+		expect(vision.configurationSchema?.properties.reasoningEffort.default).toBe('max');
 	});
 
 	it('publishes numeric USD credits for the native model-picker cost table', () => {
@@ -85,16 +114,15 @@ describe('model metadata helpers', () => {
 
 	it('publishes built-in shared windows as Copilot input plus output budgets', () => {
 		expect(MODELS.map((model) => model.maxInputTokens + model.maxOutputTokens)).toEqual([
-			1_000_000, 131_072, 200_000, 200_000,
+			1_000_000, 131_072, 1_000_000,
 		]);
 		expect(MODELS[1].maxOutputTokens).toBe(32_768);
 		expect(toChatInfo(MODELS[0], true).maxInputTokens).toBe(868_928);
 		expect(toChatInfo(MODELS[2], true).maxOutputTokens).toBe(131_072);
 		expect(MODELS[2]).toMatchObject({
-			id: 'glm-5v-turbo',
-			defaultEndpointRoute: 'same-region-standard',
-			supportedApiModes: ['standard'],
+			id: 'glm-5.3-flash',
 			defaultVisionMode: 'native',
+			thinkingAlwaysEnabled: true,
 			capabilities: { imageInput: true, thinking: true },
 		});
 	});

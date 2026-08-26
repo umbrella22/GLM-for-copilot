@@ -4,6 +4,7 @@ import {
 	getApiKeyUrl,
 	getApiModelId,
 	getApiProtocol,
+	getAutomaticGLMVisionModelId,
 	getBaseUrl,
 	getBaseUrlOverride,
 	getCustomModels,
@@ -79,6 +80,7 @@ describe('configuration helpers', () => {
 
 	it('defaults GLM-4.6V-Flash to native image input and other models to the proxy', () => {
 		expect(getModelVisionMode('glm-4.6v-flash')).toBe('native');
+		expect(getModelVisionMode('glm-5.3-flash')).toBe('native');
 		expect(getModelVisionMode('glm-5.3')).toBe('proxy');
 		expect(getModelVisionMode('custom-model')).toBe('proxy');
 	});
@@ -99,9 +101,13 @@ describe('configuration helpers', () => {
 		expect(getModelVisionMode('ignored')).toBe('proxy');
 	});
 
-	it('routes GLM-5V-Turbo to the Standard API in the global endpoint region', () => {
-		expect(getModelEndpointRoute('glm-5v-turbo')).toBe('same-region-standard');
-		expect(resolveModelConnection('glm-5v-turbo')).toMatchObject({
+	it('resolves the same-region-standard route to the Standard API in the global endpoint region', () => {
+		__setConfigurationValue('glm-copilot.modelEndpointOverrides', {
+			'glm-5.3': 'same-region-standard',
+		});
+
+		expect(getModelEndpointRoute('glm-5.3')).toBe('same-region-standard');
+		expect(resolveModelConnection('glm-5.3')).toMatchObject({
 			endpoint: 'china-standard',
 			baseUrl: GLM_CN_GENERAL_BASE_URL,
 			protocol: 'openai',
@@ -112,7 +118,7 @@ describe('configuration helpers', () => {
 		});
 
 		__setConfigurationValue('glm-copilot.endpoint', 'international-coding');
-		expect(resolveModelConnection('glm-5v-turbo')).toMatchObject({
+		expect(resolveModelConnection('glm-5.3')).toMatchObject({
 			endpoint: 'international-standard',
 			baseUrl: GLM_INTERNATIONAL_GENERAL_BASE_URL,
 			credentialChannel: 'international-standard',
@@ -120,16 +126,50 @@ describe('configuration helpers', () => {
 		});
 	});
 
+	it('routes glm-5.3-flash through the global endpoint on every connection', () => {
+		expect(getModelEndpointRoute('glm-5.3-flash')).toBe('default');
+		expect(resolveModelConnection('glm-5.3-flash')).toMatchObject({
+			endpoint: 'china-coding',
+			baseUrl: GLM_CN_CODING_BASE_URL,
+			credentialChannel: 'china-coding',
+		});
+
+		__setConfigurationValue('glm-copilot.endpoint', 'international-standard');
+		expect(resolveModelConnection('glm-5.3-flash')).toMatchObject({
+			endpoint: 'international-standard',
+			credentialChannel: 'international-standard',
+		});
+	});
+
+	it('picks the automatic vision proxy model from the active connection mode', () => {
+		expect(getAutomaticGLMVisionModelId()).toBe('glm-5.3-flash');
+
+		__setConfigurationValue('glm-copilot.endpoint', 'china-anthropic');
+		expect(getAutomaticGLMVisionModelId()).toBe('glm-5.3-flash');
+
+		__setConfigurationValue('glm-copilot.endpoint', 'china-standard');
+		expect(getAutomaticGLMVisionModelId()).toBe('glm-4.6v-flash');
+
+		__setConfigurationValue('glm-copilot.endpoint', 'international-standard');
+		expect(getAutomaticGLMVisionModelId()).toBe('glm-4.6v-flash');
+
+		__setConfigurationValue('glm-copilot.endpoint', 'international-coding');
+		expect(getAutomaticGLMVisionModelId()).toBe('glm-5.3-flash');
+	});
+
 	it('applies global baseUrl only to models using the default route', () => {
 		__setConfigurationValue('glm-copilot.baseUrl', 'https://proxy.example.com/v1');
+		__setConfigurationValue('glm-copilot.modelEndpointOverrides', {
+			'glm-5.3': 'china-standard',
+		});
 
-		expect(resolveModelConnection('glm-5.3')).toMatchObject({
+		expect(resolveModelConnection('glm-5.3-flash')).toMatchObject({
 			baseUrl: 'https://proxy.example.com/v1',
 			usesGlobalBaseUrlOverride: true,
 			apiMode: undefined,
 			pricingCurrency: undefined,
 		});
-		expect(resolveModelConnection('glm-5v-turbo')).toMatchObject({
+		expect(resolveModelConnection('glm-5.3')).toMatchObject({
 			baseUrl: GLM_CN_GENERAL_BASE_URL,
 			usesGlobalBaseUrlOverride: false,
 		});
@@ -150,10 +190,9 @@ describe('configuration helpers', () => {
 		});
 	});
 
-	it('uses explicit per-model endpoints and rejects unsupported GLM-5V-Turbo routes', () => {
+	it('uses explicit per-model endpoints', () => {
 		__setConfigurationValue('glm-copilot.modelEndpointOverrides', {
 			'glm-5.3': 'international-anthropic',
-			'glm-5v-turbo': 'china-coding',
 			ignored: 'not-an-endpoint',
 		});
 
@@ -162,23 +201,7 @@ describe('configuration helpers', () => {
 			protocol: 'anthropic',
 			credentialChannel: 'international-coding',
 		});
-		expect(() => resolveModelConnection('glm-5v-turbo')).toThrow(
-			'does not support the coding-plan connection route',
-		);
 		expect(getModelEndpointRoute('ignored')).toBe('default');
-	});
-
-	it('keeps built-in route constraints when a custom definition overrides the same ID', () => {
-		__setConfigurationValue('glm-copilot.customModels', [
-			{ id: 'glm-5v-turbo', name: 'Custom GLM-5V-Turbo' },
-		]);
-		__setConfigurationValue('glm-copilot.modelEndpointOverrides', {
-			'glm-5v-turbo': 'china-coding',
-		});
-
-		expect(() => resolveModelConnection('glm-5v-turbo')).toThrow(
-			'does not support the coding-plan connection route',
-		);
 	});
 });
 

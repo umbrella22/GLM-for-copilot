@@ -20,27 +20,27 @@
   <img src="resources/screenshots/01-picker.png" alt="GLM 模型出现在 Copilot Chat 模型选择器中，带有可按模型独立设置的思考深度下拉菜单（停用 / 标准 / 深度）" width="800">
 </p>
 
-喜欢 GLM 的性价比，但不想放弃 GitHub Copilot 的 Agent 模式、工具调用和成熟的交互体验？本扩展将 **GLM-5.3、GLM-4.6V-Flash、GLM-5V-Turbo 和 GLM-5-Turbo** 直接接入 Copilot Chat 模型选择器，支持**视觉识别**、**思考模式**，使用你自己的 API Key。
+喜欢 GLM 的性价比，但不想放弃 GitHub Copilot 的 Agent 模式、工具调用和成熟的交互体验？本扩展将 **GLM-5.3、GLM-4.6V-Flash 和 GLM-5.3-Flash** 直接接入 Copilot Chat 模型选择器，支持**视觉识别**、**思考模式**，使用你自己的 API Key。
 
 ## 为什么选这个扩展？
 
 - **不是替换 Copilot，而是增强它。** 没有新的侧边栏，没有新的聊天界面需要学习。只是在你已经在用的模型选择器中多了一个选项。
 - **Agent 模式、工具调用、Instructions、MCP、Skills——全部正常运作。** Copilot 的完整能力栈，现在跑在 GLM 上。
-- **按模型需要处理视觉任务。** GLM-4.6V-Flash 和 GLM-5V-Turbo 默认直接接收图片；GLM-5.3 和 GLM-5-Turbo 默认通过透明视觉代理将图片转换为描述。每个模型也可单独选择 `mcp` 模式，将图片存储到本地供兼容的 MCP 工具读取。
+- **按模型需要处理视觉任务。** GLM-4.6V-Flash 和 GLM-5.3-Flash 默认直接接收图片；GLM-5.3 默认通过透明视觉代理将图片转换为描述（Coding Plan 连接使用 GLM-5.3-Flash，标准 API 连接使用 GLM-4.6V-Flash）。每个模型也可单独选择 `mcp` 模式，将图片存储到本地供兼容的 MCP 工具读取。
 - **按轮次估算费用。** 当 GLM API 返回 usage 时，扩展会按官方标价估算本轮费用，上报到 Copilot usage 元数据、写入日志，并在状态栏显示最近一轮费用。
 - **需自行提供 API Key，直接向 GLM 付费。** 你的 API Key，你的账单，你的速率限制。密钥存储在操作系统密钥链中，不会以明文形式写入磁盘。
 
 ## 功能特性
 
-### 四款 GLM 模型出现在模型选择器中
+### 三款 GLM 模型出现在模型选择器中
 
-四个模型与 GPT-4o、Claude 等并列在 Copilot Chat 的模型选择器中。可在对话中途切换模型，不丢失聊天历史。
+三个模型与 GPT-4o、Claude 等并列在 Copilot Chat 的模型选择器中。可在对话中途切换模型，不丢失聊天历史。
 
 ### 透明视觉代理
 
-模型使用 `proxy` 模式时，自动视觉代理会优先让 GLM-4.6V-Flash 描述图片，再把描述交给当前选中的 GLM 模型。如果 GLM-4.6V-Flash 在其配置端点不可用，则回退到已安装的 Copilot/VS Code 视觉模型。你也可以通过 **GLM: 在模型管理中打开视觉代理** 强制选择 VS Code 模型或自定义 API 端点。GLM-4.6V-Flash 和 GLM-5V-Turbo 默认使用 `native` 模式，直接接收缩放后的图片数据。
+模型使用 `proxy` 模式时，自动视觉代理会优先让内置 GLM 视觉模型描述图片，再把描述交给当前选中的 GLM 模型：**Coding Plan 连接使用 GLM-5.3-Flash**（切换时会弹出提示），**标准 API 连接仍使用 GLM-4.6V-Flash**，按量付费用户不受影响。如果该模型在其配置端点不可用，则回退到已安装的 Copilot/VS Code 视觉模型。你也可以通过 **GLM: 在模型管理中打开视觉代理** 强制选择 VS Code 模型或自定义 API 端点。GLM-4.6V-Flash 和 GLM-5.3-Flash 默认使用 `native` 模式，直接接收缩放后的图片数据。
 
-这样 GLM-5.3 可以继续专注编码与推理，视觉抽取交给 GLM-4.6V-Flash。
+这样 GLM-5.3 可以继续专注编码与推理，视觉抽取交给专门的视觉模型。
 
 <p align="center">
   <img src="resources/screenshots/03-vision.png" alt="将图片拖入 Copilot Chat，GLM 通过视觉代理响应" width="800">
@@ -104,16 +104,15 @@
 | ------------------ | --------------------------------------------- |
 | **GLM-5.3**        | 最新旗舰模型 — Agent 编程、长期任务、深度推理 |
 | **GLM-4.6V-Flash** | 多模态问答、截图理解、视觉上下文              |
-| **GLM-5V-Turbo**   | 通过标准 API 执行高容量原生多模态任务         |
-| **GLM-5-Turbo**    | 日常快速编码、小改动、低成本迭代              |
+| **GLM-5.3-Flash**  | GLM-5 系列首个原生多模态模型 — 视觉 Agent、设计稿还原 |
 
-四者均支持可选的思考模式和工具调用。GLM-5V-Turbo 仅通过按量付费标准 API 提供；默认跟随全局 endpoint 的地区，并使用该地区的标准 API Key。GLM-4.6V-Flash 和 GLM-5V-Turbo 默认直接接收图片。
+三者均支持思考模式和工具调用。GLM-5.3 与 GLM-5.3-Flash 无法关闭思考（API 仅接受 `enabled`），提供 轻量/标准/深度 三档推理强度；GLM-4.6V-Flash 保持 停用/标准/深度。GLM-5.3-Flash 已全量上线 GLM Coding Plan，同时提供按量付费标准 API；GLM-4.6V-Flash 和 GLM-5.3-Flash 默认直接接收图片。Coding Plan 连接下，自动视觉代理会从 GLM-4.6V-Flash 切换为 GLM-5.3-Flash 来描述图片。
 
 ## 模型管理
 
 运行 **GLM: 管理模型与连接** 配置扩展。页面包含三个聚焦视图：
 
-- `模型`：管理 API 模型 ID、官方连接路由、图片模式和自定义模型。GLM-5V-Turbo 只提供标准 API 路由。
+- `模型`：管理 API 模型 ID、官方连接路由、图片模式和自定义模型。
 - `连接`：管理默认 Endpoint、可选兼容 Base URL、四个凭据通道和 Key 状态。同一地区的 OpenAI 与 Anthropic Coding Plan Endpoint 共用该地区的 Coding Plan 凭据。
 - `视觉代理`：管理模型使用 `proxy` 图片模式时的后端和提示词。兼容命令 **GLM: 在模型管理中打开视觉代理** 会直接打开此视图。
 
@@ -126,7 +125,7 @@
 | 设置项                                       | 默认值             | 说明                                                                                                                                                                                                                                                                              |
 | -------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `glm-copilot.modelManagement`                | `{ "version": 1 }` | 版本化管理页状态。常规修改应在 **GLM: 管理模型与连接** 中完成。对象包含 `defaultConnection`、按模型记录的 `models`（`apiModelId`、`endpointRoute`、`visionMode`）和 `customModels` 映射。配置按用户、工作区、工作区文件夹合并；`customModels[id] = null` 可删除继承的自定义模型。 |
-| `glm-copilot.maxTokens`                      | `0`                | 最大输出 Token 数（`0` = 不限制），可用于成本控制。                                                                                                                                                                                                                               |
+| `glm-copilot.maxTokens`                      | `0`                | 最大输出 Token 数。`0` 直接取各模型的最大输出（GLM-5.x 为 131072，GLM-4.6V-Flash 为 32768），Anthropic 路由也使用该值（该字段必填）。思考 Token 计入该预算。可用于成本控制。                                                                                                                                                                                                                               |
 | `glm-copilot.debugMode`                      | `minimal`          | 诊断模式：仅 Token 用量、隐私安全元数据或扩展全局存储中的详细请求 dump。                                                                                                                                                                                                          |
 | `glm-copilot.visionModel`                    | _(自动)_           | 由视觉代理视图维护的兼容值。新版保存为 `vendor/id`，旧版裸模型 ID 仍可读取。                                                                                                                                                                                                      |
 | `glm-copilot.visionPrompt`                   | _(内置)_           | 代理图片模式用于描述图片附件的提示词。                                                                                                                                                                                                                                            |
@@ -154,9 +153,9 @@
       "baseUrl": "https://proxy.example.com/v1"
     },
     "models": {
-      "glm-5v-turbo": {
-        "apiModelId": "glm-5v-turbo",
-        "endpointRoute": "same-region-standard",
+      "glm-5.3-flash": {
+        "apiModelId": "glm-5.3-flash",
+        "endpointRoute": "china-standard",
         "visionMode": "native"
       },
       "team-coder": {

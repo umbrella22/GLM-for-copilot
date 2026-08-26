@@ -1,14 +1,16 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 import { GLMClient } from '../../src/client';
 import { convertMessages } from '../../src/provider/convert';
 import type { CacheDiagnosticsRun } from '../../src/provider/debug';
+import { logger } from '../../src/logger';
 import { REPLAY_MARKER_MIME, parseReplayMarkerData } from '../../src/provider/replay';
 import type { PreparedChatRequest } from '../../src/provider/request';
 import type { RequestKind } from '../../src/provider/routing';
 import { resolveConversationSegment, type ConversationSegment } from '../../src/provider/segment';
 import { streamChatCompletion } from '../../src/provider/stream';
 import type { GLMMessage, GLMRequest, GLMToolCall, StreamCallbacks } from '../../src/types';
+import { __setConfigurationValue } from '../support/vscode.mock';
 
 const SEGMENT_ID = '3917af00-099c-49a2-8373-38df581b018e';
 
@@ -672,6 +674,91 @@ describe('streamChatCompletion marker reporting', () => {
 		expect(getDiagnostics(prepared).reports).toEqual([
 			expect.objectContaining({ status: 'skipped', reason: 'stream-error' }),
 		]);
+	});
+
+	it('includes output stats in the empty-response error to separate causes', async () => {
+		const prepared = buildPrepared({
+			driver: (cb) => {
+				cb.onThinking('thinking hard about the answer');
+				cb.onUsage({
+					prompt_tokens: 10,
+					completion_tokens: 5,
+					total_tokens: 15,
+				});
+				cb.onDone();
+			},
+		});
+
+		await expect(
+			streamChatCompletion({
+				prepared,
+				progress: { report: () => {} },
+				token: new MutableCancellationToken(),
+				getCharsPerToken: () => 4,
+				setCharsPerToken: () => {},
+			}),
+		).rejects.toThrow(/reasoningChars=30 toolCalls=0 usageObserved=true durationMs=\d+\]$/);
+	});
+
+	it('includes SSE telemetry in the empty-response error when the transport reports it', async () => {
+		const prepared = buildPrepared({
+			driver: (cb) => {
+				cb.onTelemetry({ dataChunks: 7, parseFailures: 2, doneSignalObserved: false });
+				cb.onDone();
+			},
+		});
+
+		await expect(
+			streamChatCompletion({
+				prepared,
+				progress: { report: () => {} },
+				token: new MutableCancellationToken(),
+				getCharsPerToken: () => 4,
+				setCharsPerToken: () => {},
+			}),
+		).rejects.toThrow(
+			/reasoningChars=0 toolCalls=0 usageObserved=false durationMs=\d+ sseChunks=7 parseFailures=2 doneSignal=false\]$/,
+		);
+	});
+
+	it('logs detailed empty-response diagnostics in verbose debug mode', async () => {
+		__setConfigurationValue('glm-copilot.debugMode', 'verbose');
+		const errorSpy = vi.spyOn(logger, 'error').mockImplementation(() => {});
+		try {
+			const prepared = buildPrepared({
+				driver: (cb) => {
+					cb.onThinking('almost there but got cut');
+					cb.onDone();
+				},
+			});
+
+			await expect(
+				streamChatCompletion({
+					prepared,
+					progress: { report: () => {} },
+					token: new MutableCancellationToken(),
+					getCharsPerToken: () => 4,
+					setCharsPerToken: () => {},
+				}),
+			).rejects.toThrow(/reasoningChars=24/);
+
+			const diagnostic = errorSpy.mock.calls
+				.flat()
+				.map(String)
+				.find((text) => text.includes('Empty response diagnostics'));
+			expect(diagnostic).toContain('model=glm-test');
+			expect(diagnostic).toContain('thinking=');
+			expect(diagnostic).toContain('usage=none');
+			expect(diagnostic).toContain('reasoning tail');
+			expect(diagnostic).toContain('almost there but got cut');
+		} finally {
+			errorSpy.mockRestore();
+			__setConfigurationValue('glm-copilot.debugMode', undefined);
+		}
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
 	});
 
 	it('keeps marker reporting best-effort when progress rejects the marker', async () => {

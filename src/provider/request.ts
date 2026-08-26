@@ -40,6 +40,9 @@ import {
 	stripImageCapableToolsFromOptions,
 } from './vision/image-capable-tools';
 
+/** Output budget used only when the model definition is unknown (131072 = GLM-5.x maximum). */
+const MAX_OUTPUT_TOKENS_FALLBACK = 131_072;
+
 export interface PreparedChatRequest {
 	client: GLMClient;
 	request: GLMRequest;
@@ -97,7 +100,11 @@ export async function prepareChatRequest({
 	const client = new GLMClient(baseUrl, apiKey, apiProtocol);
 	const modelDef = findModelDefinition(modelInfo.id, configurationResource);
 	const isThinkingModel = modelDef?.capabilities.thinking ?? false;
-	const maxTokens = getMaxTokens();
+	// "No limit" (0/unset) pins the output budget to the model's maximum
+	// instead of relying on endpoint defaults — Anthropic routes require the
+	// field, and thinking tokens count against it, so an under-sized budget
+	// let deep reasoning starve the visible answer down to empty.
+	const maxTokens = getMaxTokens() ?? modelDef?.maxOutputTokens ?? MAX_OUTPUT_TOKENS_FALLBACK;
 	const apiModelId = getApiModelId(modelInfo.id, configurationResource);
 	const visionMode = getModelVisionMode(modelInfo.id, configurationResource);
 	const imageCapableOverrides = readImageCapableToolOverrides();
@@ -162,7 +169,7 @@ export async function prepareChatRequest({
 	// [FORK] PR #18: strip image-capable MCP tools once the EFFECTIVE vision
 	// mode is settled. native/proxy modes have their own image path (inline
 	// bytes / text description); an image MCP tool is redundant there and
-	// actively interferes — glm-5v-turbo gets lured into calling it instead of
+	// actively interferes — glm-5.3-flash gets lured into calling it instead of
 	// using native vision, and hands it VS Code attachment placeholders the tool
 	// cannot resolve. This also covers mcp -> proxy fallback (review issue 1):
 	// proxy does not create local image files, so an image MCP tool left in the
@@ -225,7 +232,14 @@ export async function prepareChatRequest({
 	// Only force helper requests into disabled thinking on the official API.
 	// Custom endpoints keep their configured effort to preserve pre-#137 request shape.
 	const forceNoneThinking = shouldForceThinkingNone(requestKind) && isOfficialGLMBaseUrl(baseUrl);
-	const thinkingEffort = forceNoneThinking ? 'none' : configuredThinkingEffort;
+	const requestedThinkingEffort = forceNoneThinking ? 'none' : configuredThinkingEffort;
+	// glm-5.3-flash rejects thinking.type 'disabled'. Official guidance: keep
+	// thinking enabled and drop reasoning_effort to 'low' instead — that also
+	// applies when the user or a helper request asks for 'none'.
+	const thinkingEffort =
+		modelDef?.thinkingAlwaysEnabled && requestedThinkingEffort === 'none'
+			? ('low' as const)
+			: requestedThinkingEffort;
 	const supportsReasoningEffort = modelDef?.supportsReasoningEffort ?? false;
 	const request: GLMRequest = {
 		...baseRequest,

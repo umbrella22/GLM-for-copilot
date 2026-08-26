@@ -6,7 +6,7 @@
 
 当前扩展已经完成这些基础能力：
 
-- 在 Copilot Chat 模型选择器中暴露 GLM-5.3、GLM-4.6V-Flash、GLM-5-Turbo。
+- 在 Copilot Chat 模型选择器中暴露 GLM-5.3、GLM-4.6V-Flash、GLM-5.3-Flash。
 - 通过透明视觉代理将图片任务优先交给 GLM-4.6V-Flash。
 - 在 provider 层接管 VS Code `LanguageModelChatProvider` 请求，并转换为 GLM Chat Completions 请求。
 - 支持工具调用、thinking、debug dump、usage/cost 估算、状态栏展示。
@@ -58,7 +58,7 @@ Copilot 自身的请求编排对扩展不可见。Team Mode 的目标不是替�
 enabled: true
 mode: plan-execute
 director: glm-5.3
-executor: glm-5-turbo
+executor: glm-5.3
 vision: auto
 max_subtasks: 5
 triggers: main-agent
@@ -197,7 +197,7 @@ Provider 层负责真正的编排：
 2. director 不接收工具列表。
 3. director 请求设置 `tool_choice: none`。
 4. director 输出结构化短计划，不输出长推理过程。
-5. executor 使用 `glm-5-turbo` 或配置中的模型。
+5. executor 使用 `glm-5.3` 或配置中的模型。
 6. executor 正常接收 Copilot tools，并通过原有 stream path 返回工具调用。
 
 Director 输出建议：
@@ -248,7 +248,7 @@ Team mode 注入内容建议包含两部分：
 ```md
 [glm-copilot-team-notice-start]: #
 
-> [team] director(glm-5.3) 已生成 5 个子任务，交由 executor(glm-5-turbo) 执行。
+> [team] director(glm-5.3) 已生成 5 个子任务，交由 executor(glm-5.3) 执行。
 
 [glm-copilot-team-notice-end]: #
 ```
@@ -309,7 +309,7 @@ Team mode 需要处理两类费用：
 第一版最低要求：
 
 - executor 使用实际模型的 `ModelDefinition` 做费用估算。
-- 如果用户选择 GLM-5.3，但 executor 被配置为 GLM-5-Turbo，状态栏应显示 GLM-5-Turbo 的单轮费用。
+- 如果用户选择 GLM-5.3，但 executor 被配置为 GLM-5.3，状态栏应显示 GLM-5.3 的单轮费用。
 
 后续增强：
 
@@ -395,8 +395,8 @@ src/provider/team/
 
 验收：
 
-- 用户选择 GLM-5.3，但 `executor: glm-5-turbo` 时，实际请求 model 为 GLM-5-Turbo。
-- 状态栏费用按 GLM-5-Turbo 估算。
+- 用户选择 GLM-5.3，但 `executor: glm-5.3` 时，实际请求 model 为 GLM-5.3。
+- 状态栏费用按 GLM-5.3 估算。
 - modelIdOverrides 对 executor 同样生效。
 
 ### Phase 3：director 计划生成

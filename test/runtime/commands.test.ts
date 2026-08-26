@@ -143,7 +143,7 @@ describe('runtime commands — applyCodingPlanPreset (FORK)', () => {
 		expect(cfg.get('experimental.stabilizeToolList')).toBe(true);
 	});
 
-	it('writes Coding Plan model overrides for glm-5.3 and glm-5-turbo', async () => {
+	it('writes Coding Plan model overrides for glm-5.3 only', async () => {
 		__setWarningMessageButton('Apply');
 		registerCommands({ subscriptions: [] } as unknown as vscode.ExtensionContext);
 		await vscode.commands.executeCommand('glm-copilot.applyCodingPlanPreset');
@@ -156,9 +156,9 @@ describe('runtime commands — applyCodingPlanPreset (FORK)', () => {
 		) as { models?: Record<string, { endpointRoute?: string; visionMode?: string }> };
 		expect(mm?.models?.['glm-5.3']?.endpointRoute).toBe('china-anthropic');
 		expect(mm?.models?.['glm-5.3']?.visionMode).toBe('mcp');
-		expect(mm?.models?.['glm-5-turbo']?.visionMode).toBe('mcp');
-		// glm-5-turbo should NOT get a route override (only visionMode).
-		expect(mm?.models?.['glm-5-turbo']?.endpointRoute).toBeUndefined();
+		// glm-5-turbo was removed from the registry, so the preset no longer
+		// writes it (reset still cleans up entries written by older versions).
+		expect(mm?.models?.['glm-5-turbo']).toBeUndefined();
 	});
 
 	it('preserves existing user overrides when merging the preset', async () => {

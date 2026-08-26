@@ -1,7 +1,8 @@
 import vscode from 'vscode';
+import { getRequestDumpEnabled } from '../config';
 import { createUserFacingError } from '../client';
 import { logger } from '../logger';
-import type { GLMToolCall, GLMUsage } from '../types';
+import type { GLMStreamTelemetry, GLMToolCall, GLMUsage } from '../types';
 import { DEFAULT_CHARS_PER_TOKEN, resolveContextUsage } from './context-usage';
 import {
 	observeCancellationToken,
@@ -40,6 +41,8 @@ interface ResponseStreamState {
 	toolCallChars: number;
 	latestProviderUsage?: GLMUsage;
 	providerUsageCallbacks: number;
+	/** Raw SSE counters reported by the transport when it settled, if any. */
+	streamTelemetry?: GLMStreamTelemetry;
 	contextUsageReport?: ContextUsageReportInfo;
 	replayMarkerReport?: ReplayMarkerReportInfo;
 	reportedPartCount: number;
@@ -123,6 +126,10 @@ export async function streamChatCompletion({
 					state.latestProviderUsage = usage;
 					state.providerUsageCallbacks += 1;
 				},
+
+				onTelemetry: (telemetry) => {
+					state.streamTelemetry = telemetry;
+				},
 			},
 			token,
 		);
@@ -139,10 +146,7 @@ export async function streamChatCompletion({
 			throw new Error('Model stream resolved without a completion signal.');
 		}
 		if (!state.hasModelOutput) {
-			throw new Error(
-				'Model returned an empty response with no text or tool calls. ' +
-					'This may indicate an API issue or the model refused to answer.',
-			);
+			throw createEmptyResponseError(prepared, state, startedAtMs);
 		}
 
 		finalizeContextUsage({
@@ -544,6 +548,66 @@ function reportResponsePart(
 	state.reportedPartCount += 1;
 	state.lastReportedPart = kind;
 	return state.reportedPartCount;
+}
+
+/**
+ * Build the error thrown when a completed stream carried no text and no tool
+ * calls. The stats suffix separates the two usual causes at a glance:
+ * reasoning-only output (reasoningChars > 0 — the answer was never produced,
+ * e.g. truncated mid-thinking or a refusal) versus a stream that arrived
+ * empty (reasoningChars = 0 — upstream/API issue).
+ *
+ * Verbose mode additionally logs the request summary, provider usage, SSE
+ * counters, and the tail of the accumulated reasoning so the failure can be
+ * diagnosed without a request dump.
+ */
+function createEmptyResponseError(
+	prepared: PreparedChatRequest,
+	state: ResponseStreamState,
+	startedAtMs: number,
+): Error {
+	const durationMs = Date.now() - startedAtMs;
+	const telemetry = state.streamTelemetry;
+	const telemetryText = telemetry
+		? ` sseChunks=${telemetry.dataChunks} parseFailures=${telemetry.parseFailures} doneSignal=${telemetry.doneSignalObserved}`
+		: '';
+	const stats =
+		`reasoningChars=${state.reasoningChars} toolCalls=${state.toolCalls}` +
+		` usageObserved=${state.latestProviderUsage !== undefined} durationMs=${durationMs}` +
+		telemetryText;
+
+	if (getRequestDumpEnabled()) {
+		const request = prepared.request;
+		const reasoningTail =
+			state.accumulatedReasoning.length > 0
+				? `\n--- reasoning tail (last 400 chars) ---\n${state.accumulatedReasoning.slice(-400)}`
+				: '';
+		// `connection` is optional in practice (test fixtures omit it), so read
+		// it defensively instead of trusting the declared type.
+		const baseUrl = (prepared as { connection?: { baseUrl?: string } }).connection?.baseUrl;
+		logger.error(
+			formatRequestLogLine(
+				prepared.requestKind,
+				'Empty response diagnostics:' +
+					` model=${request.model}` +
+					` endpoint=${baseUrl ?? 'unknown'}` +
+					` thinking=${JSON.stringify(request.thinking)}` +
+					` reasoningEffort=${JSON.stringify(request.reasoning_effort)}` +
+					` maxTokens=${request.max_tokens ?? 'unlimited'}` +
+					` promptChars=${prepared.promptChars}` +
+					` usage=${state.latestProviderUsage ? JSON.stringify(state.latestProviderUsage) : 'none'}` +
+					` textChars=${state.textChars}` +
+					` ${stats}` +
+					reasoningTail,
+			),
+		);
+	}
+
+	return new Error(
+		'Model returned an empty response with no text or tool calls. ' +
+			'This may indicate an API issue or the model refused to answer. ' +
+			`[${stats}]`,
+	);
 }
 
 function getToolCallChars(state: ResponseStreamState): number {

@@ -2,6 +2,6 @@
 
 [打开模型管理](command:glm-copilot.manageModels)
 
-如果模型被隐藏，请在 VS Code 语言模型管理器中启用它。GLM-5V-Turbo 仅支持标准 API 连接。
+如果模型被隐藏，请在 VS Code 语言模型管理器中启用它。Coding Plan 连接下，自动视觉代理会使用 GLM-5.3-Flash（而非 GLM-4.6V-Flash）描述图片。
 
 [打开语言模型管理](command:workbench.action.chat.manage)

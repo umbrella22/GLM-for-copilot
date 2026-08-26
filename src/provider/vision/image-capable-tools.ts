@@ -112,7 +112,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * native and proxy vision modes give the model its own image path — native
  * inlines the image bytes, proxy replaces them with a text description. In
  * both modes an image-capable MCP tool in the list is redundant AND actively
- * harmful: tested models (e.g. glm-5v-turbo) get lured into calling the MCP
+ * harmful: tested models (e.g. glm-5.3-flash) get lured into calling the MCP
  * vision tool instead of using their own native vision, and hand it VS Code
  * attachment placeholders (e.g. `attachment:0`) the tool cannot resolve,
  * producing tool errors. So for non-mcp modes we strip these tools before

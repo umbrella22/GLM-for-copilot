@@ -1,6 +1,14 @@
 /** Built-in GLM multimodal model used first when the vision proxy is automatic. */
 export const DEFAULT_GLM_VISION_MODEL_ID = 'glm-4.6v-flash';
 
+/**
+ * Vision model the automatic proxy uses on Coding Plan connections
+ * (coding + anthropic endpoints). GLM-5.3-Flash is natively multimodal and
+ * fully rolled out on the GLM Coding Plan, so Coding Plan subscribers get it
+ * by default while Standard API callers keep GLM-4.6V-Flash.
+ */
+export const CODING_PLAN_GLM_VISION_MODEL_ID = 'glm-5.3-flash';
+
 /** Default VS Code model ID used when GLM vision falls back to Copilot/VS Code models. */
 export const DEFAULT_VISION_MODEL_ID = 'oswe-vscode-prime';
 

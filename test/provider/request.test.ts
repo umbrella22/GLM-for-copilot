@@ -178,15 +178,18 @@ describe('request preparation', () => {
 		});
 	});
 
-	it('routes GLM-5V-Turbo through the regional Standard API key and native image path', async () => {
+	it('routes glm-5.3-flash through an explicit Standard API route with native images', async () => {
 		__setConfigurationValue('glm-copilot.endpoint', 'china-coding');
+		__setConfigurationValue('glm-copilot.modelEndpointOverrides', {
+			'glm-5.3-flash': 'china-standard',
+		});
 		const getApiKey = vi.fn().mockResolvedValue('standard-api-key');
 		const describe = vi.fn();
 
 		const prepared = await prepareChatRequest({
 			authManager: { getApiKey } as unknown as AuthManager,
 			globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
-			modelInfo: { id: 'glm-5v-turbo' } as vscode.LanguageModelChatInformation,
+			modelInfo: { id: 'glm-5.3-flash' } as vscode.LanguageModelChatInformation,
 			segment,
 			messages: [userMessage([new vscode.LanguageModelTextPart('Look'), imagePart([5, 2])])],
 			options: {} as vscode.ProvideLanguageModelChatResponseOptions,
@@ -198,7 +201,7 @@ describe('request preparation', () => {
 		expect(getApiKey).toHaveBeenCalledOnce();
 		expect(getApiKey).toHaveBeenCalledWith('china-standard', undefined);
 		expect(prepared.connection).toMatchObject({
-			route: 'same-region-standard',
+			route: 'china-standard',
 			endpoint: 'china-standard',
 			credentialChannel: 'china-standard',
 			apiMode: 'standard',
@@ -261,28 +264,121 @@ describe('request preparation', () => {
 		]);
 	});
 
-	it('rejects an unsupported GLM-5V-Turbo Coding Plan route before reading a key', async () => {
-		__setConfigurationValue('glm-copilot.modelEndpointOverrides', {
-			'glm-5v-turbo': 'china-coding',
+	it('pins the output budget to the model maximum when maxTokens is unset', async () => {
+		const flagship = await prepareChatRequest({
+			authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
+			globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
+			modelInfo: { id: 'glm-5.3' } as vscode.LanguageModelChatInformation,
+			segment,
+			messages: [userMessage([new vscode.LanguageModelTextPart('Hello')])],
+			options: {} as vscode.ProvideLanguageModelChatResponseOptions,
+			token,
+			cacheDiagnostics: createCacheDiagnosticsRecorder(),
+			getVisionDescriber: async () => undefined,
 		});
-		const getApiKey = vi.fn().mockResolvedValue('coding-plan-key');
+		expect(flagship.request.max_tokens).toBe(131_072);
 
-		await expect(
-			prepareChatRequest({
-				authManager: { getApiKey } as unknown as AuthManager,
+		const vision = await prepareChatRequest({
+			authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
+			globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
+			modelInfo: { id: 'glm-4.6v-flash' } as vscode.LanguageModelChatInformation,
+			segment,
+			messages: [userMessage([new vscode.LanguageModelTextPart('Hello')])],
+			options: {} as vscode.ProvideLanguageModelChatResponseOptions,
+			token,
+			cacheDiagnostics: createCacheDiagnosticsRecorder(),
+			getVisionDescriber: async () => undefined,
+		});
+		// The budget follows each model's own maximum so the parameter never
+		// exceeds what the endpoint accepts.
+		expect(vision.request.max_tokens).toBe(32_768);
+	});
+
+	it('prefers an explicit maxTokens setting over the model maximum', async () => {
+		__setConfigurationValue('glm-copilot.maxTokens', 8192);
+		try {
+			const prepared = await prepareChatRequest({
+				authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
 				globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
-				modelInfo: { id: 'glm-5v-turbo' } as vscode.LanguageModelChatInformation,
+				modelInfo: { id: 'glm-5.3' } as vscode.LanguageModelChatInformation,
 				segment,
 				messages: [userMessage([new vscode.LanguageModelTextPart('Hello')])],
 				options: {} as vscode.ProvideLanguageModelChatResponseOptions,
 				token,
 				cacheDiagnostics: createCacheDiagnosticsRecorder(),
 				getVisionDescriber: async () => undefined,
-			}),
-		).rejects.toThrow('does not support the coding-plan connection route');
+			});
+			expect(prepared.request.max_tokens).toBe(8192);
+		} finally {
+			__setConfigurationValue('glm-copilot.maxTokens', undefined);
+		}
+	});
 
-		expect(getApiKey).not.toHaveBeenCalled();
+	it('keeps thinking enabled for glm-5.3-flash helper requests that cannot disable thinking', async () => {
+		const getApiKey = vi.fn().mockResolvedValue('coding-plan-key');
+		// chat-title helper prefix forces thinking "none" on other models.
+		const titleSystemMessage = {
+			role: vscode.LanguageModelChatMessageRole.System,
+			content: [new vscode.LanguageModelTextPart('You are an expert in crafting pithy titles')],
+		} as vscode.LanguageModelChatRequestMessage;
+
+		const prepared = await prepareChatRequest({
+			authManager: { getApiKey } as unknown as AuthManager,
+			globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
+			modelInfo: { id: 'glm-5.3-flash' } as vscode.LanguageModelChatInformation,
+			segment,
+			messages: [titleSystemMessage, userMessage([new vscode.LanguageModelTextPart('Hello')])],
+			options: {} as vscode.ProvideLanguageModelChatResponseOptions,
+			token,
+			cacheDiagnostics: createCacheDiagnosticsRecorder(),
+			getVisionDescriber: async () => undefined,
+		});
+
+		expect(getApiKey).toHaveBeenCalledOnce();
+		expect(prepared.requestKind).toBe('chat-title');
+		// The API rejects thinking.type 'disabled' for this model. The helper
+		// request keeps thinking enabled and drops the effort to 'low'.
+		expect(prepared.request.thinking).toEqual({ type: 'enabled', clear_thinking: false });
+		expect(prepared.request.reasoning_effort).toBe('low');
 		expect(resizeImage).not.toHaveBeenCalled();
+	});
+
+	it('clamps an explicit "none" thinking choice to low for glm-5.3-flash', async () => {
+		const prepared = await prepareChatRequest({
+			authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
+			globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
+			modelInfo: { id: 'glm-5.3-flash' } as vscode.LanguageModelChatInformation,
+			segment,
+			messages: [userMessage([new vscode.LanguageModelTextPart('Hello')])],
+			options: {
+				modelConfiguration: { reasoningEffort: 'none' },
+			} as vscode.ProvideLanguageModelChatResponseOptions,
+			token,
+			cacheDiagnostics: createCacheDiagnosticsRecorder(),
+			getVisionDescriber: async () => undefined,
+		});
+
+		expect(prepared.request.thinking).toEqual({ type: 'enabled', clear_thinking: false });
+		expect(prepared.request.reasoning_effort).toBe('low');
+	});
+
+	it('passes the low thinking effort through for glm-5.3-flash', async () => {
+		const prepared = await prepareChatRequest({
+			authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
+			globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
+			modelInfo: { id: 'glm-5.3-flash' } as vscode.LanguageModelChatInformation,
+			segment,
+			messages: [userMessage([new vscode.LanguageModelTextPart('Hello')])],
+			options: {
+				modelConfiguration: { reasoningEffort: 'low' },
+			} as vscode.ProvideLanguageModelChatResponseOptions,
+			token,
+			cacheDiagnostics: createCacheDiagnosticsRecorder(),
+			getVisionDescriber: async () => undefined,
+		});
+
+		expect(prepared.request.thinking).toEqual({ type: 'enabled', clear_thinking: false });
+		expect(prepared.request.reasoning_effort).toBe('low');
 	});
 
 	it('uses resized native bytes for OpenAI-compatible and Anthropic requests', async () => {

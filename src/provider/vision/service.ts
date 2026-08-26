@@ -1,9 +1,9 @@
 import vscode from 'vscode';
 import type { AuthManager } from '../../auth';
-import { getApiModelId, resolveModelConnection } from '../../config';
+import { getApiModelId, getAutomaticGLMVisionModelId, resolveModelConnection } from '../../config';
 import { resolveEndpointRegion, resolvePresetBaseUrl } from '../../endpoint';
 import { t } from '../../i18n';
-import { DEFAULT_GLM_VISION_MODEL_ID } from './consts';
+import { CODING_PLAN_GLM_VISION_MODEL_ID, DEFAULT_GLM_VISION_MODEL_ID } from './consts';
 import {
 	logAutomaticGLMVisionFallback,
 	logAutomaticGLMVisionModelSelected,
@@ -32,6 +32,9 @@ export function createVisionService(
 } {
 	const store = new VisionProxyConfigStore(context);
 	const vscodeLm = createVSCodeLanguageModelVisionDescriberGetter();
+	// The Coding Plan switch notice fires once per extension session, the
+	// first time the automatic proxy describes an image through GLM-5.3-Flash.
+	let codingPlanVisionNoticeShown = false;
 
 	const reset = (): void => {
 		vscodeLm.reset();
@@ -81,14 +84,22 @@ export function createVisionService(
 				}
 			}
 
-			const connection = resolveModelConnection(DEFAULT_GLM_VISION_MODEL_ID, resource);
+			// Automatic mode picks the vision model from the active connection:
+			// GLM-5.3-Flash on Coding Plan endpoints, GLM-4.6V-Flash on Standard
+			// API endpoints (pay-as-you-go callers keep the previous behavior).
+			const visionModelId = getAutomaticGLMVisionModelId(resource);
+			const connection = resolveModelConnection(visionModelId, resource);
 			const apiKey = await authManager.getApiKey(connection.credentialChannel, resource);
 			if (!apiKey) {
 				return vscodeLm.get();
 			}
-			const config = createAutomaticGLMVisionConfig(connection, resource);
+			const config = createAutomaticGLMVisionConfig(connection, resource, visionModelId);
 			const primary = createEndpointVisionDescriber(config, apiKey);
 			logAutomaticGLMVisionModelSelected(primary.id, config.url);
+			if (!codingPlanVisionNoticeShown && visionModelId !== DEFAULT_GLM_VISION_MODEL_ID) {
+				codingPlanVisionNoticeShown = true;
+				void vscode.window.showInformationMessage(t('vision.auto.codingPlanModelSwitched'));
+			}
 			return new AutomaticVisionDescriber(primary, () => vscodeLm.get());
 		},
 
@@ -131,7 +142,8 @@ class AutomaticVisionDescriber implements VisionDescriber {
 
 function createAutomaticGLMVisionConfig(
 	connection: ReturnType<typeof resolveModelConnection>,
-	resource?: vscode.Uri,
+	resource: vscode.Uri | undefined,
+	visionModelId: string,
 ): VisionProxyConfig {
 	// Keep the automatic GLM proxy on the OpenAI-compatible vision transport.
 	// Anthropic is a valid main-chat protocol, but GLM vision availability can
@@ -144,7 +156,13 @@ function createAutomaticGLMVisionConfig(
 		providerFamily: 'openai-compatible',
 		apiType: 'chat-completions',
 		url: `${baseUrl}/chat/completions`,
-		modelId: getApiModelId(DEFAULT_GLM_VISION_MODEL_ID, resource),
+		modelId: getApiModelId(visionModelId, resource),
+		// GLM-5.3-Flash cannot disable thinking; without an explicit effort it
+		// reasons at the API default (max), which is needlessly slow for image
+		// transcription. 'high' balances description quality and latency.
+		...(visionModelId === CODING_PLAN_GLM_VISION_MODEL_ID
+			? { extraBody: { reasoning_effort: 'high' } }
+			: {}),
 		updatedAt: Date.now(),
 	};
 }

@@ -51,25 +51,30 @@ describe('model manager state', () => {
 		__clearConfigurationValues();
 	});
 
-	it('presents GLM-5V-Turbo as native and Standard API only', async () => {
+	it('presents GLM-5.3-Flash as native with every route allowed', async () => {
 		const state = await buildModelManagerState({
-			auth: createAuth(['china-standard']),
+			auth: createAuth(['china-coding']),
 			scope: 'global',
 			revision: 3,
 			activeView: 'models',
 			vision,
 		});
 
-		const model = state.models.find((entry) => entry.id === 'glm-5v-turbo');
+		const model = state.models.find((entry) => entry.id === 'glm-5.3-flash');
 		expect(model).toMatchObject({
 			visionMode: 'native',
 			status: { tone: 'success' },
-			draft: { endpointRoute: 'same-region-standard' },
+			draft: { endpointRoute: 'default' },
 		});
 		expect(model?.allowedRoutes.map((entry) => entry.value)).toEqual([
+			'default',
 			'same-region-standard',
+			'china-coding',
 			'china-standard',
+			'china-anthropic',
+			'international-coding',
 			'international-standard',
+			'international-anthropic',
 		]);
 		expect(state.defaultConnection.endpoint).toBe('china-coding');
 	});
@@ -161,10 +166,10 @@ describe('model manager state', () => {
 	});
 
 	it('does not materialize built-in route and vision defaults when only the API ID changes', async () => {
-		await saveManagedModel('global', undefined, 'glm-5v-turbo', {
-			name: 'GLM-5V-Turbo',
-			apiModelId: 'provider-glm-5v-turbo',
-			endpointRoute: 'same-region-standard',
+		await saveManagedModel('global', undefined, 'glm-5.3-flash', {
+			name: 'GLM-5.3-Flash',
+			apiModelId: 'provider-glm-5.3-flash',
+			endpointRoute: 'default',
 			visionMode: 'native',
 		});
 
@@ -173,11 +178,11 @@ describe('model manager state', () => {
 		).toEqual({
 			version: 1,
 			models: {
-				'glm-5v-turbo': { apiModelId: 'provider-glm-5v-turbo' },
+				'glm-5.3-flash': { apiModelId: 'provider-glm-5.3-flash' },
 			},
 		});
-		expect(getModelEndpointRoute('glm-5v-turbo')).toBe('same-region-standard');
-		expect(getModelVisionMode('glm-5v-turbo')).toBe('native');
+		expect(getModelEndpointRoute('glm-5.3-flash')).toBe('default');
+		expect(getModelVisionMode('glm-5.3-flash')).toBe('native');
 	});
 
 	it('keeps inherited model fields absent when saving an unrelated workspace override', async () => {
@@ -511,44 +516,48 @@ describe('model manager state', () => {
 		expect(getCustomModels().map((model) => model.id)).toContain('local-only');
 	});
 
-	it('keeps built-in GLM-5V-Turbo overrides on Standard API routes', async () => {
+	it('marks a custom model shadowing a built-in ID as a built-in override with all routes', async () => {
 		__setConfigurationValueAtScope(
 			'glm-copilot.modelManagement',
 			{
 				version: 1,
 				customModels: {
-					'glm-5v-turbo': { id: 'glm-5v-turbo', name: 'Local GLM-5V' },
+					'glm-5.3-flash': { id: 'glm-5.3-flash', name: 'Local GLM-5.3-Flash' },
 				},
 			},
 			ConfigurationTarget.Global,
 		);
 
 		const state = await buildModelManagerState({
-			auth: createAuth(['china-standard']),
+			auth: createAuth(['china-coding']),
 			scope: 'global',
 			revision: 1,
 			activeView: 'models',
 			vision,
 		});
-		const model = state.models.find((entry) => entry.id === 'glm-5v-turbo');
+		const model = state.models.find((entry) => entry.id === 'glm-5.3-flash');
 		expect(model?.isBuiltInOverride).toBe(true);
 		expect(model?.allowedRoutes.map((entry) => entry.value)).toEqual([
+			'default',
 			'same-region-standard',
+			'china-coding',
 			'china-standard',
+			'china-anthropic',
+			'international-coding',
 			'international-standard',
+			'international-anthropic',
 		]);
-		await expect(
-			saveManagedModel('global', undefined, 'glm-5v-turbo', {
-				name: 'Local GLM-5V',
-				apiModelId: 'glm-5v-turbo',
-				endpointRoute: 'china-coding',
-				visionMode: 'native',
-				contextWindowTokens: 200_000,
-				maxOutputTokens: 131_072,
-				toolCalling: true,
-				thinking: true,
-			}),
-		).rejects.toThrow('does not support');
+		await saveManagedModel('global', undefined, 'glm-5.3-flash', {
+			name: 'Local GLM-5.3-Flash',
+			apiModelId: 'glm-5.3-flash',
+			endpointRoute: 'china-coding',
+			visionMode: 'native',
+			contextWindowTokens: 200_000,
+			maxOutputTokens: 131_072,
+			toolCalling: true,
+			thinking: true,
+		});
+		expect(getModelEndpointRoute('glm-5.3-flash')).toBe('china-coding');
 	});
 
 	it('shows legacy base URLs and custom models as editable effective values', async () => {

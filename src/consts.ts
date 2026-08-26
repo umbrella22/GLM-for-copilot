@@ -78,11 +78,16 @@ export const MODELS: ModelDefinition[] = [
 		capabilities: {
 			toolCalling: GLM_TOOLS_LIMIT,
 			// The extension accepts images for this model through the transparent
-			// GLM-4.6V-Flash vision proxy before sending text to GLM-5.3.
+			// vision proxy (GLM-5.3-Flash on Coding Plan, GLM-4.6V-Flash on the
+			// Standard API) before sending text to GLM-5.3.
 			imageInput: true,
 			thinking: true,
 		},
 		requiresThinkingParam: true,
+		// Official docs mark GLM-5.3's thinking.type as 'enabled'-only too, so
+		// it shares the low/high/max effort ladder and the 'none' → 'low' clamp
+		// with GLM-5.3-Flash.
+		thinkingAlwaysEnabled: true,
 		supportsReasoningEffort: true,
 		pricing: {
 			CNY: { cacheHitInput: 2, cacheMissInput: 8, output: 28 },
@@ -112,13 +117,13 @@ export const MODELS: ModelDefinition[] = [
 		priceCategory: 'low',
 	},
 	{
-		id: 'glm-5v-turbo',
-		name: 'GLM-5V-Turbo',
+		id: 'glm-5.3-flash',
+		name: 'GLM-5.3-Flash',
 		family: 'glm',
-		version: '5v',
-		detail: 'Multimodal coding model for visual agent workflows',
-		// Official 200K shared context with up to 128K output.
-		maxInputTokens: 68_928,
+		version: '5.3',
+		detail: 'Natively multimodal model for visual agent workflows',
+		// Official 1M shared context with up to 128K output.
+		maxInputTokens: 868_928,
 		maxOutputTokens: 131_072,
 		capabilities: {
 			toolCalling: GLM_TOOLS_LIMIT,
@@ -126,74 +131,14 @@ export const MODELS: ModelDefinition[] = [
 			thinking: true,
 		},
 		requiresThinkingParam: true,
-		defaultEndpointRoute: 'same-region-standard',
-		supportedApiModes: ['standard'],
+		// The API only accepts thinking.type 'enabled' for this model. Users
+		// can still tune reasoning_effort (low/high/max); 'none' requests are
+		// clamped to 'low' instead of sending a rejected 'disabled' type.
+		thinkingAlwaysEnabled: true,
+		supportsReasoningEffort: true,
 		defaultVisionMode: 'native',
-		pricing: {
-			CNY: {
-				cacheHitInput: 1.2,
-				cacheMissInput: 5,
-				output: 22,
-				tiers: [
-					{
-						label: 'prompt < 32K',
-						maxPromptTokens: 32_000,
-						cacheHitInput: 1.2,
-						cacheMissInput: 5,
-						output: 22,
-					},
-					{
-						label: 'prompt >= 32K',
-						minPromptTokens: 32_000,
-						cacheHitInput: 1.8,
-						cacheMissInput: 7,
-						output: 26,
-					},
-				],
-			},
-			USD: { cacheHitInput: 0.24, cacheMissInput: 1.2, output: 4 },
-		},
-		priceCategory: 'medium',
-	},
-	{
-		id: 'glm-5-turbo',
-		name: 'GLM-5-Turbo',
-		family: 'glm',
-		version: '5',
-		detail: 'Fast coding model for daily agent work',
-		maxInputTokens: 68_928,
-		maxOutputTokens: 131_072,
-		capabilities: {
-			toolCalling: GLM_TOOLS_LIMIT,
-			// Image input is handled by the transparent GLM-4.6V-Flash vision proxy.
-			imageInput: true,
-			thinking: true,
-		},
-		requiresThinkingParam: true,
-		pricing: {
-			CNY: {
-				cacheHitInput: 1.2,
-				cacheMissInput: 5,
-				output: 22,
-				tiers: [
-					{
-						label: 'prompt < 32K',
-						maxPromptTokens: 32_000,
-						cacheHitInput: 1.2,
-						cacheMissInput: 5,
-						output: 22,
-					},
-					{
-						label: 'prompt >= 32K',
-						minPromptTokens: 32_000,
-						cacheHitInput: 1.8,
-						cacheMissInput: 7,
-						output: 26,
-					},
-				],
-			},
-			USD: { cacheHitInput: 0.24, cacheMissInput: 1.2, output: 4 },
-		},
-		priceCategory: 'medium',
+		// Per-token pricing is not published yet; cost metadata stays hidden
+		// until official numbers are available.
+		priceCategory: 'low',
 	},
 ];

@@ -366,9 +366,12 @@ function trimCodingPlanPresetFromModelManagement(
 }
 
 /**
- * [FORK] Model ids that `applyCodingPlanPreset` writes to. Shared by the
+ * [FORK] Model ids eligible for the value-based preset reset. Shared by the
  * canonical trim path and the legacy cleanup path so the same set of ids is
- * considered eligible for value-based reset in both representations.
+ * considered eligible in both representations. Includes glm-5-turbo even
+ * though the model was removed from the registry and `applyCodingPlanPreset`
+ * no longer writes it — older preset versions did, and their values must
+ * stay resettable.
  */
 const CODING_PLAN_PRESET_TARGET_IDS: ReadonlyArray<string> = ['glm-5.3', 'glm-5-turbo'];
 
@@ -405,6 +408,8 @@ function getCodingPlanPresetResetFields(
 		return null;
 	}
 	if (id === 'glm-5-turbo') {
+		// Legacy-only target: current presets no longer write glm-5-turbo, but
+		// values written by older versions stay eligible for reset.
 		if (visionMode === 'mcp') {
 			return { visionMode: true };
 		}
@@ -470,10 +475,12 @@ async function cleanupStoredImages(): Promise<void> {
  *
  * Writes (all at user scope, preserving existing overrides):
  *   - modelManagement:
- *       glm-5.3     -> { endpointRoute: 'china-anthropic', visionMode: 'mcp' }
- *       glm-5-turbo -> { visionMode: 'mcp' }
+ *       glm-5.3 -> { endpointRoute: 'china-anthropic', visionMode: 'mcp' }
  *   - experimental.stabilizeToolList -> true
  *   - mcp.<id>.enabled -> true for all built-in MCP servers
+ *
+ * glm-5-turbo was removed from the model registry, so the preset no longer
+ * writes it; the reset path still cleans up entries written by older versions.
  *
  * Does NOT touch: API keys, workspace-scoped settings, custom models.
  */
@@ -507,14 +514,13 @@ async function applyCodingPlanPreset(): Promise<void> {
 		const current: ModelManagementConfigurationV1 = inspectEffectiveModelManagementConfiguration(
 			resource,
 		).globalValue ?? { version: 1 };
-		// Coding Plan overrides only. 'glm-5.3' / 'glm-5-turbo' are known-safe
-		// keys, so a plain literal is fine for the PRESET; arbitrary existing
-		// ids ride on `current` and are merged by the null-prototype helper.
+		// Coding Plan overrides only. 'glm-5.3' is a known-safe key, so a plain
+		// literal is fine for the PRESET; arbitrary existing ids ride on
+		// `current` and are merged by the null-prototype helper.
 		const preset: ModelManagementConfigurationV1 = {
 			version: 1,
 			models: {
 				'glm-5.3': { endpointRoute: 'china-anthropic', visionMode: 'mcp' },
-				'glm-5-turbo': { visionMode: 'mcp' },
 			},
 		};
 		const merged = mergeModelManagementConfigurations(current, preset);

@@ -5,6 +5,7 @@ import type {
 	ApiProtocol,
 	GLMRequest,
 	GLMStreamChunk,
+	GLMStreamTelemetry,
 	GLMToolCall,
 	GLMUsage,
 	StreamCallbacks,
@@ -62,6 +63,12 @@ export class GLMClient {
 		// Captured per-request so the `finally` can release the stream lock even
 		// on the early `return` paths (cancellation / `[DONE]` sentinel).
 		let releaseReader: (() => Promise<void>) | undefined;
+		// Declared outside the try so the `finally` can report it on every exit.
+		const telemetry: GLMStreamTelemetry = {
+			dataChunks: 0,
+			parseFailures: 0,
+			doneSignalObserved: false,
+		};
 
 		try {
 			const response = await fetch(`${this.baseUrl}/chat/completions`, {
@@ -110,6 +117,7 @@ export class GLMClient {
 				}
 
 				if (trimmed === 'data: [DONE]') {
+					telemetry.doneSignalObserved = true;
 					// Flush any remaining tool calls
 					for (const tc of pendingToolCalls.values()) {
 						callbacks.onToolCall(tc);
@@ -124,6 +132,7 @@ export class GLMClient {
 					return false;
 				}
 
+				telemetry.dataChunks += 1;
 				const jsonStr = trimmed.slice(6);
 				try {
 					const chunk: GLMStreamChunk = JSON.parse(jsonStr);
@@ -180,6 +189,7 @@ export class GLMClient {
 						pendingToolCalls.clear();
 					}
 				} catch (e) {
+					telemetry.parseFailures += 1;
 					logger.error('Failed to parse SSE chunk:', jsonStr.slice(0, 200), e);
 				}
 				return false;
@@ -247,6 +257,7 @@ export class GLMClient {
 			// early-return, cancellation, normal completion and errors). On the
 			// normal/done paths cancel() is a harmless no-op; on early returns it
 			// promptly tears down the connection instead of waiting for GC.
+			callbacks.onTelemetry?.(telemetry);
 			await releaseReader?.();
 			cancelListener?.dispose();
 			// Abort the controller on every exit path so the signal is torn down

@@ -21,16 +21,13 @@ const zh: Translations = {
 	// Model descriptions
 	'model.glm-5.3.detail': '旗舰基座模型',
 	'model.glm-5.3.tooltip':
-		'GLM-5.3，智谱最新旗舰模型。基于 GLM-5.2 基座，经数十倍规模的长程任务后训练，编程体感较前代提升 50%，在 Terminal Bench 3.0 等公开基准中位列开源模型第一，并具备接近 Mythos 5 的网络安全能力；图片会先由 GLM-4.6V-Flash 视觉代理处理。',
+		'GLM-5.3，智谱最新旗舰模型。基于 GLM-5.2 基座，经数十倍规模的长程任务后训练，编程体感较前代提升 50%，在 Terminal Bench 3.0 等公开基准中位列开源模型第一，并具备接近 Mythos 5 的网络安全能力；图片会先由视觉代理处理（Coding Plan 使用 GLM-5.3-Flash，标准 API 使用 GLM-4.6V-Flash）。',
 	'model.glm-4.6v-flash.detail': '多模态视觉与编码模型',
 	'model.glm-4.6v-flash.tooltip':
-		'GLM-4.6V-Flash，适合图片理解、多模态问答，以及作为 GLM-5.3/GLM-5-Turbo 的默认视觉代理。',
-	'model.glm-5v-turbo.detail': '视觉 Agent 多模态编码模型',
-	'model.glm-5v-turbo.tooltip':
-		'GLM-5V-Turbo，适合设计稿还原、GUI Agent、视觉调试和原生多模态编码；仅通过标准 API 提供。',
-	'model.glm-5-turbo.detail': '日常 Agent 编码模型',
-	'model.glm-5-turbo.tooltip':
-		'GLM-5-Turbo，适合日常编码、快速修改和较高频率的工具调用；图片会先由 GLM-4.6V-Flash 视觉代理处理。',
+		'GLM-4.6V-Flash，适合图片理解、多模态问答，以及作为标准 API 连接下的默认视觉代理。',
+	'model.glm-5.3-flash.detail': '原生多模态视觉编码模型',
+	'model.glm-5.3-flash.tooltip':
+		'GLM-5.3-Flash，GLM-5 系列首个原生多模态模型，适合设计稿还原、GUI Agent、视觉调试和原生多模态编码；已全量上线 GLM Coding Plan，也是 Coding Plan 连接下的默认视觉代理。',
 	'model.connectionInvalid': '模型连接配置无效：{0}',
 
 	// API Key
@@ -59,6 +56,8 @@ const zh: Translations = {
 	'status.thinking': '思考模式',
 	'thinking.none': '停用',
 	'thinking.none.desc': '停用思考，响应更快',
+	'thinking.low': '轻量',
+	'thinking.low.desc': '保持思考但用最轻推理档，响应更快',
 	'thinking.high': '标准',
 	'thinking.high.desc': '推荐日常使用',
 	'thinking.max': '深度',
@@ -190,7 +189,9 @@ const zh: Translations = {
 	'vision.action.configureProxy': '配置视觉代理',
 	'vision.panel.title': 'GLM 视觉代理',
 	'vision.panel.description':
-		'配置一个支持图片输入的模型，用来先把图片转换成文字描述，再把描述随消息发送给 GLM。自动模式会优先使用 GLM-4.6V-Flash，失败后再回退到 VS Code 视觉模型。',
+		'配置一个支持图片输入的模型，用来先把图片转换成文字描述，再把描述随消息发送给 GLM。自动模式会优先使用内置 GLM 视觉模型（Coding Plan 连接使用 GLM-5.3-Flash，标准 API 连接使用 GLM-4.6V-Flash），失败后再回退到 VS Code 视觉模型。',
+	'vision.auto.codingPlanModelSwitched':
+		'检测到 GLM Coding Plan：视觉模型已从 GLM-4.6V-Flash 切换为 GLM-5.3-Flash。',
 	'vision.panel.source.auto': '自动',
 	'vision.panel.source.vscodeLm': 'VS Code 模型',
 	'vision.panel.source.apiEndpoint': 'API 端点',
@@ -233,7 +234,8 @@ const zh: Translations = {
 	'vision.panel.status.vscodeLmSelected': '已选择 VS Code 语言模型。',
 	'vision.panel.status.apiKeySet': '已设置 API Key。',
 	'vision.panel.status.apiKeyNotSet': '未设置 API Key。',
-	'vision.panel.status.autoSelected': '自动模式已启用：优先使用 GLM-4.6V-Flash。',
+	'vision.panel.status.autoSelected':
+		'自动模式已启用：优先使用内置 GLM 视觉模型（Coding Plan 连接为 GLM-5.3-Flash，标准 API 连接为 GLM-4.6V-Flash）。',
 	'vision.panel.status.testing': '正在测试视觉代理...',
 	'vision.panel.status.vscodeLmNoHttpTest': 'VS Code 语言模型无需 HTTP 测试。',
 	'vision.panel.status.testSucceeded': '已收到视觉代理响应，请查看下方样例。',
@@ -246,7 +248,7 @@ const zh: Translations = {
 	'vision.panel.summary.noVSCodeVision.detail': '请配置 API 端点，或安装支持图片输入的模型提供方。',
 	'vision.panel.summary.auto.title': '当前：自动',
 	'vision.panel.summary.auto.detail':
-		'优先使用 GLM-4.6V-Flash；不可用时回退到 VS Code/Copilot 视觉模型。',
+		'优先使用内置 GLM 视觉模型（Coding Plan 连接为 GLM-5.3-Flash，标准 API 连接为 GLM-4.6V-Flash）；不可用时回退到 VS Code/Copilot 视觉模型。',
 	'vision.panel.summary.vscodeLm.title': '当前：VS Code 语言模型',
 	'vision.panel.summary.vscodeLm.detail': '{0} · {1} · 支持图片输入',
 	'vision.panel.summary.apiNotConfigured.title': '当前：API 端点未配置',
@@ -425,7 +427,7 @@ const zh: Translations = {
 		'打开请求 dump 目录失败，请运行 "GLM: 显示日志" 查看详情。',
 	// [FORK]
 	'command.resetCodingPlanPreset.confirm':
-		'将 GLM Coding Plan 一键预设恢复为默认值？仅恢复当前值与预设写入一致的项：GLM-5.3 的 endpointRoute/visionMode、GLM-5-Turbo 的 visionMode、4 个内置 MCP 服务开关、工具列表稳定化。你手动修改过的项会被自动跳过。不影响其他自定义配置（自定义 MCP 服务、API Key、工作区级别设置、图片提示词等）。',
+		'将 GLM Coding Plan 一键预设恢复为默认值？仅恢复当前值与预设写入一致的项：GLM-5.3 的 endpointRoute/visionMode、4 个内置 MCP 服务开关、工具列表稳定化，以及旧版本预设写入的 GLM-5-Turbo visionMode。你手动修改过的项会被自动跳过。不影响其他自定义配置（自定义 MCP 服务、API Key、工作区级别设置、图片提示词等）。',
 	'command.resetCodingPlanPreset.confirmYes': '恢复', // [FORK]
 	'command.resetCodingPlanPreset.done': '已恢复 GLM Coding Plan 预设为默认值（{0} 项复位）。', // [FORK]
 	// [FORK]
@@ -437,7 +439,7 @@ const zh: Translations = {
 	'command.resetCodingPlanPreset.skipped': '被跳过的项（{0} 个）保留了你手动修改的值。', // [FORK]
 	// [FORK]
 	'command.applyCodingPlanPreset.confirm':
-		'为 GLM Coding Plan 套餐应用推荐配置？这将写入用户级覆盖：GLM-5.3 走国内 Anthropic 线路 + MCP 图片模式，GLM-5-Turbo 走 MCP 图片模式，启用 4 个内置 MCP 服务，并启用工具列表稳定化。仅影响用户级配置，工作区配置不变。',
+		'为 GLM Coding Plan 套餐应用推荐配置？这将写入用户级覆盖：GLM-5.3 走国内 Anthropic 线路 + MCP 图片模式，启用 4 个内置 MCP 服务，并启用工具列表稳定化。仅影响用户级配置，工作区配置不变。',
 	'command.applyCodingPlanPreset.confirmYes': '应用', // [FORK]
 	'command.applyCodingPlanPreset.done': '已为 GLM Coding Plan 套餐应用推荐配置（{0} 项写入）。', // [FORK]
 	// [FORK]
@@ -467,16 +469,13 @@ const en: Translations = {
 	// Model descriptions
 	'model.glm-5.3.detail': 'Latest flagship base model',
 	'model.glm-5.3.tooltip':
-		"GLM-5.3, Zhipu's latest flagship model. Built on the GLM-5.2 base with an order-of-magnitude larger long-horizon post-training, it delivers ~50% better coding feel over the previous generation, ranks first among open-source models on Terminal Bench 3.0, and approaches Mythos 5 on security tasks. Images are described by the GLM-4.6V-Flash vision proxy first.",
+		"GLM-5.3, Zhipu's latest flagship model. Built on the GLM-5.2 base with an order-of-magnitude larger long-horizon post-training, it delivers ~50% better coding feel over the previous generation, ranks first among open-source models on Terminal Bench 3.0, and approaches Mythos 5 on security tasks. Images are described by the GLM vision proxy first (GLM-5.3-Flash on Coding Plan, GLM-4.6V-Flash on the Standard API).",
 	'model.glm-4.6v-flash.detail': 'Multimodal vision and coding model',
 	'model.glm-4.6v-flash.tooltip':
-		'GLM-4.6V-Flash for image understanding, multimodal Q&A, and the default vision proxy for GLM-5.3/GLM-5-Turbo.',
-	'model.glm-5v-turbo.detail': 'Multimodal coding model for visual agents',
-	'model.glm-5v-turbo.tooltip':
-		'GLM-5V-Turbo for design recreation, GUI agents, visual debugging, and native multimodal coding. Available through the Standard API only.',
-	'model.glm-5-turbo.detail': 'Daily agent coding model',
-	'model.glm-5-turbo.tooltip':
-		'GLM-5-Turbo for everyday coding, quick edits, and frequent tool calls. Images are described by the GLM-4.6V-Flash vision proxy first.',
+		'GLM-4.6V-Flash for image understanding, multimodal Q&A, and the default vision proxy on Standard API connections.',
+	'model.glm-5.3-flash.detail': 'Natively multimodal model for visual agents',
+	'model.glm-5.3-flash.tooltip':
+		'GLM-5.3-Flash, the first natively multimodal GLM-5 model, for design recreation, GUI agents, visual debugging, and native multimodal coding. Fully available on the GLM Coding Plan and the default vision proxy on Coding Plan connections.',
 	'model.connectionInvalid': 'Invalid model connection configuration: {0}',
 
 	// API Key
@@ -507,6 +506,8 @@ const en: Translations = {
 	'status.thinking': 'Thinking Effort',
 	'thinking.none': 'None',
 	'thinking.none.desc': 'Disable thinking for faster responses',
+	'thinking.low': 'Low',
+	'thinking.low.desc': 'Keep thinking on but at the lightest effort',
 	'thinking.high': 'High',
 	'thinking.high.desc': 'Recommended for most tasks',
 	'thinking.max': 'Max',
@@ -647,7 +648,9 @@ const en: Translations = {
 	'vision.action.configureProxy': 'Configure Vision Proxy',
 	'vision.panel.title': 'GLM Vision Proxy',
 	'vision.panel.description':
-		'Configure a vision-capable model to turn image attachments into text before GLM receives the request. Automatic mode tries GLM-4.6V-Flash first, then falls back to VS Code vision models.',
+		'Configure a vision-capable model to turn image attachments into text before GLM receives the request. Automatic mode tries the built-in GLM vision model first (GLM-5.3-Flash on Coding Plan connections, GLM-4.6V-Flash on Standard API connections), then falls back to VS Code vision models.',
+	'vision.auto.codingPlanModelSwitched':
+		'GLM Coding Plan detected: the vision model has switched from GLM-4.6V-Flash to GLM-5.3-Flash.',
 	'vision.panel.source.auto': 'Automatic',
 	'vision.panel.source.vscodeLm': 'VS Code model',
 	'vision.panel.source.apiEndpoint': 'API endpoint',
@@ -693,7 +696,8 @@ const en: Translations = {
 	'vision.panel.status.vscodeLmSelected': 'VS Code language model is selected.',
 	'vision.panel.status.apiKeySet': 'API key is set.',
 	'vision.panel.status.apiKeyNotSet': 'API key is not set.',
-	'vision.panel.status.autoSelected': 'Automatic mode is active: GLM-4.6V-Flash is tried first.',
+	'vision.panel.status.autoSelected':
+		'Automatic mode is active: the built-in GLM vision model is tried first (GLM-5.3-Flash on Coding Plan connections, GLM-4.6V-Flash on Standard API connections).',
 	'vision.panel.status.testing': 'Testing vision proxy...',
 	'vision.panel.status.vscodeLmNoHttpTest':
 		'VS Code language model selection does not need an HTTP test.',
@@ -709,7 +713,7 @@ const en: Translations = {
 		'Configure an API endpoint or install a provider with image input support.',
 	'vision.panel.summary.auto.title': 'Current: automatic',
 	'vision.panel.summary.auto.detail':
-		'Tries GLM-4.6V-Flash first; falls back to VS Code/Copilot vision models when unavailable.',
+		'Tries the built-in GLM vision model first (GLM-5.3-Flash on Coding Plan connections, GLM-4.6V-Flash on Standard API connections); falls back to VS Code/Copilot vision models when unavailable.',
 	'vision.panel.summary.vscodeLm.title': 'Current: VS Code language model',
 	'vision.panel.summary.vscodeLm.detail': '{0} · {1} · image input supported',
 	'vision.panel.summary.apiNotConfigured.title': 'Current: API endpoint not configured',
@@ -922,7 +926,7 @@ const en: Translations = {
 		'Failed to open request dumps folder. Run "GLM: Show Logs" for details.',
 	// [FORK]
 	'command.resetCodingPlanPreset.confirm':
-		'Reset the GLM Coding Plan one-click preset to defaults? Only items whose current values match the preset are reset: GLM-5.3 endpointRoute/visionMode, GLM-5-Turbo visionMode, the 4 built-in MCP server toggles, and stabilize tool list. Items you have manually modified are automatically skipped. Other custom settings (custom MCP servers, API keys, workspace-scoped settings, image prompts, …) are not affected.',
+		'Reset the GLM Coding Plan one-click preset to defaults? Only items whose current values match the preset are reset: GLM-5.3 endpointRoute/visionMode, the 4 built-in MCP server toggles, stabilize tool list, plus the GLM-5-Turbo visionMode written by older preset versions. Items you have manually modified are automatically skipped. Other custom settings (custom MCP servers, API keys, workspace-scoped settings, image prompts, …) are not affected.',
 	'command.resetCodingPlanPreset.confirmYes': 'Reset', // [FORK]
 	// [FORK]
 	'command.resetCodingPlanPreset.done':
@@ -936,7 +940,7 @@ const en: Translations = {
 	'command.resetCodingPlanPreset.skipped': 'Skipped item(s) ({0}) kept your manual edits.', // [FORK]
 	// [FORK]
 	'command.applyCodingPlanPreset.confirm':
-		'Apply the recommended setup for the GLM Coding Plan subscription? This writes user-level overrides: GLM-5.3 on the domestic Anthropic route + MCP vision mode, GLM-5-Turbo on MCP vision mode, all 4 built-in MCP servers enabled, and stabilize tool list enabled. Only user-scope configuration is affected; workspace settings are untouched.',
+		'Apply the recommended setup for the GLM Coding Plan subscription? This writes user-level overrides: GLM-5.3 on the domestic Anthropic route + MCP vision mode, all 4 built-in MCP servers enabled, and stabilize tool list enabled. Only user-scope configuration is affected; workspace settings are untouched.',
 	'command.applyCodingPlanPreset.confirmYes': 'Apply', // [FORK]
 	'command.applyCodingPlanPreset.done':
 		'Applied the recommended setup for the GLM Coding Plan subscription ({0} item(s) written).', // [FORK]

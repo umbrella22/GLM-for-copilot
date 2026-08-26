@@ -45,8 +45,21 @@ export interface AnthropicRequest {
 	thinking?: { type: 'enabled'; budget_tokens: number };
 }
 
-const DEFAULT_ANTHROPIC_MAX_TOKENS = 4096;
-const DEFAULT_THINKING_BUDGET_TOKENS = 4096;
+/**
+ * Anthropic requires max_tokens, so the extension's "no limit" needs a
+ * concrete fallback here — the request layer normally pins the budget to the
+ * model's maximum (131072 for GLM-5.x); this constant is the last line of
+ * defense for unknown models. Thinking tokens count against max_tokens, and
+ * the historical 4096 fallback let deep reasoning consume the entire output
+ * window and surface as an "empty response with no text".
+ */
+const DEFAULT_ANTHROPIC_MAX_TOKENS = 131_072;
+/**
+ * Deep reasoning on GLM-5.x routinely needs tens of thousands of tokens.
+ * A 4096 budget forced the model to cut thinking short; 32768 leaves the
+ * rest of the window for the visible answer.
+ */
+const DEFAULT_THINKING_BUDGET_TOKENS = 32_768;
 // Anthropic requires thinking.budget_tokens to be at least 1024.
 const MIN_THINKING_BUDGET_TOKENS = 1024;
 

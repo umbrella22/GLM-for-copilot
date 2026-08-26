@@ -68,7 +68,7 @@ export interface GLMRequest {
 	tools?: GLMTool[];
 	tool_choice?: 'none' | 'auto' | 'required';
 	thinking?: { type: 'enabled' | 'disabled'; clear_thinking?: boolean };
-	reasoning_effort?: 'high' | 'max';
+	reasoning_effort?: 'low' | 'high' | 'max';
 	tool_stream?: boolean;
 }
 
@@ -100,6 +100,20 @@ export interface GLMStreamChunk {
 
 // ---- Stream callbacks ----
 
+/**
+ * Low-level SSE stream counters reported once the transport finishes, used to
+ * distinguish "upstream sent nothing" from "upstream sent data the parser
+ * could not read" when a response ends up empty.
+ */
+export interface GLMStreamTelemetry {
+	/** SSE data frames received from the server (before parsing). */
+	dataChunks: number;
+	/** Frames that failed JSON parsing (or failed event-type validation). */
+	parseFailures: number;
+	/** Whether the protocol's terminal completion signal was observed. */
+	doneSignalObserved: boolean;
+}
+
 export interface StreamCallbacks {
 	onContent: (content: string) => void;
 	onThinking: (text: string) => void;
@@ -107,6 +121,8 @@ export interface StreamCallbacks {
 	onError: (error: Error) => void;
 	onDone: () => void;
 	onUsage?: (usage: GLMUsage) => void;
+	/** Reported once when the SSE transport settles (success, empty, or error). */
+	onTelemetry?: (telemetry: GLMStreamTelemetry) => void;
 }
 
 // ---- Configuration types ----
@@ -156,7 +172,9 @@ export interface ResolvedModelConnection {
 /**
  * How image attachments reach the model selected in Copilot.
  *
- * - `proxy`: built-in GLM-4.6V-Flash transparent proxy converts images to text.
+ * - `proxy`: the built-in GLM vision proxy converts images to text. Automatic
+ *   mode uses GLM-5.3-Flash on Coding Plan connections and GLM-4.6V-Flash on
+ *   Standard API connections.
  * - `native`: images are resized and sent as base64 directly to the API model.
  * - `mcp` [FORK]: images are stripped from the request and persisted to disk;
  *   a short text prompt with the file path is left in their place so an
@@ -234,6 +252,12 @@ export interface ModelDefinition {
 		thinking: boolean;
 	};
 	requiresThinkingParam: boolean;
+	/**
+	 * The upstream API only accepts `thinking.type: 'enabled'` for this model.
+	 * The picker offers low/high/max reasoning effort, and any 'none' request
+	 * (user choice or helper request) is clamped to 'low'.
+	 */
+	thinkingAlwaysEnabled?: boolean;
 	defaultEndpointRoute?: ModelEndpointRoute;
 	supportedApiModes?: readonly ApiMode[];
 	defaultVisionMode?: ModelVisionMode;

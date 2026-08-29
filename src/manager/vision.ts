@@ -60,8 +60,8 @@ export class ManagerVisionController {
 		this.store = new VisionProxyConfigStore(context);
 	}
 
-	async getState(): Promise<ManagerVisionState> {
-		const lmModels = await listVSCodeVisionModelOptions();
+	async getState(includeLanguageModels = true): Promise<ManagerVisionState> {
+		const lmModels = includeLanguageModels ? await listVSCodeVisionModelOptions() : [];
 		const config = this.getConfig();
 		return {
 			source: this.getSource(config),

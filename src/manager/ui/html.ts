@@ -5,10 +5,10 @@ import { getModelManagerStrings } from './strings';
 import { getModelManagerStyle } from './style';
 import type { ManagerPanelState } from './types';
 
-export function getModelManagerHtml(webview: vscode.Webview, state: ManagerPanelState): string {
+export function getModelManagerHtml(webview: vscode.Webview, state?: ManagerPanelState): string {
 	const nonce = randomBytes(16).toString('base64');
 	const strings = getModelManagerStrings();
-	const initialState = escapeScriptJson(state);
+	const initialState = escapeScriptJson(state ?? null);
 	const initialStrings = escapeScriptJson(strings);
 	const htmlLang = vscode.env.language.toLowerCase() === 'zh-cn' ? 'zh-CN' : 'en';
 	const csp = [

@@ -135,6 +135,7 @@ const registeredCommands = new Map<string, (...args: unknown[]) => unknown>();
 let openedExternal: Uri | undefined;
 let lastStatusBarItem: Record<string, unknown> | undefined;
 let quickPickSelectionLabel: string | undefined;
+let lastQuickPickItems: readonly unknown[] = [];
 let inputBoxValue: string | undefined;
 let activeTextEditorUri: Uri | undefined;
 // When set, showWarningMessage returns this value (simulates the user
@@ -175,6 +176,10 @@ export function __setQuickPickSelectionLabel(label: string | undefined): void {
 	quickPickSelectionLabel = label;
 }
 
+export function __getLastQuickPickItems(): readonly unknown[] {
+	return lastQuickPickItems;
+}
+
 export function __setInputBoxValue(value: string | undefined): void {
 	inputBoxValue = value;
 }
@@ -200,6 +205,7 @@ export function __resetCommandState(): void {
 	openedExternal = undefined;
 	lastStatusBarItem = undefined;
 	quickPickSelectionLabel = undefined;
+	lastQuickPickItems = [];
 	inputBoxValue = undefined;
 	warningMessageButton = undefined;
 	activeTextEditorUri = undefined;
@@ -540,6 +546,7 @@ export const window = {
 	},
 	onDidChangeActiveTextEditor: activeTextEditorEmitter.event,
 	async showQuickPick<T extends { label: string }>(items: readonly T[]): Promise<T | undefined> {
+		lastQuickPickItems = items;
 		return items.find((item) => item.label === quickPickSelectionLabel);
 	},
 	async showInputBox(): Promise<string | undefined> {

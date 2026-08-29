@@ -49,6 +49,14 @@ const zh: Translations = {
 	'auth.channel.international-standard': '国际 · 标准 API',
 	'auth.channel.default': '默认',
 	'auth.channel.configured': '已配置',
+	'auth.channel.notConfigured': '未配置',
+	'auth.channel.defaultDetail': '默认路由的模型使用此通道',
+	'auth.channel.separateDetail': '凭据与当前默认通道 {0} 独立',
+	'auth.configuredForDifferentChannel':
+		'已配置 {0}，但此模型使用 {1}。各通道的 Key 不共享；请切换连接或配置对应 Key。',
+	'auth.savedOutsideDefault':
+		'{0} 的 Key 已保存，但当前默认连接 {1} 仍未配置 Key。默认路由的模型会继续显示警告。',
+	'auth.action.manageConnections': '管理连接',
 	'auth.notConfigured': 'API Key 未配置，请在命令面板运行 "GLM: 设置 API Key"。',
 	'auth.notConfiguredForChannel': '连接通道 {0} 未配置 API Key，请运行“GLM: 设置 API Key”。',
 
@@ -497,6 +505,14 @@ const en: Translations = {
 	'auth.channel.international-standard': 'International · Standard API',
 	'auth.channel.default': 'default',
 	'auth.channel.configured': 'configured',
+	'auth.channel.notConfigured': 'not configured',
+	'auth.channel.defaultDetail': 'Models on the default route use this channel',
+	'auth.channel.separateDetail': 'Credentials are separate from the current default channel, {0}',
+	'auth.configuredForDifferentChannel':
+		'An API key is configured for {0}, but this model uses {1}. Keys are not shared across channels; switch the connection or configure the matching key.',
+	'auth.savedOutsideDefault':
+		'The API key for {0} was saved, but the current default connection, {1}, still has no key. Models on the default route will continue to show a warning.',
+	'auth.action.manageConnections': 'Manage connections',
 	'auth.notConfigured':
 		'GLM API key not configured. Run "GLM: Set API Key" from the Command Palette.',
 	'auth.notConfiguredForChannel':

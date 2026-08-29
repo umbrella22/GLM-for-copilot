@@ -8,10 +8,15 @@ import type { UsageStatus } from '../../src/provider/usage-status';
 import type { CredentialChannel } from '../../src/types';
 import {
 	__clearConfigurationValues,
+	__getLastQuickPickItems,
+	__getLastWebviewPanel,
 	__getLastStatusBarItem,
+	__getWindowMessages,
 	__resetCommandState,
 	__setConfigurationValue,
+	__setInputBoxValue,
 	__setQuickPickSelectionLabel,
+	__setWarningMessageButton,
 	MarkdownString,
 } from '../support/vscode.mock';
 
@@ -21,6 +26,10 @@ interface TestProviderInternals {
 }
 
 const contexts: vscode.ExtensionContext[] = [];
+const token = {
+	isCancellationRequested: false,
+	onCancellationRequested: () => ({ dispose() {} }),
+} as vscode.CancellationToken;
 
 describe('provider credential and usage integration', () => {
 	beforeEach(() => {
@@ -34,6 +43,59 @@ describe('provider credential and usage integration', () => {
 		}
 		vi.unstubAllGlobals();
 		vi.restoreAllMocks();
+	});
+
+	it('explains that a key on another channel does not unlock default-routed models', async () => {
+		const { context } = createContext({ 'china-standard': 'standard-key' });
+		const provider = new GLMChatProvider(context);
+
+		const models = await provider.provideLanguageModelChatInformation({}, token);
+
+		expect(models).not.toHaveLength(0);
+		for (const model of models) {
+			expect(model.statusIcon?.id).toBe('warning');
+			expect(model.detail).toContain('China · Standard API');
+			expect(model.detail).toContain('China · Coding Plan');
+			expect(model.detail).toContain('not shared across channels');
+		}
+	});
+
+	it('shows configuration state and channel isolation in the API key picker', async () => {
+		const { context } = createContext({ 'china-standard': 'standard-key' });
+		const provider = new GLMChatProvider(context);
+
+		await provider.configureApiKey();
+
+		const items = __getLastQuickPickItems() as Array<{
+			label: string;
+			description: string;
+			detail: string;
+		}>;
+		expect(items[0]).toMatchObject({
+			label: 'China · Coding Plan',
+			description: 'default · not configured',
+			detail: 'Models on the default route use this channel',
+		});
+		expect(items.find((item) => item.label === 'China · Standard API')).toMatchObject({
+			description: 'configured',
+			detail: 'Credentials are separate from the current default channel, China · Coding Plan',
+		});
+	});
+
+	it('offers connection management after saving a key outside the unconfigured default', async () => {
+		const { context, secrets } = createContext({});
+		const provider = new GLMChatProvider(context);
+		__setQuickPickSelectionLabel(formatCredentialChannel('china-standard'));
+		__setInputBoxValue('new-standard-key');
+		__setWarningMessageButton('Manage connections');
+
+		await provider.configureApiKey();
+
+		expect(secrets.get(API_KEY_SECRETS['china-standard'])).toBe('new-standard-key');
+		expect(__getWindowMessages().warning).toContainEqual(
+			expect.stringContaining('current default connection, China · Coding Plan, still has no key'),
+		);
+		expect(__getLastWebviewPanel()?.webview.html).toContain('GLM Models &amp; Connections');
 	});
 
 	it('preserves remaining PAYG session totals after clearing another credential channel', async () => {

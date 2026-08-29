@@ -132,6 +132,25 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider<ModelPi
 		if (saved) {
 			this.refreshModelPicker();
 			this.reloadUsageStatus();
+			const configurationResource = getActiveWorkspaceFolderResource();
+			const defaultChannel = resolveDefaultConnection(configurationResource).credentialChannel;
+			if (
+				channel !== defaultChannel &&
+				!(await this.authManager.hasApiKey(defaultChannel, configurationResource))
+			) {
+				const manageConnections = t('auth.action.manageConnections');
+				const selected = await vscode.window.showWarningMessage(
+					t(
+						'auth.savedOutsideDefault',
+						formatCredentialChannel(channel),
+						formatCredentialChannel(defaultChannel),
+					),
+					manageConnections,
+				);
+				if (selected === manageConnections) {
+					this.modelManager.open('connections');
+				}
+			}
 		}
 	}
 
@@ -199,22 +218,31 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider<ModelPi
 	): Promise<CredentialChannel | undefined> {
 		const configurationResource = getActiveWorkspaceFolderResource();
 		const defaultChannel = resolveDefaultConnection(configurationResource).credentialChannel;
-		const items = await Promise.all(
+		const channelStates = await Promise.all(
 			CREDENTIAL_CHANNELS.map(async (channel) => {
+				const hasApiKey = await this.authManager.hasApiKey(channel, configurationResource);
 				const details: string[] = [];
 				if (channel === defaultChannel) {
 					details.push(t('auth.channel.default'));
 				}
-				if (await this.authManager.hasApiKey(channel, configurationResource)) {
-					details.push(t('auth.channel.configured'));
-				}
+				details.push(hasApiKey ? t('auth.channel.configured') : t('auth.channel.notConfigured'));
 				return {
 					label: formatCredentialChannel(channel),
 					description: details.join(' · '),
+					detail:
+						channel === defaultChannel
+							? t('auth.channel.defaultDetail')
+							: t('auth.channel.separateDetail', formatCredentialChannel(defaultChannel)),
 					channel,
+					hasApiKey,
 				};
 			}),
 		);
+		const items = channelStates.sort((left, right) => {
+			if (left.channel === defaultChannel) return -1;
+			if (right.channel === defaultChannel) return 1;
+			return CREDENTIAL_CHANNELS.indexOf(left.channel) - CREDENTIAL_CHANNELS.indexOf(right.channel);
+		});
 		const selected = await vscode.window.showQuickPick(items, {
 			placeHolder: t(`auth.selectChannel.${action}`),
 			ignoreFocusOut: true,
@@ -262,19 +290,36 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider<ModelPi
 		}
 
 		const configurationResource = getActiveWorkspaceFolderResource();
+		const credentialAvailability = await this.inspectCredentialAvailability(configurationResource);
 		return Promise.all(
 			listProviderModels(configurationResource).map(async (model) => {
 				try {
 					const connection = resolveModelConnection(model.id, configurationResource);
-					const hasKey = await this.authManager.hasApiKey(
-						connection.credentialChannel,
-						configurationResource,
-					);
+					const availability = credentialAvailability.get(connection.credentialChannel);
+					if (availability?.error) {
+						throw availability.error;
+					}
+					const hasKey = availability?.hasKey ?? false;
+					const configuredElsewhere = hasKey
+						? []
+						: CREDENTIAL_CHANNELS.filter(
+								(channel) =>
+									channel !== connection.credentialChannel &&
+									credentialAvailability.get(channel)?.hasKey,
+							);
+					const missingKeyDetail =
+						configuredElsewhere.length > 0
+							? t(
+									'auth.configuredForDifferentChannel',
+									configuredElsewhere.map(formatCredentialChannel).join(', '),
+									formatCredentialChannel(connection.credentialChannel),
+								)
+							: undefined;
 					return toChatInfo(
 						model,
 						hasKey,
 						connection.pricingCurrency ?? getPricingCurrencyForBaseUrl(connection.baseUrl),
-						undefined,
+						missingKeyDetail,
 						configurationResource,
 					);
 				} catch (error) {
@@ -289,6 +334,24 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider<ModelPi
 				}
 			}),
 		);
+	}
+
+	private async inspectCredentialAvailability(
+		resource?: vscode.Uri,
+	): Promise<Map<CredentialChannel, { hasKey: boolean; error?: unknown }>> {
+		const entries = await Promise.all(
+			CREDENTIAL_CHANNELS.map(async (channel) => {
+				try {
+					return [
+						channel,
+						{ hasKey: await this.authManager.hasApiKey(channel, resource) },
+					] as const;
+				} catch (error) {
+					return [channel, { hasKey: false, error }] as const;
+				}
+			}),
+		);
+		return new Map(entries);
 	}
 
 	async provideLanguageModelChatResponse(

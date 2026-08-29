@@ -4,7 +4,7 @@ export function getModelManagerScript(initialState: string, initialStrings: stri
 			const vscode = acquireVsCodeApi();
 			let state = ${initialState};
 			const strings = ${initialStrings};
-				let selectedModelId = state.selectedModelId;
+				let selectedModelId = state ? state.selectedModelId : undefined;
 				let creatingModel = false;
 				let nextVisionTestId = 1;
 				let pendingVisionTestId;
@@ -42,7 +42,7 @@ export function getModelManagerScript(initialState: string, initialStrings: stri
 			function button(label, className, onClick) {
 				const node = element('button', className || '', label);
 				node.type = 'button';
-				node.disabled = Boolean(state.busy);
+				node.disabled = !state || Boolean(state.busy);
 				node.addEventListener('click', onClick);
 				return node;
 			}
@@ -75,15 +75,19 @@ export function getModelManagerScript(initialState: string, initialStrings: stri
 			}
 
 			function renderChrome() {
+				if (!state) {
+					return;
+				}
 				scopeControl.hidden = state.activeView === 'vision';
 					let activeTab;
 					viewTabs.forEach((tab) => {
 						const active = tab.dataset.view === state.activeView;
 						tab.setAttribute('aria-selected', String(active));
 						tab.tabIndex = active ? 0 : -1;
-						if (active) {
-							activeTab = tab;
-						}
+					if (active) {
+						activeTab = tab;
+					}
+					tab.disabled = Boolean(state.busy);
 					});
 					if (activeTab) {
 						viewRoot.setAttribute('aria-labelledby', activeTab.id);
@@ -103,6 +107,9 @@ export function getModelManagerScript(initialState: string, initialStrings: stri
 			}
 
 			function render() {
+				if (!state) {
+					return;
+				}
 				renderChrome();
 				viewRoot.replaceChildren();
 				if (state.activeView === 'connections') {
@@ -113,6 +120,18 @@ export function getModelManagerScript(initialState: string, initialStrings: stri
 					renderModelsView();
 				}
 				renderInspector();
+			}
+
+			function renderLoading() {
+				scopeControl.hidden = true;
+				scopeSelect.disabled = true;
+				refreshButton.disabled = true;
+				viewTabs.forEach((tab) => {
+					tab.disabled = true;
+					tab.setAttribute('aria-selected', 'false');
+				});
+				viewRoot.setAttribute('aria-busy', 'true');
+				viewRoot.replaceChildren(element('div', 'empty-state', strings.working));
 			}
 
 			function createViewHeader(title, description, action) {
@@ -1065,7 +1084,11 @@ export function getModelManagerScript(initialState: string, initialStrings: stri
 					}
 			});
 
-			render();
+			if (state) {
+				render();
+			} else {
+				renderLoading();
+			}
 			post('ready');
 		})();
 	`;

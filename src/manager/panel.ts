@@ -47,6 +47,7 @@ export class ModelManagerPanel implements vscode.Disposable {
 	private status: ManagerStatus | undefined;
 	private visionTest: ManagerVisionState['test'] = { status: 'idle' };
 	private resource: vscode.Uri | undefined;
+	private stateRequestId = 0;
 
 	constructor(
 		private readonly context: vscode.ExtensionContext,
@@ -84,8 +85,9 @@ export class ModelManagerPanel implements vscode.Disposable {
 			this.selectedScope = vscode.workspace.workspaceFolders?.length ? 'workspace' : 'global';
 		}
 		if (this.panel) {
-			this.panel.reveal(vscode.ViewColumn.Active);
-			void this.postState();
+			const panel = this.panel;
+			panel.reveal(vscode.ViewColumn.Active);
+			void this.postState(panel);
 			return;
 		}
 
@@ -100,62 +102,58 @@ export class ModelManagerPanel implements vscode.Disposable {
 		);
 		this.panel = panel;
 		panel.onDidDispose(() => {
-			this.panel = undefined;
+			if (this.panel === panel) {
+				this.panel = undefined;
+				this.stateRequestId += 1;
+			}
 		});
 		panel.webview.onDidReceiveMessage((message: unknown) => {
-			void this.handleMessage(message);
+			if (this.panel === panel) {
+				void this.handleMessage(message, panel);
+			}
 		});
-		void this.renderInitial();
+		panel.webview.html = getModelManagerHtml(panel.webview);
 	}
 
 	dispose(): void {
-		this.panel?.dispose();
+		const panel = this.panel;
 		this.panel = undefined;
+		this.stateRequestId += 1;
+		panel?.dispose();
 	}
 
-	private async renderInitial(): Promise<void> {
-		if (!this.panel) return;
-		try {
-			this.panel.webview.html = getModelManagerHtml(this.panel.webview, await this.createState());
-		} catch (error) {
-			logger.warn('Failed to render GLM model manager', error);
-			this.status = toErrorStatus(error);
-			await this.postState();
-		}
-	}
-
-	private async handleMessage(message: unknown): Promise<void> {
-		if (!isManagerWebviewMessage(message)) return;
+	private async handleMessage(message: unknown, panel: vscode.WebviewPanel): Promise<void> {
+		if (this.panel !== panel || !isManagerWebviewMessage(message)) return;
 		try {
 			switch (message.type) {
 				case 'ready':
-					await this.postState();
+					await this.postState(panel);
 					return;
 				case 'setView':
 					this.activeView = normalizeView(message.value?.view);
-					await this.postState();
+					await this.postState(panel);
 					return;
 				case 'setScope':
 					this.selectedScope = this.normalizeScope(message.value?.scope);
-					await this.postState();
+					await this.postState(panel);
 					return;
 				case 'refresh':
 					this.resource = getActiveWorkspaceFolderResource();
 					this.revision += 1;
 					this.status = undefined;
-					await this.postState();
+					await this.postState(panel);
 					return;
 				case 'setCredentialKey':
-					await this.setCredentialKey(message.value?.channel);
+					await this.setCredentialKey(message.value?.channel, panel);
 					return;
 				case 'clearCredentialKey':
-					await this.clearCredentialKey(message.value?.channel);
+					await this.clearCredentialKey(message.value?.channel, panel);
 					return;
 				case 'openCredentialKeyUrl':
 					await this.openCredentialKeyUrl(message.value?.channel);
 					return;
 				case 'clearVisionApiKey':
-					await this.runMutation(async () => this.vision.clearApiKey());
+					await this.runMutation(async () => this.vision.clearApiKey(), panel);
 					return;
 				case 'showLogs':
 					this.vision.showLogs();
@@ -164,76 +162,86 @@ export class ModelManagerPanel implements vscode.Disposable {
 					await vscode.commands.executeCommand('glm-copilot.openByokUtilitySettings');
 					return;
 				case 'testVision':
-					await this.testVision(message);
+					await this.testVision(message, panel);
 					return;
 				case 'saveVision':
 					await this.runMutation(async () => {
 						await this.vision.save(await this.toVisionPayload(message.value));
 						this.visionTest = { status: 'idle' };
-					});
+					}, panel);
 					return;
 				case 'saveModel':
 					this.assertCurrentRevision(message.value?.revision);
-					await this.runMutation(() =>
-						saveManagedModel(
-							this.normalizeScope(message.value?.scope),
-							this.resource,
-							message.value?.modelId,
-							message.value?.draft,
-						),
+					await this.runMutation(
+						() =>
+							saveManagedModel(
+								this.normalizeScope(message.value?.scope),
+								this.resource,
+								message.value?.modelId,
+								message.value?.draft,
+							),
+						panel,
 					);
 					return;
 				case 'resetModel':
 					this.assertCurrentRevision(message.value?.revision);
-					await this.runMutation(() =>
-						resetManagedModel(
-							this.normalizeScope(message.value?.scope),
-							this.resource,
-							message.value?.modelId,
-						),
+					await this.runMutation(
+						() =>
+							resetManagedModel(
+								this.normalizeScope(message.value?.scope),
+								this.resource,
+								message.value?.modelId,
+							),
+						panel,
 					);
 					return;
 				case 'createModel':
 					this.assertCurrentRevision(message.value?.revision);
-					await this.runMutation(() =>
-						createManagedModel(
-							this.normalizeScope(message.value?.scope),
-							this.resource,
-							message.value?.id,
-							message.value?.draft,
-						),
+					await this.runMutation(
+						() =>
+							createManagedModel(
+								this.normalizeScope(message.value?.scope),
+								this.resource,
+								message.value?.id,
+								message.value?.draft,
+							),
+						panel,
 					);
 					return;
 				case 'deleteModel':
 					this.assertCurrentRevision(message.value?.revision);
-					await this.confirmDeleteModel(message);
+					await this.confirmDeleteModel(message, panel);
 					return;
 				case 'saveConnection':
 					this.assertCurrentRevision(message.value?.revision);
-					await this.runMutation(() =>
-						saveManagedConnection(
-							this.normalizeScope(message.value?.scope),
-							this.resource,
-							message.value?.endpoint,
-							Boolean(message.value?.usesCustomBaseUrl),
-							message.value?.customBaseUrl,
-						),
+					await this.runMutation(
+						() =>
+							saveManagedConnection(
+								this.normalizeScope(message.value?.scope),
+								this.resource,
+								message.value?.endpoint,
+								Boolean(message.value?.usesCustomBaseUrl),
+								message.value?.customBaseUrl,
+							),
+						panel,
 					);
 			}
 		} catch (error) {
+			if (this.panel !== panel) return;
 			logger.warn(`Model manager action failed: ${message.type}`, error);
 			this.busy = false;
 			this.status = toErrorStatus(error);
 			if (this.status.label === t('manager.error.staleRevision')) {
-				await this.postState();
+				await this.postState(panel);
 			} else {
-				await this.postStatus(this.status);
+				await this.postStatus(this.status, panel);
 			}
 		}
 	}
 
 	private async confirmDeleteModel(
 		message: Extract<ManagerWebviewMessage, { type: 'deleteModel' }>,
+		panel: vscode.WebviewPanel,
 	): Promise<void> {
 		const confirmation = t('manager.action.confirmDelete');
 		const selected = await vscode.window.showWarningMessage(
@@ -242,16 +250,18 @@ export class ModelManagerPanel implements vscode.Disposable {
 			confirmation,
 		);
 		if (selected !== confirmation) return;
-		await this.runMutation(() =>
-			deleteManagedModel(
-				this.normalizeScope(message.value.scope),
-				this.resource,
-				message.value.modelId,
-			),
+		await this.runMutation(
+			() =>
+				deleteManagedModel(
+					this.normalizeScope(message.value.scope),
+					this.resource,
+					message.value.modelId,
+				),
+			panel,
 		);
 	}
 
-	private async setCredentialKey(channelValue: unknown): Promise<void> {
+	private async setCredentialKey(channelValue: unknown, panel: vscode.WebviewPanel): Promise<void> {
 		const channel = normalizeCredentialChannel(channelValue);
 		const value = await vscode.window.showInputBox({
 			prompt: t('auth.promptForChannel', t(`auth.channel.${channel}`)),
@@ -261,10 +271,13 @@ export class ModelManagerPanel implements vscode.Disposable {
 			validateInput: (input) => (input.trim() ? undefined : t('auth.emptyValidation')),
 		});
 		if (!value) return;
-		await this.runMutation(() => this.auth.setApiKey(channel, value));
+		await this.runMutation(() => this.auth.setApiKey(channel, value), panel);
 	}
 
-	private async clearCredentialKey(channelValue: unknown): Promise<void> {
+	private async clearCredentialKey(
+		channelValue: unknown,
+		panel: vscode.WebviewPanel,
+	): Promise<void> {
 		const channel = normalizeCredentialChannel(channelValue);
 		const confirmation = t('manager.action.confirmClear');
 		const selected = await vscode.window.showWarningMessage(
@@ -273,7 +286,7 @@ export class ModelManagerPanel implements vscode.Disposable {
 			confirmation,
 		);
 		if (selected !== confirmation) return;
-		await this.runMutation(() => this.auth.deleteApiKey(channel, this.resource));
+		await this.runMutation(() => this.auth.deleteApiKey(channel, this.resource), panel);
 	}
 
 	private async openCredentialKeyUrl(channelValue: unknown): Promise<void> {
@@ -283,6 +296,7 @@ export class ModelManagerPanel implements vscode.Disposable {
 
 	private async testVision(
 		message: Extract<ManagerWebviewMessage, { type: 'testVision' }>,
+		panel: vscode.WebviewPanel,
 	): Promise<void> {
 		const testId = message.value?.testId;
 		if (typeof testId !== 'number' || !Number.isSafeInteger(testId) || testId <= 0) {
@@ -312,13 +326,13 @@ export class ModelManagerPanel implements vscode.Disposable {
 			throw error;
 		} finally {
 			this.busy = false;
-			if (this.panel) {
-				await safePostMessage(this.panel, {
+			if (this.panel === panel) {
+				await safePostMessage(panel, {
 					type: 'visionTestResult',
 					value: testState,
 				});
 			}
-			if (this.status) await this.postStatus(this.status);
+			if (this.status) await this.postStatus(this.status, panel);
 		}
 	}
 
@@ -338,7 +352,7 @@ export class ModelManagerPanel implements vscode.Disposable {
 			return { source: value.source, lmModelKey: value.lmModelKey };
 		}
 		const endpoint = value.endpoint ?? {};
-		const current = await this.vision.getState();
+		const current = await this.vision.getState(false);
 		const headers = parseOptionalObject(endpoint.replacementHeadersJson) ?? current.config?.headers;
 		const extraBody = parseOptionalObject(endpoint.extraBodyJson);
 		return {
@@ -355,7 +369,10 @@ export class ModelManagerPanel implements vscode.Disposable {
 		};
 	}
 
-	private async runMutation(action: () => Promise<void>): Promise<void> {
+	private async runMutation(
+		action: () => Promise<void>,
+		panel: vscode.WebviewPanel,
+	): Promise<void> {
 		this.busy = true;
 		this.status = undefined;
 		let succeeded = false;
@@ -367,7 +384,7 @@ export class ModelManagerPanel implements vscode.Disposable {
 			succeeded = true;
 		} finally {
 			this.busy = false;
-			if (succeeded) await this.postState();
+			if (succeeded) await this.postState(panel);
 		}
 	}
 
@@ -407,7 +424,7 @@ export class ModelManagerPanel implements vscode.Disposable {
 	}
 
 	private async createVisionState(): Promise<ManagerVisionState> {
-		const state = await this.vision.getState();
+		const state = await this.vision.getState(this.activeView === 'vision');
 		const config = state.config;
 		return {
 			source: state.source,
@@ -433,15 +450,17 @@ export class ModelManagerPanel implements vscode.Disposable {
 		};
 	}
 
-	private async postState(): Promise<void> {
-		if (!this.panel) return;
+	private async postState(panel = this.panel): Promise<void> {
+		if (!panel || this.panel !== panel) return;
+		const requestId = ++this.stateRequestId;
 		const state = await this.createState();
-		await safePostMessage(this.panel, { type: 'state', value: state });
+		if (this.panel !== panel || requestId !== this.stateRequestId) return;
+		await safePostMessage(panel, { type: 'state', value: state });
 	}
 
-	private async postStatus(status: ManagerStatus): Promise<void> {
-		if (!this.panel) return;
-		await safePostMessage(this.panel, { type: 'status', value: status });
+	private async postStatus(status: ManagerStatus, panel = this.panel): Promise<void> {
+		if (!panel || this.panel !== panel) return;
+		await safePostMessage(panel, { type: 'status', value: status });
 	}
 
 	private async refreshFromExternalChange(): Promise<void> {
@@ -546,8 +565,12 @@ function toErrorStatus(error: unknown): ManagerStatus {
 }
 
 function safePostMessage(panel: vscode.WebviewPanel, payload: unknown): Thenable<boolean> {
-	return panel.webview.postMessage(payload).then(
-		(value) => value,
-		() => false,
-	);
+	try {
+		return panel.webview.postMessage(payload).then(
+			(value) => value,
+			() => false,
+		);
+	} catch {
+		return Promise.resolve(false);
+	}
 }

@@ -87,6 +87,75 @@ describe('model manager panel', () => {
 		expect(__getLastWebviewPanel()?.webview.html).not.toContain('super-secret-key');
 	});
 
+	it('renders a loading shell synchronously and ignores ready messages after disposal', async () => {
+		const manager = new ModelManagerPanel(createContext(), { onDidChange() {} });
+
+		manager.open();
+
+		const panel = __getLastWebviewPanel();
+		expect(panel?.webview.html).toContain('GLM Models &amp; Connections');
+		expect(panel?.webview.html).toContain('Working');
+		panel?.dispose();
+		await __emitWebviewMessage({ type: 'ready' });
+		await Promise.resolve();
+		expect(panel?.webview.postedMessages).toEqual([]);
+	});
+
+	it('does not let a stale disposal callback clear a replacement panel', () => {
+		const manager = new ModelManagerPanel(createContext(), { onDidChange() {} });
+		manager.open();
+		const first = __getLastWebviewPanel();
+		first?.dispose();
+
+		manager.open();
+		const replacement = __getLastWebviewPanel();
+		first?.dispose();
+		manager.open();
+
+		expect(__getLastWebviewPanel()).toBe(replacement);
+	});
+
+	it('loads VS Code vision models only when the Vision view is opened', async () => {
+		const selectChatModels = vi.spyOn(vscode.lm, 'selectChatModels');
+		const manager = new ModelManagerPanel(createContext(), { onDidChange() {} });
+		manager.open();
+		const messages = __getLastWebviewPanel()?.webview.postedMessages ?? [];
+
+		await __emitWebviewMessage({ type: 'ready' });
+		await vi.waitFor(() => {
+			expect(messages.some((message) => (message as { type?: string }).type === 'state')).toBe(
+				true,
+			);
+		});
+		expect(selectChatModels).not.toHaveBeenCalled();
+
+		await __emitWebviewMessage({ type: 'setView', value: { view: 'vision' } });
+		await vi.waitFor(() => expect(selectChatModels).toHaveBeenCalledTimes(1));
+	});
+
+	it('does not post asynchronously loaded state after the panel is disposed', async () => {
+		await Promise.resolve();
+		let resolveModels!: (models: readonly unknown[]) => void;
+		const pendingModels = new Promise<readonly unknown[]>((resolve) => {
+			resolveModels = resolve;
+		});
+		const selectChatModels = vi
+			.spyOn(vscode.lm, 'selectChatModels')
+			.mockReturnValue(pendingModels as ReturnType<typeof vscode.lm.selectChatModels>);
+		const manager = new ModelManagerPanel(createContext(), { onDidChange() {} });
+		manager.open('vision');
+		const panel = __getLastWebviewPanel();
+
+		const ready = __emitWebviewMessage({ type: 'ready' });
+		await vi.waitFor(() => expect(selectChatModels).toHaveBeenCalled());
+		panel?.dispose();
+		resolveModels([]);
+		await ready;
+
+		expect(panel?.webview.postedMessages).toEqual([]);
+		selectChatModels.mockRestore();
+	});
+
 	it('writes connection changes through the canonical configuration', async () => {
 		const manager = new ModelManagerPanel(createContext(), {
 			onDidChange() {},

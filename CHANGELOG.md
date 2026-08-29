@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/umbrella22/GLM-for-copilot/compare/v0.13.0...v0.13.1) (2026-08-29)
+
+
+### Bug Fixes
+
+* clarify credential channels and stabilize model manager ([c61abeb](https://github.com/umbrella22/GLM-for-copilot/commit/c61abebd68b120b38876d4b00010f0d2981050f1))
+
 ## [0.13.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.12.0...v0.13.0) (2026-08-26)
 
 

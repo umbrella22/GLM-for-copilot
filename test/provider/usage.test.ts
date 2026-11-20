@@ -75,6 +75,45 @@ describe('GLM Coding Plan quota parsing', () => {
 		});
 	});
 
+	it('parses credit-based five-hour and weekly quotas returned by the API', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn((url: string | URL) =>
+				Promise.resolve(
+					new Response(
+						JSON.stringify(
+							String(url).endsWith('/api/biz/subscription/list')
+								? { data: [] }
+								: {
+										code: 200,
+										success: true,
+										data: {
+											limits: [
+												{ type: 'CREDIT_LIMIT', unit: 3, percentage: 4, nextResetTime: 123 },
+												{ type: 'CREDIT_LIMIT', unit: 6, percentage: 1, nextResetTime: 456 },
+											],
+										},
+									},
+						),
+					),
+				),
+			),
+		);
+
+		await expect(
+			queryGLMTokenQuotaUsage('https://open.bigmodel.cn/api/coding/paas/v4', 'test-token'),
+		).resolves.toEqual({
+			fiveHours: { percentage: 4, nextResetTime: 123 },
+			sevenDays: { percentage: 1, nextResetTime: 456 },
+		});
+	});
+
+	it('recognizes credit quotas identified by name', () => {
+		expect(
+			parseGLMTokenQuotaUsage({ limits: [{ name: 'CREDIT_LIMIT', unit: 3, percentage: 5 }] }),
+		).toEqual({ fiveHours: { percentage: 5 } });
+	});
+
 	it('classifies plan and balance endpoints without probing the quota API', () => {
 		expect(supportsGLMPlanUsage('https://open.bigmodel.cn/api/coding/paas/v4')).toBe(true);
 		expect(supportsGLMPlanUsage('https://api.z.ai/api/anthropic')).toBe(true);

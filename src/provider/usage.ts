@@ -120,7 +120,7 @@ export async function queryGLMTokenQuotaUsage(
 	}
 }
 
-/** Parse the ordered token-quota windows returned by the GLM Coding Plan endpoint. */
+/** Parse the ordered token/credit quota windows returned by the GLM Coding Plan endpoint. */
 export function parseGLMTokenQuotaUsage(
 	quotaLimit: unknown,
 	subscription?: unknown,
@@ -131,7 +131,13 @@ export function parseGLMTokenQuotaUsage(
 
 	const tokenLimits = quotaLimit.limits.flatMap(
 		(item): { metric: GLMTokenQuotaMetric; unit?: number }[] => {
-			if (!isRecord(item) || (item.type !== 'TOKENS_LIMIT' && item.name !== 'TOKENS_LIMIT')) {
+			if (
+				!isRecord(item) ||
+				(item.type !== 'TOKENS_LIMIT' &&
+					item.type !== 'CREDIT_LIMIT' &&
+					item.name !== 'TOKENS_LIMIT' &&
+					item.name !== 'CREDIT_LIMIT')
+			) {
 				return [];
 			}
 			const percentage = item.percentage;

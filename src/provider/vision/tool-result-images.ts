@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import vscode from 'vscode';
+import { logger } from '../../logger';
 import { parseFirstReplayMarker, type ToolVisionReplayEntry } from '../replay';
 import { createVisionProxyMissingNotice } from '../tools/notices';
 import {
@@ -7,6 +8,7 @@ import {
 	IMAGE_DESCRIPTION_SUFFIX,
 	IMAGE_DESCRIPTION_UNAVAILABLE,
 } from './consts';
+import { logVisionProxyDescribeFailed } from './log';
 import { getVisionPrompt } from './sources/vscode';
 import type { VisionDescriber, VisionImagePart, VisionResolutionStats } from './types';
 
@@ -220,6 +222,7 @@ async function describeToolImage(
 		});
 		if (description.trim().length === 0) {
 			stats.toolResultImagesUnavailable += 1;
+			logger.warn('Vision proxy returned an empty description for a tool-result image');
 			return { missing: false };
 		}
 		stats.toolResultImagesDescribed += 1;
@@ -230,6 +233,7 @@ async function describeToolImage(
 		if (token.isCancellationRequested) {
 			throw error;
 		}
+		logVisionProxyDescribeFailed(error);
 		stats.toolResultImagesUnavailable += 1;
 		return { missing: false };
 	}

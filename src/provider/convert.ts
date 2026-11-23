@@ -73,7 +73,7 @@ export function convertMessages(
 					.join('');
 				toolResults.push({
 					callId: part.callId,
-					content: text || fallback,
+					content: text || fallback || (images.length > 0 ? '[image]' : ''),
 					images,
 				});
 			}

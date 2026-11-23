@@ -106,6 +106,9 @@ export class GLMClient {
 
 			// Accumulate tool call deltas by index, then emit on finish_reason=stop/tool_calls
 			const pendingToolCalls = new Map<number, GLMToolCall>();
+			// Some gateways omit `index`; allocate stable negative keys for them.
+			let nextSyntheticToolCallIndex = -1;
+			let reportedLengthFinish = false;
 
 			// Process a single SSE line. Returns true once the terminal `data: [DONE]`
 			// sentinel has been fully handled so the caller can stop reading.
@@ -163,14 +166,20 @@ export class GLMClient {
 							// OpenAI-compatible gateways emit the first delta without an `id`
 							// (e.g. sending `function.name` first); requiring `id` up front
 							// would silently drop the entire tool call for those servers.
-							let pending = pendingToolCalls.get(tc.index);
+							// Some also omit `index`; fall back to the id or the single
+							// in-flight call so fragments still accumulate.
+							const key =
+								typeof tc.index === 'number'
+									? tc.index
+									: (findPendingToolCallKey(tc, pendingToolCalls) ?? nextSyntheticToolCallIndex--);
+							let pending = pendingToolCalls.get(key);
 							if (!pending) {
 								pending = {
 									id: tc.id ?? '',
 									type: 'function',
 									function: { name: '', arguments: '' },
 								};
-								pendingToolCalls.set(tc.index, pending);
+								pendingToolCalls.set(key, pending);
 							}
 							if (tc.id && !pending.id) {
 								pending.id = tc.id;
@@ -189,6 +198,15 @@ export class GLMClient {
 							callbacks.onToolCall(tc);
 						}
 						pendingToolCalls.clear();
+					}
+
+					if (choice.finish_reason === 'length' && !reportedLengthFinish) {
+						reportedLengthFinish = true;
+						// Tool-call arguments emitted before a length finish may be a
+						// truncated JSON fragment; surface it instead of failing silently.
+						logger.warn(
+							'Model output hit max_tokens (finish_reason=length); tool calls may be truncated',
+						);
 					}
 				} catch (e) {
 					telemetry.parseFailures += 1;
@@ -348,6 +366,27 @@ function reportFinalUsage(callbacks: StreamCallbacks, usage: GLMUsage | undefine
 		return;
 	}
 	callbacks.onUsage(usage);
+}
+
+/**
+ * Resolve the pending-tool-call key for a delta that omitted `index`.
+ * Prefer an existing call with the same id, then the single in-flight call.
+ */
+function findPendingToolCallKey(
+	tc: { id?: string },
+	pending: Map<number, GLMToolCall>,
+): number | undefined {
+	if (tc.id) {
+		for (const [key, call] of pending) {
+			if (call.id === tc.id) {
+				return key;
+			}
+		}
+	}
+	if (pending.size === 1) {
+		return pending.keys().next().value;
+	}
+	return undefined;
 }
 
 function isAbortError(error: unknown): boolean {

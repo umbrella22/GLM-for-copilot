@@ -45,4 +45,55 @@ describe('OpenAI-compatible stream parsing', () => {
 		expect(cb.onThinking).toHaveBeenNthCalledWith(2, 'vllm');
 		expect(cb.onDone).toHaveBeenCalledTimes(1);
 	});
+
+	it('accumulates tool-call fragments that omit index', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(() =>
+				Promise.resolve(
+					sseResponse([
+						{
+							choices: [
+								{
+									index: 0,
+									delta: {
+										tool_calls: [
+											{
+												id: 'call-1',
+												function: { name: 'read_file', arguments: '{"pa' },
+											},
+										],
+									},
+								},
+							],
+						},
+						{
+							choices: [
+								{
+									index: 0,
+									delta: {
+										tool_calls: [{ function: { arguments: 'th":"a.md"}' } }],
+									},
+								},
+							],
+						},
+						{ choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] },
+					]),
+				),
+			),
+		);
+		const cb = callbacks();
+
+		await new GLMClient('https://example.test', 'test-key', 'openai').streamChatCompletion(
+			{ model: 'glm-test', messages: [], stream: true },
+			cb,
+		);
+
+		expect(cb.onToolCall).toHaveBeenCalledTimes(1);
+		expect(cb.onToolCall).toHaveBeenCalledWith({
+			id: 'call-1',
+			type: 'function',
+			function: { name: 'read_file', arguments: '{"path":"a.md"}' },
+		});
+	});
 });

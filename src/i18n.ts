@@ -315,6 +315,8 @@ const zh: Translations = {
 	// Request
 	'request.preflightRoundLimitExceeded':
 		'实验性稳定工具列表设置已尝试 {0} 轮，仍无法得到稳定的已启用工具列表。请关闭该实验性设置，或先用 VS Code 的 Configure Tools 关闭不常用的工具。',
+	'request.toolDiscoveryRoundLimitExceeded':
+		'工具发现已超过 {0} 轮搜索。请尝试更具体的关键词，或关闭实验性工具发现。',
 	'notice.visionProxyMissing': '⚠️ 视觉代理不可用，GLM 无法看到图片。[配置视觉代理]({0})',
 	'notice.visionProxyFailure': '**⚠️ {0}**\\\n\\\n**{1} · {2}**',
 	'notice.toolDrift':
@@ -797,6 +799,8 @@ const en: Translations = {
 	// Request
 	'request.preflightRoundLimitExceeded':
 		'Experimental tool-list stabilization tried {0} rounds but still could not get a stable enabled-tools list. Turn this experimental setting off, or use VS Code Configure Tools to disable tools you rarely use first.',
+	'request.toolDiscoveryRoundLimitExceeded':
+		'Tool discovery exceeded {0} search rounds. Try more specific keywords or disable experimental tool discovery.',
 	'notice.visionProxyMissing':
 		'⚠️ Vision Proxy is unavailable. GLM cannot see images. [Configure Vision Proxy]({0})',
 	'notice.visionProxyFailure': '**⚠️ {0}**\\\n\\\n**{1} · {2}**',

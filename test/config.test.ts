@@ -13,6 +13,7 @@ import {
 	getModelVisionMode,
 	getModelEndpointRoute,
 	getVisionProxyTimeoutMs,
+	getToolDiscoverySettings,
 	getToolStreamEnabled,
 	inspectEffectiveModelManagementConfiguration,
 	inspectModelManagementConfiguration,
@@ -1236,5 +1237,14 @@ describe('migrateLegacyEndpointSettings', () => {
 		expect(getToolStreamEnabled()).toBe(true);
 		__setConfigurationValue('glm-copilot.toolStream', false);
 		expect(getToolStreamEnabled()).toBe(false);
+	});
+
+	it('normalizes experimental tool discovery settings', () => {
+		expect(getToolDiscoverySettings()).toEqual({ enabled: false, maxTools: 64 });
+		__setConfigurationValue('glm-copilot.experimental.toolDiscovery.enabled', true);
+		__setConfigurationValue('glm-copilot.experimental.toolDiscovery.maxTools', 1000);
+		expect(getToolDiscoverySettings()).toEqual({ enabled: true, maxTools: 256 });
+		__setConfigurationValue('glm-copilot.experimental.toolDiscovery.maxTools', 1);
+		expect(getToolDiscoverySettings()).toEqual({ enabled: true, maxTools: 8 });
 	});
 });

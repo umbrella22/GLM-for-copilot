@@ -23,13 +23,14 @@ import type {
 	ApiRegion,
 	CustomModelConfig,
 	EndpointPreset,
-	ModelManagementConfigurationV1,
-	ModelManagementModelConfiguration,
 	ModelDefinition,
 	ModelEndpointRoute,
+	ModelManagementConfigurationV1,
+	ModelManagementModelConfiguration,
 	ModelVisionMode,
 	ResolvedModelConnection,
 } from './types';
+import type { ToolDiscoverySettings } from './provider/tools/discovery';
 
 export type DebugMode = 'minimal' | 'metadata' | 'verbose';
 
@@ -606,6 +607,21 @@ export function getMaxTokens(): number | undefined {
 	// Guard against Infinity (e.g. from misconfiguration) which would satisfy
 	// value > 0 but produce an invalid API request.
 	return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+/**
+ * Experimental on-demand tool discovery. When enabled and the request has more
+ * than `maxTools` schemas, the provider sends a subset plus a synthetic search
+ * tool and expands matches in later rounds.
+ */
+export function getToolDiscoverySettings(): ToolDiscoverySettings {
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+	const enabled = config.get<boolean>('experimental.toolDiscovery.enabled', false);
+	const rawMaxTools = config.get<number>('experimental.toolDiscovery.maxTools', 64);
+	const maxTools = Number.isFinite(rawMaxTools)
+		? Math.min(256, Math.max(8, Math.floor(rawMaxTools)))
+		: 64;
+	return { enabled, maxTools };
 }
 
 /**

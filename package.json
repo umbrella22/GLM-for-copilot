@@ -345,6 +345,24 @@
           ],
           "markdownDescription": "%glm-copilot.config.toolStream.description%"
         },
+        "glm-copilot.experimental.toolDiscovery.enabled": {
+          "type": "boolean",
+          "default": false,
+          "tags": [
+            "experimental"
+          ],
+          "markdownDescription": "%glm-copilot.config.experimental.toolDiscovery.enabled.description%"
+        },
+        "glm-copilot.experimental.toolDiscovery.maxTools": {
+          "type": "number",
+          "default": 64,
+          "minimum": 8,
+          "maximum": 256,
+          "tags": [
+            "experimental"
+          ],
+          "markdownDescription": "%glm-copilot.config.experimental.toolDiscovery.maxTools.description%"
+        },
         "glm-copilot.experimental.stabilizeToolList": {
           "type": "boolean",
           "default": false,

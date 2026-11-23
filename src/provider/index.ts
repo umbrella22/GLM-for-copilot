@@ -2,6 +2,7 @@ import vscode from 'vscode';
 import { AuthManager, CREDENTIAL_CHANNELS, formatCredentialChannel } from '../auth';
 import {
 	getStabilizeToolListEnabled,
+	getToolDiscoverySettings,
 	listProviderModels,
 	resolveDefaultConnection,
 	resolveModelConnection,
@@ -19,11 +20,14 @@ import {
 	type ModelPickerChatInformation,
 } from './models';
 import { getPricingCurrencyForBaseUrl } from './pricing/currency';
+import type { UsageCostEstimate } from './pricing/usage';
 import { prepareChatRequest } from './request';
 import { classifyProviderRequest } from './routing';
 import { resolveConversationSegment } from './segment';
 import { streamChatCompletion } from './stream';
+import { streamChatCompletionWithToolDiscovery } from './tool-discovery-stream';
 import { estimateTokenCount } from './tokens';
+import { shouldEnableToolDiscovery } from './tools/discovery';
 import { processToolFlow } from './tools/flow';
 import { queryGLMTokenQuotaUsage, type GLMTokenQuotaUsage } from './usage';
 import { UsageStatus } from './usage-status';
@@ -57,6 +61,8 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider<ModelPi
 	>();
 	private readonly lastUsageQuotas = new Map<CredentialChannel, GLMTokenQuotaUsage | undefined>();
 	private readonly lastUsageRefreshAt = new Map<CredentialChannel, number>();
+	/** Activated tool names per conversation segment for experimental tool discovery. */
+	private readonly toolDiscoveryStates = new Map<string, Set<string>>();
 	private usageStatusRevision = 0;
 	private activeConfigurationResourceKey = getActiveWorkspaceFolderResource()?.toString();
 
@@ -402,7 +408,8 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider<ModelPi
 			getVisionDescriber: () => this.vision.get(configurationResource),
 		});
 
-		await streamChatCompletion({
+		const discoverySettings = getToolDiscoverySettings();
+		const streamOptions = {
 			prepared,
 			progress,
 			token,
@@ -411,16 +418,25 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider<ModelPi
 				prepared.initialResponseNotice,
 			),
 			getCharsPerToken: () => this.charsPerToken,
-			setCharsPerToken: (charsPerToken) => {
+			setCharsPerToken: (charsPerToken: number) => {
 				this.charsPerToken = charsPerToken;
 			},
 			...(prepared.apiMode === 'standard'
 				? {
-						onUsageCost: (estimate) =>
+						onUsageCost: (estimate: UsageCostEstimate) =>
 							this.usageStatus.reportBalanceCost(prepared.connection.credentialChannel, estimate),
 					}
 				: {}),
-		});
+		};
+		if (shouldEnableToolDiscovery(discoverySettings, prepared.request.tools)) {
+			await streamChatCompletionWithToolDiscovery({
+				...streamOptions,
+				activated: this.getToolDiscoveryState(segment.segmentId),
+				maxTools: discoverySettings.maxTools,
+			});
+		} else {
+			await streamChatCompletion(streamOptions);
+		}
 
 		void this.refreshUsageStatus();
 	}
@@ -431,6 +447,26 @@ export class GLMChatProvider implements vscode.LanguageModelChatProvider<ModelPi
 		_token: vscode.CancellationToken,
 	): Promise<number> {
 		return estimateTokenCount(text, this.charsPerToken);
+	}
+
+	private getToolDiscoveryState(segmentId: string): Set<string> {
+		const existing = this.toolDiscoveryStates.get(segmentId);
+		if (existing) {
+			// Refresh LRU order so active conversations keep their discoveries.
+			this.toolDiscoveryStates.delete(segmentId);
+			this.toolDiscoveryStates.set(segmentId, existing);
+			return existing;
+		}
+		const created = new Set<string>();
+		this.toolDiscoveryStates.set(segmentId, created);
+		while (this.toolDiscoveryStates.size > 64) {
+			const oldest = this.toolDiscoveryStates.keys().next().value;
+			if (oldest === undefined) {
+				break;
+			}
+			this.toolDiscoveryStates.delete(oldest);
+		}
+		return created;
 	}
 
 	private reloadUsageStatus(): void {

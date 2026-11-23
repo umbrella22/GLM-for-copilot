@@ -12,6 +12,7 @@ import {
 import { logVisionProxyDescribeFailed, logVisionProxyUnavailable } from './log';
 import { buildImagePromptText, storeImage } from './image-store'; // [FORK] mcp mode
 import { prepareNativeImageMessages } from './native';
+import { collectToolResultImageStats, resolveToolResultImages } from './tool-result-images';
 import {
 	formatVisionProxyErrorCode,
 	getVisionProxyErrorDisplayCode,
@@ -43,11 +44,27 @@ export async function resolveImageMessages(
 ): Promise<VisionResolutionResult> {
 	const stats = createVisionResolutionStats();
 	collectInputImageStats(messages, stats);
-	if (stats.inputImageParts === 0) {
+	collectToolResultImageStats(messages, stats);
+	if (stats.inputImageParts === 0 && stats.toolResultImageParts === 0) {
 		return { messages, stats, replayMarkerMetadata: {} };
 	}
+	let visionDescriber: VisionDescriber | undefined;
+	let visionDescriberRequested = false;
+	const getDescriberOnce = async (): Promise<VisionDescriber | undefined> => {
+		if (!visionDescriberRequested) {
+			visionDescriberRequested = true;
+			visionDescriber = await getDescriber();
+		}
+		return visionDescriber;
+	};
 	if (visionMode === 'native') {
-		return prepareNativeImageMessages(messages, token, stats);
+		const nativeResult = await prepareNativeImageMessages(messages, token, stats);
+		// Nested tool-result images are forwarded as-is; conversion turns them into
+		// native image parts (a synthetic user message keeps OpenAI-compatible
+		// requests valid).
+		stats.nativeImageParts += stats.toolResultImageParts;
+		stats.nativeImageBytes += stats.toolResultImageBytes;
+		return nativeResult;
 	}
 	// [FORK] mcp mode: strip images from the request, persist them to disk, and
 	// replace each image part with a short text prompt pointing to the file path.
@@ -55,14 +72,31 @@ export async function resolveImageMessages(
 	// massive context bloat of base64 for text-only models. Kept as a single
 	// early-return branch so the upstream proxy/native logic below is untouched.
 	if (visionMode === 'mcp') {
-		return stripImagesForMcpMode(messages, token, stats);
+		const mcpResult = await stripImagesForMcpMode(messages, token, stats);
+		const toolResolution = await resolveToolResultImages(
+			mcpResult.messages,
+			token,
+			getDescriberOnce,
+			stats,
+		);
+		return {
+			...mcpResult,
+			messages: toolResolution.messages,
+			replayMarkerMetadata: {
+				...mcpResult.replayMarkerMetadata,
+				...(toolResolution.replayEntries.length > 0
+					? { toolVision: toolResolution.replayEntries }
+					: {}),
+			},
+			visionModelId: visionDescriber?.id ?? mcpResult.visionModelId,
+			visionProxySource: visionDescriber?.source ?? mcpResult.visionProxySource,
+			initialResponseNotice: joinNotices(mcpResult.initialResponseNotice, toolResolution.notice),
+		};
 	}
 
 	const markerBindings = createVisionMarkerBindings(messages, stats);
 	const currentImageMessageIndex = findCurrentImageMessageIndex(messages);
 	const result: vscode.LanguageModelChatRequestMessage[] = [];
-	let visionDescriber: VisionDescriber | undefined;
-	let visionDescriberRequested = false;
 	let missingVisionProxy = false;
 	let visionFailureNotice: string | undefined;
 	let markerVisionText: string | undefined;
@@ -90,19 +124,16 @@ export async function resolveImageMessages(
 
 		if (messageIndex === currentImageMessageIndex) {
 			stats.currentImageMessages += 1;
-			if (!visionDescriberRequested) {
-				visionDescriberRequested = true;
-				visionDescriber = await getDescriber();
-			}
+			const describer = await getDescriberOnce();
 			const visionResolution = await resolveCurrentVisionText(
 				imageParts,
 				nonImageParts,
-				visionDescriber,
+				describer,
 				stats,
 				token,
 			);
 			const visionText = visionResolution.text;
-			if (!visionDescriber && !token.isCancellationRequested) {
+			if (!describer && !token.isCancellationRequested) {
 				missingVisionProxy = true;
 			}
 			visionFailureNotice ??= visionResolution.failureNotice;
@@ -123,16 +154,30 @@ export async function resolveImageMessages(
 		result.push(createResolvedMessage(message, nonImageParts));
 	}
 
+	const toolResolution = await resolveToolResultImages(result, token, getDescriberOnce, stats);
 	return {
-		messages: result,
+		messages: toolResolution.messages,
 		stats,
-		replayMarkerMetadata: { visionText: markerVisionText },
+		replayMarkerMetadata: {
+			...(markerVisionText ? { visionText: markerVisionText } : {}),
+			...(toolResolution.replayEntries.length > 0
+				? { toolVision: toolResolution.replayEntries }
+				: {}),
+		},
 		visionModelId: visionDescriber?.id,
 		visionProxySource: visionDescriber?.source,
-		initialResponseNotice: missingVisionProxy
-			? createVisionProxyMissingNotice()
-			: visionFailureNotice,
+		initialResponseNotice: joinNotices(
+			missingVisionProxy ? createVisionProxyMissingNotice() : visionFailureNotice,
+			toolResolution.notice,
+		),
 	};
+}
+
+function joinNotices(...notices: readonly (string | undefined)[]): string | undefined {
+	const unique = [
+		...new Set(notices.filter((notice): notice is string => Boolean(notice?.trim()))),
+	];
+	return unique.length > 0 ? unique.join('\n') : undefined;
 }
 
 function createVisionResolutionStats(): VisionResolutionStats {
@@ -153,6 +198,12 @@ function createVisionResolutionStats(): VisionResolutionStats {
 		unavailableImageMessages: 0,
 		failedImageMessages: 0,
 		droppedImageParts: 0,
+		toolResultImageParts: 0,
+		toolResultImageBytes: 0,
+		toolResultImageResults: 0,
+		toolResultImagesDescribed: 0,
+		toolResultImagesReplayed: 0,
+		toolResultImagesUnavailable: 0,
 		markerVisionTextChars: 0,
 		invalidMarkerVisionMetadata: 0,
 	};

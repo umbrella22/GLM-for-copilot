@@ -60,6 +60,41 @@ describe('replay marker encode/decode contract', () => {
 		expect(parsed.reasoningText).toBeUndefined();
 	});
 
+	it('round-trips tool-result vision replay entries', () => {
+		const part = createReplayMarkerPart({
+			segmentId: SEGMENT_ID,
+			toolVision: [
+				{
+					callId: 'call-1',
+					resolvedContent: '[Image Description]chart[/Image Description]',
+					imageParts: 1,
+				},
+			],
+		});
+
+		const parsed = parseReplayMarkerData(decodeMarkerData(part));
+		expect(parsed.valid).toBe(true);
+		expect(parsed.segmentOnly).toBe(false);
+		expect(parsed.toolVision).toEqual([
+			{
+				callId: 'call-1',
+				resolvedContent: '[Image Description]chart[/Image Description]',
+				imageParts: 1,
+			},
+		]);
+	});
+
+	it('rejects malformed tool-result vision replay entries', () => {
+		const part = createReplayMarkerPart({
+			segmentId: SEGMENT_ID,
+			toolVision: [{ callId: '', resolvedContent: '', imageParts: 0 }],
+		});
+
+		const parsed = parseReplayMarkerData(decodeMarkerData(part));
+		expect(parsed.valid).toBe(true);
+		expect(parsed.toolVision).toBeUndefined();
+	});
+
 	it('round-trips segmentId, reasoning, and vision together', () => {
 		const part = createReplayMarkerPart({
 			segmentId: SEGMENT_ID,

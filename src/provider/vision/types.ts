@@ -63,6 +63,14 @@ export interface VisionResolutionStats {
 	unavailableImageMessages: number;
 	failedImageMessages: number;
 	droppedImageParts: number;
+	// Nested tool-result images: real image data parts inside
+	// LanguageModelToolResultPart content, handled separately from user images.
+	toolResultImageParts: number;
+	toolResultImageBytes: number;
+	toolResultImageResults: number;
+	toolResultImagesDescribed: number;
+	toolResultImagesReplayed: number;
+	toolResultImagesUnavailable: number;
 	markerVisionTextChars: number;
 	invalidMarkerVisionMetadata: number;
 }

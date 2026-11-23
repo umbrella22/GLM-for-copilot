@@ -362,6 +362,94 @@ describe('vision message resolution', () => {
 		expect(textPartValue(result.messages[0]?.content[0])).toBe(replayText);
 	});
 
+	it('replaces tool-result images with vision descriptions and records replay entries', async () => {
+		const describe = vi.fn().mockResolvedValue('tool screenshot');
+		const describer: VisionDescriber = {
+			id: 'vision-model',
+			source: 'vscode-lm',
+			describe,
+		};
+		const messages = [
+			userMessage([
+				new vscode.LanguageModelToolResultPart('call-1', [
+					new vscode.LanguageModelTextPart('captured'),
+					imagePart(),
+				]),
+			]),
+		];
+
+		const result = await resolveImageMessages(messages, token, async () => describer);
+
+		const resolvedPart = result.messages[0]?.content[0];
+		expect(resolvedPart).toBeInstanceOf(vscode.LanguageModelToolResultPart);
+		const content = (resolvedPart as vscode.LanguageModelToolResultPart).content;
+		expect(textPartValue(content[0])).toBe('captured');
+		expect(textPartValue(content[1])).toBe(
+			`${IMAGE_DESCRIPTION_PREFIX}tool screenshot${IMAGE_DESCRIPTION_SUFFIX}`,
+		);
+		expect(result.stats.toolResultImagesDescribed).toBe(1);
+		expect(result.stats.toolResultImageParts).toBe(1);
+		expect(result.replayMarkerMetadata.toolVision).toEqual([
+			{
+				callId: 'call-1',
+				resolvedContent: `captured${IMAGE_DESCRIPTION_PREFIX}tool screenshot${IMAGE_DESCRIPTION_SUFFIX}`,
+				imageParts: 1,
+			},
+		]);
+	});
+
+	it('replays tool-result descriptions from an assistant marker', async () => {
+		const replayContent = `captured${IMAGE_DESCRIPTION_PREFIX}old tool image${IMAGE_DESCRIPTION_SUFFIX}`;
+		const marker = createReplayMarkerPart({
+			segmentId: '3917af00-099c-49a2-8373-38df581b018e',
+			toolVision: [{ callId: 'call-1', resolvedContent: replayContent, imageParts: 1 }],
+		});
+		const messages = [
+			userMessage([
+				new vscode.LanguageModelToolResultPart('call-1', [
+					new vscode.LanguageModelTextPart('captured'),
+					imagePart(),
+				]),
+			]),
+			assistantMessage([new vscode.LanguageModelTextPart('done'), marker]),
+		];
+
+		const result = await resolveImageMessages(messages, token, async () => {
+			throw new Error('describer should not be requested for replayed tool images');
+		});
+
+		const resolvedPart = result.messages[0]?.content[0] as vscode.LanguageModelToolResultPart;
+		expect(resolvedPart.content).toHaveLength(1);
+		expect(textPartValue(resolvedPart.content[0])).toBe(replayContent);
+		expect(result.stats.toolResultImagesReplayed).toBe(1);
+		expect(result.stats.toolResultImagesDescribed).toBe(0);
+	});
+
+	it('marks tool-result images unavailable when no vision proxy exists', async () => {
+		const result = await resolveImageMessages(
+			[userMessage([new vscode.LanguageModelToolResultPart('call-1', [imagePart()])])],
+			token,
+			async () => undefined,
+		);
+
+		const resolvedPart = result.messages[0]?.content[0] as vscode.LanguageModelToolResultPart;
+		expect(textPartValue(resolvedPart.content[0])).toBe(IMAGE_DESCRIPTION_UNAVAILABLE);
+		expect(result.stats.toolResultImagesUnavailable).toBe(1);
+		expect(result.initialResponseNotice).toBeTruthy();
+	});
+
+	it('leaves tool-result images for native vision conversion', async () => {
+		const messages = [
+			userMessage([new vscode.LanguageModelToolResultPart('call-1', [imagePart()])]),
+		];
+
+		const result = await resolveImageMessages(messages, token, async () => undefined, 'native');
+
+		expect(result.messages[0]).toBe(messages[0]);
+		expect(result.stats.toolResultImageParts).toBe(1);
+		expect(result.stats.nativeImageParts).toBe(1);
+	});
+
 	it('preserves the describer output inside the untrusted-content boundary', async () => {
 		const description = '  src/main.cpp:42: [unclear]\n  raw output  ';
 		const result = await resolveImageMessages([userMessage([imagePart()])], token, async () => ({

@@ -14,5 +14,6 @@ export type {
 	ReplayMarkerPayload,
 	ReplayMarkerPayloadFormat,
 	ReplayMarkerSource,
+	ToolVisionReplayEntry,
 	VisionMarkerTextIgnoredReason,
 } from './types';

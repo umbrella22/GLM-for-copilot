@@ -5,6 +5,7 @@ export interface ReplayMarkerParseResult {
 	visionTextIgnoredReason?: VisionMarkerTextIgnoredReason;
 	reasoningText?: string;
 	reasoningTextIgnoredReason?: ReasoningMarkerTextIgnoredReason;
+	toolVision?: ToolVisionReplayEntry[];
 	markerSource?: ReplayMarkerSource;
 	/**
 	 * True when the marker carries a segment id but no reasoning/vision replay
@@ -35,9 +36,21 @@ export type ReasoningMarkerTextIgnoredReason =
 	| 'reasoning-text-not-string'
 	| 'reasoning-text-empty';
 
+/**
+ * Replay data for one tool result whose images were replaced by Vision Proxy
+ * descriptions. Stored on the assistant response that followed the tool result,
+ * so later turns can reuse the same text without re-describing the images.
+ */
+export interface ToolVisionReplayEntry {
+	callId: string;
+	resolvedContent: string;
+	imageParts: number;
+}
+
 export interface ReplayMarkerMetadata {
 	visionText?: string;
 	reasoningText?: string;
+	toolVision?: readonly ToolVisionReplayEntry[];
 }
 
 /**

@@ -4,6 +4,7 @@ import { createGLMImageContentPart } from '../glm-content';
 import { safeStringify } from '../json';
 import type { GLMMessage, GLMMessageContent, GLMRequest, GLMTool, GLMToolCall } from '../types';
 import { parseFirstReplayMarker } from './replay';
+import { normalizeToolResult } from './vision/tool-result-images';
 
 /**
  * Convert VS Code chat messages to GLM format.
@@ -21,7 +22,11 @@ export function convertMessages(
 		const contentParts: Exclude<GLMMessageContent, string> = [];
 		let thinkingContent = '';
 		const toolCalls: GLMToolCall[] = [];
-		const toolResults: Array<{ callId: string; content: string }> = [];
+		const toolResults: Array<{
+			callId: string;
+			content: string;
+			images: Array<{ mimeType: string; data: Uint8Array }>;
+		}> = [];
 
 		for (const part of message.content) {
 			if (part instanceof vscode.LanguageModelTextPart) {
@@ -46,15 +51,30 @@ export function convertMessages(
 					},
 				});
 			} else if (part instanceof vscode.LanguageModelToolResultPart) {
-				let toolContent = '';
-				for (const item of part.content) {
-					if (item instanceof vscode.LanguageModelTextPart) {
-						toolContent += item.value;
-					}
-				}
+				const normalized = normalizeToolResult(part);
+				const text = normalized.parts
+					.filter(
+						(item): item is Extract<(typeof normalized.parts)[number], { type: 'text' }> =>
+							item.type === 'text',
+					)
+					.map((item) => item.text)
+					.join('');
+				const images = normalized.parts.filter(
+					(item): item is Extract<(typeof normalized.parts)[number], { type: 'image' }> =>
+						item.type === 'image',
+				);
+				// Never stringify image bytes into a text-only fallback.
+				const fallback = normalized.parts
+					.filter(
+						(item): item is Extract<(typeof normalized.parts)[number], { type: 'other' }> =>
+							item.type === 'other',
+					)
+					.map((item) => safeStringify(item.value))
+					.join('');
 				toolResults.push({
 					callId: part.callId,
-					content: toolContent || safeStringify(part.content),
+					content: text || fallback,
+					images,
 				});
 			}
 		}
@@ -94,6 +114,21 @@ export function convertMessages(
 				content: tr.content,
 				tool_call_id: tr.callId,
 			});
+			if (tr.images.length > 0) {
+				// OpenAI-compatible Chat Completions only allows text content on the
+				// `tool` role. Keep the tool message valid and attach native tool
+				// images in an adjacent user message instead.
+				result.push({
+					role: 'user',
+					content: [
+						{
+							type: 'text' as const,
+							text: `[Image returned by tool call ${tr.callId}]`,
+						},
+						...tr.images.map((image) => createGLMImageContentPart(image.mimeType, image.data)),
+					],
+				});
+			}
 		}
 	}
 

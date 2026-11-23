@@ -83,6 +83,33 @@ describe('message and tool conversion', () => {
 		]);
 	});
 
+	it('attaches native tool-result images in an adjacent user message', () => {
+		const image = new vscode.LanguageModelDataPart(new Uint8Array([1, 2, 3]), 'image/png');
+		const messages = convertMessages(
+			[
+				message(vscode.LanguageModelChatMessageRole.Assistant, [
+					new vscode.LanguageModelToolCallPart('call-1', 'view_image', { path: 'a.png' }),
+				]),
+				message(vscode.LanguageModelChatMessageRole.User, [
+					new vscode.LanguageModelToolResultPart('call-1', [
+						new vscode.LanguageModelTextPart('captured'),
+						image,
+					]),
+				]),
+			],
+			false,
+		);
+
+		expect(messages).toHaveLength(3);
+		expect(messages[1]).toEqual({ role: 'tool', content: 'captured', tool_call_id: 'call-1' });
+		const imageMessage = messages[2];
+		expect(imageMessage?.role).toBe('user');
+		expect(typeof imageMessage?.content).not.toBe('string');
+		const parts = imageMessage?.content as Array<{ type: string; text?: string }>;
+		expect(parts[0]).toEqual({ type: 'text', text: '[Image returned by tool call call-1]' });
+		expect(parts[1]?.type).toBe('image_url');
+	});
+
 	it('preserves thinking content for thinking models', () => {
 		const messages = convertMessages(
 			[

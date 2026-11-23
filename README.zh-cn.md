@@ -26,7 +26,7 @@
 
 - **不是替换 Copilot，而是增强它。** 没有新的侧边栏，没有新的聊天界面需要学习。只是在你已经在用的模型选择器中多了一个选项。
 - **Agent 模式、工具调用、Instructions、MCP、Skills——全部正常运作。** Copilot 的完整能力栈，现在跑在 GLM 上。
-- **按模型需要处理视觉任务。** GLM-4.6V-Flash、GLM-5.3-Flash 和 GLM-5.4 默认直接接收图片；GLM-5.3 默认通过透明视觉代理将图片转换为描述（Coding Plan 连接使用 GLM-5.3-Flash，标准 API 连接使用 GLM-4.6V-Flash）。每个模型也可单独选择 `mcp` 模式，将图片存储到本地供兼容的 MCP 工具读取。
+- **按模型需要处理视觉任务。** GLM-4.6V-Flash、GLM-5.3-Flash 和 GLM-5.4 默认直接接收图片；GLM-5.3 默认通过透明视觉代理将图片转换为描述（Coding Plan 连接使用 GLM-5.3-Flash，标准 API 连接使用 GLM-4.6V-Flash）。每个模型也可单独选择 `mcp` 模式，将图片存储到本地供兼容的 MCP 工具读取。工具返回的图片（如截图或 `view_image` 工具）也遵循相同的原生、代理或 MCP 规则。
 - **按轮次估算费用。** 当 GLM API 返回 usage 时，扩展会按官方标价估算本轮费用，上报到 Copilot usage 元数据、写入日志，并在状态栏显示最近一轮费用。
 - **需自行提供 API Key，直接向 GLM 付费。** 你的 API Key，你的账单，你的速率限制。密钥存储在操作系统密钥链中，不会以明文形式写入磁盘。
 
@@ -124,6 +124,8 @@
 | -------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `glm-copilot.modelManagement`                | `{ "version": 1 }` | 版本化管理页状态。常规修改应在 **GLM: 管理模型与连接** 中完成。对象包含 `defaultConnection`、按模型记录的 `models`（`apiModelId`、`endpointRoute`、`visionMode`）和 `customModels` 映射。配置按用户、工作区、工作区文件夹合并；`customModels[id] = null` 可删除继承的自定义模型。 |
 | `glm-copilot.maxTokens`                      | `0`                | 最大输出 Token 数。`0` 直接取各模型的最大输出（GLM-5.x 为 131072，GLM-4.6V-Flash 为 32768），Anthropic 路由也使用该值（该字段必填）。思考 Token 计入该预算。可用于成本控制。                                                                                                                                                                                                                               |
+| `glm-copilot.requestHeaders`                 | `{}`               | GLM 聊天请求（OpenAI 与 Anthropic 路由）的额外 HTTP 请求头。值支持 `${conversationId}` 占位符。`Authorization` 与 `Content-Type` 由扩展管理。                                                                                                                                                                                                        |
+| `glm-copilot.visionProxyTimeoutMs`           | `0`                | 视觉代理请求超时（毫秒）。`0` 使用默认 30 秒；本地视觉模型较慢时可调大。                                                                                                                                                                                                                                                                            |
 | `glm-copilot.debugMode`                      | `minimal`          | 诊断模式：仅 Token 用量、隐私安全元数据或扩展全局存储中的详细请求 dump。                                                                                                                                                                                                          |
 | `glm-copilot.visionModel`                    | _(自动)_           | 由视觉代理视图维护的兼容值。新版保存为 `vendor/id`，旧版裸模型 ID 仍可读取。                                                                                                                                                                                                      |
 | `glm-copilot.visionPrompt`                   | _(内置)_           | 代理图片模式用于描述图片附件的提示词。                                                                                                                                                                                                                                            |

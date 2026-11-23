@@ -1,5 +1,4 @@
 import { DEFAULT_GLM_BASE_URL } from './endpoint';
-import { GLM_TOOLS_LIMIT } from './provider/tools/consts';
 import { DEFAULT_GLM_VISION_MODEL_ID } from './provider/vision/consts';
 import type { CredentialChannel, ModelDefinition } from './types';
 
@@ -76,7 +75,7 @@ export const MODELS: ModelDefinition[] = [
 		maxInputTokens: 868_928,
 		maxOutputTokens: 131_072,
 		capabilities: {
-			toolCalling: GLM_TOOLS_LIMIT,
+			toolCalling: true,
 			// The extension accepts images for this model through the transparent
 			// vision proxy (GLM-5.3-Flash on Coding Plan, GLM-4.6V-Flash on the
 			// Standard API) before sending text to GLM-5.3.
@@ -104,7 +103,7 @@ export const MODELS: ModelDefinition[] = [
 		maxInputTokens: 98_304,
 		maxOutputTokens: 32_768,
 		capabilities: {
-			toolCalling: GLM_TOOLS_LIMIT,
+			toolCalling: true,
 			imageInput: true,
 			thinking: true,
 		},
@@ -126,7 +125,7 @@ export const MODELS: ModelDefinition[] = [
 		maxInputTokens: 868_928,
 		maxOutputTokens: 131_072,
 		capabilities: {
-			toolCalling: GLM_TOOLS_LIMIT,
+			toolCalling: true,
 			imageInput: true,
 			thinking: true,
 		},
@@ -153,7 +152,7 @@ export const MODELS: ModelDefinition[] = [
 		maxInputTokens: 868_928,
 		maxOutputTokens: 131_072,
 		capabilities: {
-			toolCalling: GLM_TOOLS_LIMIT,
+			toolCalling: true,
 			// Natively multimodal: images are resized and sent directly, like
 			// GLM-5.3-Flash, instead of going through the Vision Proxy.
 			imageInput: true,

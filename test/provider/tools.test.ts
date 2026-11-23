@@ -44,12 +44,11 @@ describe('tool request helpers', () => {
 		]);
 	});
 
-	it('enforces numeric tool limits', () => {
-		expect(() =>
-			prepareRequestTools(1, {
-				tools: [tool('one'), tool('two')],
-			} as vscode.ProvideLanguageModelChatResponseOptions),
-		).toThrow('GLM supports at most 1 functions');
+	it('does not impose a hard tool-count limit', () => {
+		const tools = prepareRequestTools(1, {
+			tools: [tool('one'), tool('two')],
+		} as vscode.ProvideLanguageModelChatResponseOptions);
+		expect(tools?.map((item) => item.function.name)).toEqual(['one', 'two']);
 	});
 
 	it('collects only trailing tool result ids', () => {

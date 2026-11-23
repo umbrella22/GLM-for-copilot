@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.15.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.14.0...v0.15.0) (2026-11-23)
+
+
+### Features
+
+* support images returned by tools in native, proxy, and MCP vision modes ([ea27e93](https://github.com/umbrella22/GLM-for-copilot/commit/ea27e93))
+* declare Agents Window support ([bd42459](https://github.com/umbrella22/GLM-for-copilot/commit/bd42459))
+* add `glm-copilot.requestHeaders` and `glm-copilot.visionProxyTimeoutMs` ([07f26b0](https://github.com/umbrella22/GLM-for-copilot/commit/07f26b0), [0ca58d1](https://github.com/umbrella22/GLM-for-copilot/commit/0ca58d1))
+
+
+### Bug Fixes
+
+* avoid Copilot BYOK activation deadlock ([fbcf613](https://github.com/umbrella22/GLM-for-copilot/commit/fbcf613))
+* keep continuous thinking deltas in one block ([bdbca34](https://github.com/umbrella22/GLM-for-copilot/commit/bdbca34))
+* add explicit schemas for parameterless tools ([7aad0b0](https://github.com/umbrella22/GLM-for-copilot/commit/7aad0b0))
+* accept `delta.reasoning` from OpenAI-compatible gateways ([74cd49b](https://github.com/umbrella22/GLM-for-copilot/commit/74cd49b))
+* harden tool-call deltas without `index` and length truncation ([9fbb162](https://github.com/umbrella22/GLM-for-copilot/commit/9fbb162))
+* remove the client-side 128-tool limit ([9640cca](https://github.com/umbrella22/GLM-for-copilot/commit/9640cca))
+
+
+### Documentation
+
+* drop stale 128-tool limit guidance ([f0fd721](https://github.com/umbrella22/GLM-for-copilot/commit/f0fd721))
+
 ## [0.14.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.13.1...v0.14.0) (2026-11-23)
 
 

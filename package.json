@@ -654,6 +654,7 @@
     "watch": "vp pack --watch",
     "test": "vp test run",
     "test:watch": "vp test",
+    "test:integration": "node test/integration/runTests.cjs",
     "lint": "vp lint",
     "format": "vp fmt --write src/ test/ vite.config.mts",
     "format:check": "vp fmt --check src/ test/ vite.config.mts",
@@ -662,6 +663,7 @@
   "devDependencies": {
     "@types/node": "^25.6.0",
     "@types/vscode": "^1.116.0",
+    "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^4.1.1",
     "typescript": "^7.0.2",
     "vite-plus": "^0.2.9",

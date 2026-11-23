@@ -1,0 +1,51 @@
+name: VS Code Compatibility
+
+on:
+  schedule:
+    # Weekly on Monday at 03:00 UTC, against the latest stable VS Code.
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+    inputs:
+      vscode_version:
+        description: "VS Code version or channel (e.g. stable, insiders, 1.146.0)."
+        required: false
+        default: stable
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vscode-compat-${{ github.event.inputs.vscode_version || 'stable' }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Activate on ${{ github.event.inputs.vscode_version || 'stable' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.11.0
+          package-manager-cache: false
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.7.0 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Compile extension
+        run: pnpm compile
+
+      - name: Run VS Code smoke test
+        env:
+          VSCODE_VERSION: ${{ github.event.inputs.vscode_version || 'stable' }}
+        run: xvfb-run -a pnpm test:integration

@@ -114,7 +114,7 @@ describe('model metadata helpers', () => {
 
 	it('publishes built-in shared windows as Copilot input plus output budgets', () => {
 		expect(MODELS.map((model) => model.maxInputTokens + model.maxOutputTokens)).toEqual([
-			1_000_000, 131_072, 1_000_000,
+			1_000_000, 131_072, 1_000_000, 1_000_000,
 		]);
 		expect(MODELS[1].maxOutputTokens).toBe(32_768);
 		expect(toChatInfo(MODELS[0], true).maxInputTokens).toBe(868_928);
@@ -124,6 +124,38 @@ describe('model metadata helpers', () => {
 			defaultVisionMode: 'native',
 			thinkingAlwaysEnabled: true,
 			capabilities: { imageInput: true, thinking: true },
+		});
+	});
+
+	it('ships GLM-5.4 with native vision on the GLM-5.3 limits and list prices', () => {
+		const glm54 = MODELS[3];
+		expect(glm54).toMatchObject({
+			id: 'glm-5.4',
+			defaultVisionMode: 'native',
+			thinkingAlwaysEnabled: true,
+			supportsReasoningEffort: true,
+			capabilities: { imageInput: true, thinking: true },
+		});
+		// The official window and pricing are unpublished; both track GLM-5.3.
+		expect(glm54.maxInputTokens).toBe(MODELS[0].maxInputTokens);
+		expect(glm54.maxOutputTokens).toBe(MODELS[0].maxOutputTokens);
+		expect(glm54.pricing).toEqual(MODELS[0].pricing);
+
+		const info = toChatInfo(glm54, true, 'CNY');
+		expect(info.configurationSchema?.properties.reasoningEffort.enum).toEqual([
+			'low',
+			'high',
+			'max',
+		]);
+		// Resolved from the en dictionary, not the ModelDefinition fallback.
+		expect(info.detail).toBe('Newest GLM-5 base model');
+		expect(info.tooltip).toContain('GLM-5.4, the newest GLM-5 model');
+		// Cost metadata mirrors the GLM-5.3 list prices.
+		expect(info).toMatchObject({
+			inputCost: 8,
+			outputCost: 28,
+			cacheCost: 2,
+			priceCategory: 'high',
 		});
 	});
 

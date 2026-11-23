@@ -114,7 +114,7 @@ async function resetCodingPlanPreset(): Promise<void> {
 	const target = vscode.ConfigurationTarget.Global;
 	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
 
-	// 1. modelManagement — subset match on glm-5.3 / glm-5-turbo entries,
+	// 1. modelManagement — subset match on glm-5.4 / glm-5.3 / glm-5-turbo entries,
 	//    then write back only if something actually changed. If the trimmed
 	//    value collapses to the package.json default shape `{version:1}` the
 	//    user override is cleared entirely so settings.json stays clean.
@@ -148,11 +148,12 @@ async function resetCodingPlanPreset(): Promise<void> {
 	// 1b. Legacy cleanup — modelEndpointOverrides (route) and modelVisionModes
 	//     (vision) may contain stale values that re-fill the canonical
 	//     modelManagement on the next read, undoing the reset. The two maps are
-	//     evaluated JOINTLY per model id: glm-5.3 is only cleared when BOTH its
-	//     endpointRoute (from modelEndpointOverrides) AND visionMode (from
-	//     modelVisionModes) still match the preset, mirroring the canonical
-	//     subset rule. This prevents half-matching combinations like
-	//     `route=china-anthropic + vision=native` from losing just the route,
+	//     evaluated JOINTLY per model id: a dual-field target (glm-5.4, glm-5.3)
+	//     is only cleared when BOTH its endpointRoute (from
+	//     modelEndpointOverrides) AND visionMode (from modelVisionModes) still
+	//     match the preset, mirroring the canonical subset rule. This prevents
+	//     half-matching combinations like `route=china-anthropic + vision=mcp`
+	//     from losing just the route (glm-5.4 with a user-changed vision mode),
 	//     or `route=china-standard + vision=mcp` from losing just the vision.
 	//     glm-5-turbo only carries a visionMode so it falls back to a
 	//     single-field match. The route and vision writes form ONE atomic
@@ -317,8 +318,9 @@ interface CodingPlanPresetTrimResult {
 /**
  * [FORK] Build the model-management value that remains after stripping the
  * fields `applyCodingPlanPreset` writes. Uses conservative subset match: if
- * EITHER preset-targeted field of a `glm-5.3` / `glm-5-turbo` entry deviates
- * from the value the preset would write, the whole entry is kept untouched
+ * EITHER preset-targeted field of a preset-target entry (`glm-5.4` /
+ * `glm-5.3` / `glm-5-turbo`) deviates from the value the preset would write,
+ * the whole entry is kept untouched
  * (we don't risk breaking a user-tuned combination). Non-targeted entries,
  * `defaultConnection`, and `customModels` are always preserved verbatim.
  */
@@ -368,12 +370,12 @@ function trimCodingPlanPresetFromModelManagement(
 /**
  * [FORK] Model ids eligible for the value-based preset reset. Shared by the
  * canonical trim path and the legacy cleanup path so the same set of ids is
- * considered eligible in both representations. Includes glm-5-turbo even
- * though the model was removed from the registry and `applyCodingPlanPreset`
- * no longer writes it — older preset versions did, and their values must
- * stay resettable.
+ * considered eligible in both representations. Includes glm-5.3 (the target
+ * before glm-5.4) and glm-5-turbo even though `applyCodingPlanPreset` no
+ * longer writes them — older preset versions did, and their values must stay
+ * resettable.
  */
-const CODING_PLAN_PRESET_TARGET_IDS: ReadonlyArray<string> = ['glm-5.3', 'glm-5-turbo'];
+const CODING_PLAN_PRESET_TARGET_IDS: ReadonlyArray<string> = ['glm-5.4', 'glm-5.3', 'glm-5-turbo'];
 
 /**
  * [FORK] Per-field result of a value-based preset eligibility check. Each
@@ -391,7 +393,8 @@ interface CodingPlanPresetResetFields {
  * [FORK] Single source of truth for value-based preset eligibility. Both the
  * canonical reset path (modelManagement.models[id]) and the legacy reset path
  * (modelEndpointOverrides[id] + modelVisionModes[id]) MUST call this helper
- * so glm-5.3's dual AND-match rule (route === 'china-anthropic' AND vision
+ * so each target's dual AND-match rule (glm-5.4: route === 'china-anthropic'
+ * AND vision === 'native'; glm-5.3: route === 'china-anthropic' AND vision
  * === 'mcp') is applied identically across representations. Any deviation
  * between the two paths reopens the bug where one representation clears a
  * field the other keeps, leaving the user's combination half-reset.
@@ -401,7 +404,15 @@ function getCodingPlanPresetResetFields(
 	endpointRoute: unknown,
 	visionMode: unknown,
 ): CodingPlanPresetResetFields | null {
+	if (id === 'glm-5.4') {
+		if (endpointRoute === 'china-anthropic' && visionMode === 'native') {
+			return { endpointRoute: true, visionMode: true };
+		}
+		return null;
+	}
 	if (id === 'glm-5.3') {
+		// Legacy-only target: presets before glm-5.4 wrote this combination, so
+		// values written by older versions stay eligible for reset.
 		if (endpointRoute === 'china-anthropic' && visionMode === 'mcp') {
 			return { endpointRoute: true, visionMode: true };
 		}
@@ -475,12 +486,13 @@ async function cleanupStoredImages(): Promise<void> {
  *
  * Writes (all at user scope, preserving existing overrides):
  *   - modelManagement:
- *       glm-5.3 -> { endpointRoute: 'china-anthropic', visionMode: 'mcp' }
+ *       glm-5.4 -> { endpointRoute: 'china-anthropic', visionMode: 'native' }
  *   - experimental.stabilizeToolList -> true
  *   - mcp.<id>.enabled -> true for all built-in MCP servers
  *
- * glm-5-turbo was removed from the model registry, so the preset no longer
- * writes it; the reset path still cleans up entries written by older versions.
+ * glm-5.3 was the preset target before glm-5.4 (china-anthropic + mcp vision)
+ * and glm-5-turbo before that; the preset no longer writes either, but the
+ * reset path still cleans up entries written by older versions.
  *
  * Does NOT touch: API keys, workspace-scoped settings, custom models.
  */
@@ -514,13 +526,13 @@ async function applyCodingPlanPreset(): Promise<void> {
 		const current: ModelManagementConfigurationV1 = inspectEffectiveModelManagementConfiguration(
 			resource,
 		).globalValue ?? { version: 1 };
-		// Coding Plan overrides only. 'glm-5.3' is a known-safe key, so a plain
+		// Coding Plan overrides only. 'glm-5.4' is a known-safe key, so a plain
 		// literal is fine for the PRESET; arbitrary existing ids ride on
 		// `current` and are merged by the null-prototype helper.
 		const preset: ModelManagementConfigurationV1 = {
 			version: 1,
 			models: {
-				'glm-5.3': { endpointRoute: 'china-anthropic', visionMode: 'mcp' },
+				'glm-5.4': { endpointRoute: 'china-anthropic', visionMode: 'native' },
 			},
 		};
 		const merged = mergeModelManagementConfigurations(current, preset);

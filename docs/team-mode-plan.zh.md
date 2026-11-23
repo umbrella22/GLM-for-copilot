@@ -6,7 +6,7 @@
 
 当前扩展已经完成这些基础能力：
 
-- 在 Copilot Chat 模型选择器中暴露 GLM-5.3、GLM-4.6V-Flash、GLM-5.3-Flash。
+- 在 Copilot Chat 模型选择器中暴露 GLM-5.4、GLM-5.3、GLM-4.6V-Flash、GLM-5.3-Flash。
 - 通过透明视觉代理将图片任务优先交给 GLM-4.6V-Flash。
 - 在 provider 层接管 VS Code `LanguageModelChatProvider` 请求，并转换为 GLM Chat Completions 请求。
 - 支持工具调用、thinking、debug dump、usage/cost 估算、状态栏展示。

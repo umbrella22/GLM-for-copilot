@@ -141,4 +141,36 @@ export const MODELS: ModelDefinition[] = [
 		// until official numbers are available.
 		priceCategory: 'low',
 	},
+	{
+		id: 'glm-5.4',
+		name: 'GLM-5.4',
+		family: 'glm',
+		version: '5.4',
+		detail: 'Newest GLM-5 model',
+		// GLM-5.4 shipped on the Coding Plan and the Standard API before Zhipu
+		// published a spec sheet, so the shared window tracks GLM-5.3 (official
+		// 1M context with up to 128K output) until the official numbers land.
+		maxInputTokens: 868_928,
+		maxOutputTokens: 131_072,
+		capabilities: {
+			toolCalling: GLM_TOOLS_LIMIT,
+			// Natively multimodal: images are resized and sent directly, like
+			// GLM-5.3-Flash, instead of going through the Vision Proxy.
+			imageInput: true,
+			thinking: true,
+		},
+		requiresThinkingParam: true,
+		// Served with low/high/max reasoning levels only (the GLM-5.3 ladder), so
+		// 'none' requests are clamped to 'low'.
+		thinkingAlwaysEnabled: true,
+		supportsReasoningEffort: true,
+		defaultVisionMode: 'native',
+		// Official pricing is not published yet; GLM-5.3 list prices stand in
+		// until the numbers are available.
+		pricing: {
+			CNY: { cacheHitInput: 2, cacheMissInput: 8, output: 28 },
+			USD: { cacheHitInput: 0.26, cacheMissInput: 1.4, output: 4.4 },
+		},
+		priceCategory: 'high',
+	},
 ];

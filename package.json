@@ -15,6 +15,11 @@
     "vscode": "^1.116.0",
     "node": ">=24.11.0"
   },
+  "capabilities": {
+    "agentsWindow": {
+      "supported": true
+    }
+  },
   "categories": [
     "AI",
     "Chat",

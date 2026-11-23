@@ -21,7 +21,7 @@ const zh: Translations = {
 	// Model descriptions
 	'model.glm-5.3.detail': '旗舰基座模型',
 	'model.glm-5.3.tooltip':
-		'GLM-5.3，智谱最新旗舰模型。基于 GLM-5.2 基座，经数十倍规模的长程任务后训练，编程体感较前代提升 50%，在 Terminal Bench 3.0 等公开基准中位列开源模型第一，并具备接近 Mythos 5 的网络安全能力；图片会先由视觉代理处理（Coding Plan 使用 GLM-5.3-Flash，标准 API 使用 GLM-4.6V-Flash）。',
+		'GLM-5.3，智谱旗舰基座模型。基于 GLM-5.2 基座，经数十倍规模的长程任务后训练，编程体感较前代提升 50%，在 Terminal Bench 3.0 等公开基准中位列开源模型第一，并具备接近 Mythos 5 的网络安全能力；图片会先由视觉代理处理（Coding Plan 使用 GLM-5.3-Flash，标准 API 使用 GLM-4.6V-Flash）。',
 	'model.glm-4.6v-flash.detail': '多模态视觉与编码模型',
 	'model.glm-4.6v-flash.tooltip':
 		'GLM-4.6V-Flash，适合图片理解、多模态问答，以及作为标准 API 连接下的默认视觉代理。',
@@ -476,9 +476,9 @@ const zh: Translations = {
 
 const en: Translations = {
 	// Model descriptions
-	'model.glm-5.3.detail': 'Latest flagship base model',
+	'model.glm-5.3.detail': 'Flagship base model',
 	'model.glm-5.3.tooltip':
-		"GLM-5.3, Zhipu's latest flagship model. Built on the GLM-5.2 base with an order-of-magnitude larger long-horizon post-training, it delivers ~50% better coding feel over the previous generation, ranks first among open-source models on Terminal Bench 3.0, and approaches Mythos 5 on security tasks. Images are described by the GLM vision proxy first (GLM-5.3-Flash on Coding Plan, GLM-4.6V-Flash on the Standard API).",
+		"GLM-5.3, Zhipu's flagship base model. Built on the GLM-5.2 base with an order-of-magnitude larger long-horizon post-training, it delivers ~50% better coding feel over the previous generation, ranks first among open-source models on Terminal Bench 3.0, and approaches Mythos 5 on security tasks. Images are described by the GLM vision proxy first (GLM-5.3-Flash on Coding Plan, GLM-4.6V-Flash on the Standard API).",
 	'model.glm-4.6v-flash.detail': 'Multimodal vision and coding model',
 	'model.glm-4.6v-flash.tooltip':
 		'GLM-4.6V-Flash for image understanding, multimodal Q&A, and the default vision proxy on Standard API connections.',

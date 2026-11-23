@@ -69,8 +69,8 @@ export const MODELS: ModelDefinition[] = [
 		name: 'GLM-5.3',
 		family: 'glm',
 		version: '5.3',
-		// Zhipu's latest flagship base model (official description).
-		detail: 'Latest flagship base model',
+		// Zhipu's flagship base model (official description; GLM-5.4 is newer).
+		detail: 'Flagship base model',
 		// Copilot treats input + output as one shared context window.
 		maxInputTokens: 868_928,
 		maxOutputTokens: 131_072,

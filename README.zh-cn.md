@@ -213,6 +213,18 @@
 
 `mainAgent` 会把 utility 请求交给当前 GLM，可能产生额外 BYOK 用量；设为 `"copilot"` 则使用 Copilot utility model。显式配置的 `chat.utilityModel` 和 `chat.utilitySmallModel` 会优先于默认策略。若保持 `"none"`，模型管理仍会显示兼容提示，直到选择 `mainAgent` 或 `copilot`。此 workaround 不会修改模型的 `isBYOK`。
 
+### 企业代理（HTTP / SOCKS）
+
+扩展的 GLM 与视觉代理请求使用 Node 的全局 `fetch`。VS Code 的 `http.proxy`、`http.proxyStrictSSL`、`http.proxyAuthorization` 设置不会自动作用于扩展请求，因此配置代理后可能出现 `ECONNRESET`、TLS 握手失败或超时。
+
+目前的处理方式：
+
+- **使用本地 OpenAI 兼容中转（推荐）。** 在本机运行 LiteLLM、OneAPI 等中转服务，让它走企业代理，再把扩展的兼容 Base URL 指向该中转（模型管理 → 连接）。扩展只访问本机中转，由中转负责代理。
+- **Node.js 24 环境变量代理（高级）。** 如果 VS Code 使用的 Node.js 为 24 或更高，可在启动 VS Code 前设置 `NODE_USE_ENV_PROXY=1` 以及 `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY`，Node 的全局 `fetch` 会遵循这些变量。该方式不读取 VS Code 的 `http.proxy` 设置，旧版扩展宿主也不支持。
+- **直连。** 如果代理不是强制要求，可把 GLM 端点加入系统代理绕过列表，或让 VS Code 不走代理。
+
+扩展的 HTTP 栈不支持 SOCKS5 代理。
+
 ### 通过中转/代理使用时报 HTTP 400 `Invalid schema for function '...'`
 
 本扩展面向官方 GLM 端点（BigModel Coding Plan、Z.ai 以及文档中描述的 BigModel/Z.ai standard API）。工具 schema 由 VS Code/Copilot 自身的工具定义原样生成并由扩展原样透传。第三方中转或代理（如 New API、OneAPI）通常执行比官方端点更严格的 OpenAI schema 校验，会拒收包含 `default: null`、某些 `anyOf`/`oneOf` 结构或其他细微偏差的 schema —— 最典型的报错是 `Invalid schema for function 'get_errors': null is not of type "array"`。

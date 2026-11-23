@@ -213,6 +213,18 @@ If the agent fails with `No utility model is configured for 'copilot-utility-sma
 
 `mainAgent` routes utility requests to the selected GLM and may create additional BYOK usage. Set `"copilot"` to use the Copilot utility model. Explicit `chat.utilityModel` and `chat.utilitySmallModel` values take precedence over the default policy. To leave utility routing disabled, use `"none"`; the Model Manager will continue showing this compatibility hint until `mainAgent` or `copilot` is selected. No `isBYOK` flag is changed by this workaround.
 
+### Corporate proxies (HTTP / SOCKS)
+
+The extension uses Node's global `fetch` for GLM and Vision Proxy requests. VS Code's `http.proxy`, `http.proxyStrictSSL`, and `http.proxyAuthorization` settings do not automatically apply to extension requests, so a configured proxy can surface as `ECONNRESET`, TLS handshake failures, or timeouts.
+
+Current options:
+
+- **Use a local OpenAI-compatible relay (recommended).** Run a relay such as LiteLLM or OneAPI on the same machine, configure it to use your corporate proxy, and point the extension's compatible Base URL at that relay (Model Manager → Connections). The extension then talks to the local relay and the relay handles the proxy.
+- **Node.js 24 environment proxy (advanced).** If your VS Code ships Node.js 24 or newer, launch it with `NODE_USE_ENV_PROXY=1` plus `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` set. Node's global `fetch` then honors those variables. This does not read VS Code's `http.proxy` setting and is unavailable on older extension-host runtimes.
+- **Direct connection.** If the proxy is optional, add the GLM endpoint to the machine's proxy bypass list or unset the proxy for VS Code.
+
+SOCKS5 proxies are not supported by the extension's HTTP stack.
+
 ### HTTP 400 `Invalid schema for function '...'` from a proxy or relay
 
 This extension targets the official GLM endpoints (BigModel Coding Plan, Z.ai, and the documented BigModel/Z.ai standard API). VS Code/Copilot generates the tool schemas verbatim from its own tool definitions and forwards them as-is. Third-party relays or proxies (e.g. New API, OneAPI) often enforce stricter OpenAI-schema validation than the official endpoint and reject schemas that contain `default: null`, certain `anyOf`/`oneOf` shapes, or other minor deviations — the most common symptom is `Invalid schema for function 'get_errors': null is not of type "array"`.

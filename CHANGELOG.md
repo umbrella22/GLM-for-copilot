@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.14.0](https://github.com/umbrella22/GLM-for-copilot/compare/v0.13.1...v0.14.0) (2026-11-23)
+
+
+### Features
+
+* add GLM-5.4 and switch the Coding Plan preset to it ([a31e9cb](https://github.com/umbrella22/GLM-for-copilot/commit/a31e9cb7230d7f1f4b09c085b95120ab2b05eb9d))
+
+
+### Bug Fixes
+
+* accept CREDIT_LIMIT windows in Coding Plan usage ([0f8a398](https://github.com/umbrella22/GLM-for-copilot/commit/0f8a398832884ea020b3fb4699f688572d527785)), closes [#31](https://github.com/umbrella22/GLM-for-copilot/issues/31)
+
+
+### Documentation
+
+* refresh model descriptions and install links in READMEs ([c39d952](https://github.com/umbrella22/GLM-for-copilot/commit/c39d9524911f66901e1678275d3cbf315d6531ed))
+
 ## [0.13.1](https://github.com/umbrella22/GLM-for-copilot/compare/v0.13.0...v0.13.1) (2026-08-29)
 
 

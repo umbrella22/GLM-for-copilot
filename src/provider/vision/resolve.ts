@@ -58,13 +58,9 @@ export async function resolveImageMessages(
 		return visionDescriber;
 	};
 	if (visionMode === 'native') {
-		const nativeResult = await prepareNativeImageMessages(messages, token, stats);
-		// Nested tool-result images are forwarded as-is; conversion turns them into
-		// native image parts (a synthetic user message keeps OpenAI-compatible
-		// requests valid).
-		stats.nativeImageParts += stats.toolResultImageParts;
-		stats.nativeImageBytes += stats.toolResultImageBytes;
-		return nativeResult;
+		// prepareNativeImageMessages handles both user attachments and nested
+		// tool-result images under one shared budget.
+		return prepareNativeImageMessages(messages, token, stats);
 	}
 	// [FORK] mcp mode: strip images from the request, persist them to disk, and
 	// replace each image part with a short text prompt pointing to the file path.

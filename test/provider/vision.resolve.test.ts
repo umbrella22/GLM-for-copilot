@@ -146,6 +146,59 @@ describe('vision message resolution', () => {
 		});
 	});
 
+	it('resizes nested tool-result images under the native budget', async () => {
+		const resized = new Uint8Array([9, 9, 9]);
+		const resize = registerResizeCommand(() => resized);
+		const toolResult = new vscode.LanguageModelToolResultPart('call-1', [
+			new vscode.LanguageModelTextPart('captured'),
+			imagePart([1, 2]),
+		]);
+
+		const result = await resolveImageMessages(
+			[userMessage([toolResult])],
+			token,
+			async () => undefined,
+			'native',
+		);
+
+		expect(resize).toHaveBeenCalledTimes(1);
+		expect(Array.from(resize.mock.calls[0]?.[0] as Uint8Array)).toEqual([1, 2]);
+		const resolved = result.messages[0]?.content[0] as vscode.LanguageModelToolResultPart;
+		expect(textPartValue(resolved.content[0])).toBe('captured');
+		expect(Array.from(imagePartValue(resolved.content[1]).data)).toEqual([9, 9, 9]);
+		expect(result.stats).toMatchObject({
+			toolResultImageParts: 1,
+			nativeImageParts: 1,
+			nativeImageBytes: 3,
+		});
+	});
+
+	it('omits oversized tool-result images and preserves the tool text', async () => {
+		registerResizeCommand();
+		const oversized = NATIVE_IMAGE_CONTEXT_BUDGET_BYTES + 1;
+		const toolResult = new vscode.LanguageModelToolResultPart('call-1', [
+			new vscode.LanguageModelTextPart('captured'),
+			repeatedImagePart(oversized, 1),
+		]);
+
+		const result = await resolveImageMessages(
+			[userMessage([toolResult])],
+			token,
+			async () => undefined,
+			'native',
+		);
+
+		const resolved = result.messages[0]?.content[0] as vscode.LanguageModelToolResultPart;
+		expect(textPartValue(resolved.content[0])).toBe('captured');
+		expect(textPartValue(resolved.content[1])).toBe(NATIVE_IMAGE_BUDGET_OMITTED_TEXT);
+		expect(result.stats).toMatchObject({
+			toolResultImageParts: 1,
+			nativeImageParts: 0,
+			nativeBudgetOmittedParts: 1,
+			droppedImageParts: 1,
+		});
+	});
+
 	it.each([
 		[
 			'throws',
@@ -438,14 +491,17 @@ describe('vision message resolution', () => {
 		expect(result.initialResponseNotice).toBeTruthy();
 	});
 
-	it('leaves tool-result images for native vision conversion', async () => {
+	it('keeps tool-result images for native vision conversion', async () => {
+		registerResizeCommand();
 		const messages = [
 			userMessage([new vscode.LanguageModelToolResultPart('call-1', [imagePart()])]),
 		];
 
 		const result = await resolveImageMessages(messages, token, async () => undefined, 'native');
 
-		expect(result.messages[0]).toBe(messages[0]);
+		const resolved = result.messages[0]?.content[0] as vscode.LanguageModelToolResultPart;
+		expect(resolved).toBeInstanceOf(vscode.LanguageModelToolResultPart);
+		expect(imagePartValue(resolved.content[0])).toBeInstanceOf(vscode.LanguageModelDataPart);
 		expect(result.stats.toolResultImageParts).toBe(1);
 		expect(result.stats.nativeImageParts).toBe(1);
 	});

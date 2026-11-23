@@ -20,7 +20,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	registerActionUrls(context);
 
 	try {
-		const provider = await registerProvider(context);
+		const provider = registerProvider(context);
 		activeProvider = provider;
 
 		// [FORK] Initialize the image store used by MCP vision mode to persist

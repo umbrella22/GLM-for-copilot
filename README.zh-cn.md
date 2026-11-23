@@ -20,25 +20,25 @@
   <img src="resources/screenshots/01-picker.png" alt="GLM 模型出现在 Copilot Chat 模型选择器中，带有可按模型独立设置的思考深度下拉菜单（停用 / 标准 / 深度）" width="800">
 </p>
 
-喜欢 GLM 的性价比，但不想放弃 GitHub Copilot 的 Agent 模式、工具调用和成熟的交互体验？本扩展将 **GLM-5.3、GLM-4.6V-Flash 和 GLM-5.3-Flash** 直接接入 Copilot Chat 模型选择器，支持**视觉识别**、**思考模式**，使用你自己的 API Key。
+喜欢 GLM 的性价比，但不想放弃 GitHub Copilot 的 Agent 模式、工具调用和成熟的交互体验？本扩展将 **GLM-5.4、GLM-5.3、GLM-4.6V-Flash 和 GLM-5.3-Flash** 直接接入 Copilot Chat 模型选择器，支持**视觉识别**、**思考模式**，使用你自己的 API Key。
 
 ## 为什么选这个扩展？
 
 - **不是替换 Copilot，而是增强它。** 没有新的侧边栏，没有新的聊天界面需要学习。只是在你已经在用的模型选择器中多了一个选项。
 - **Agent 模式、工具调用、Instructions、MCP、Skills——全部正常运作。** Copilot 的完整能力栈，现在跑在 GLM 上。
-- **按模型需要处理视觉任务。** GLM-4.6V-Flash 和 GLM-5.3-Flash 默认直接接收图片；GLM-5.3 默认通过透明视觉代理将图片转换为描述（Coding Plan 连接使用 GLM-5.3-Flash，标准 API 连接使用 GLM-4.6V-Flash）。每个模型也可单独选择 `mcp` 模式，将图片存储到本地供兼容的 MCP 工具读取。
+- **按模型需要处理视觉任务。** GLM-4.6V-Flash、GLM-5.3-Flash 和 GLM-5.4 默认直接接收图片；GLM-5.3 默认通过透明视觉代理将图片转换为描述（Coding Plan 连接使用 GLM-5.3-Flash，标准 API 连接使用 GLM-4.6V-Flash）。每个模型也可单独选择 `mcp` 模式，将图片存储到本地供兼容的 MCP 工具读取。
 - **按轮次估算费用。** 当 GLM API 返回 usage 时，扩展会按官方标价估算本轮费用，上报到 Copilot usage 元数据、写入日志，并在状态栏显示最近一轮费用。
 - **需自行提供 API Key，直接向 GLM 付费。** 你的 API Key，你的账单，你的速率限制。密钥存储在操作系统密钥链中，不会以明文形式写入磁盘。
 
 ## 功能特性
 
-### 三款 GLM 模型出现在模型选择器中
+### 四款 GLM 模型出现在模型选择器中
 
-三个模型与 GPT-4o、Claude 等并列在 Copilot Chat 的模型选择器中。可在对话中途切换模型，不丢失聊天历史。
+四个模型与 GPT-4o、Claude 等并列在 Copilot Chat 的模型选择器中。可在对话中途切换模型，不丢失聊天历史。
 
 ### 透明视觉代理
 
-模型使用 `proxy` 模式时，自动视觉代理会优先让内置 GLM 视觉模型描述图片，再把描述交给当前选中的 GLM 模型：**Coding Plan 连接使用 GLM-5.3-Flash**（切换时会弹出提示），**标准 API 连接仍使用 GLM-4.6V-Flash**，按量付费用户不受影响。如果该模型在其配置端点不可用，则回退到已安装的 Copilot/VS Code 视觉模型。你也可以通过 **GLM: 在模型管理中打开视觉代理** 强制选择 VS Code 模型或自定义 API 端点。GLM-4.6V-Flash 和 GLM-5.3-Flash 默认使用 `native` 模式，直接接收缩放后的图片数据。
+模型使用 `proxy` 模式时，自动视觉代理会优先让内置 GLM 视觉模型描述图片，再把描述交给当前选中的 GLM 模型：**Coding Plan 连接使用 GLM-5.3-Flash**（切换时会弹出提示），**标准 API 连接仍使用 GLM-4.6V-Flash**，按量付费用户不受影响。如果该模型在其配置端点不可用，则回退到已安装的 Copilot/VS Code 视觉模型。你也可以通过 **GLM: 在模型管理中打开视觉代理** 强制选择 VS Code 模型或自定义 API 端点。GLM-4.6V-Flash、GLM-5.3-Flash 和 GLM-5.4 默认使用 `native` 模式，直接接收缩放后的图片数据。
 
 这样 GLM-5.3 可以继续专注编码与推理，视觉抽取交给专门的视觉模型。
 
@@ -105,8 +105,9 @@
 | **GLM-5.3**        | 最新旗舰模型 — Agent 编程、长期任务、深度推理 |
 | **GLM-4.6V-Flash** | 多模态问答、截图理解、视觉上下文              |
 | **GLM-5.3-Flash**  | GLM-5 系列首个原生多模态模型 — 视觉 Agent、设计稿还原 |
+| **GLM-5.4**        | GLM-5 系列最新模型 — 原生多模态，提供 轻量/标准/深度 三档推理强度 |
 
-三者均支持思考模式和工具调用。GLM-5.3 与 GLM-5.3-Flash 无法关闭思考（API 仅接受 `enabled`），提供 轻量/标准/深度 三档推理强度；GLM-4.6V-Flash 保持 停用/标准/深度。GLM-5.3-Flash 已全量上线 GLM Coding Plan，同时提供按量付费标准 API；GLM-4.6V-Flash 和 GLM-5.3-Flash 默认直接接收图片。Coding Plan 连接下，自动视觉代理会从 GLM-4.6V-Flash 切换为 GLM-5.3-Flash 来描述图片。
+四者均支持思考模式和工具调用。GLM-5.3 与 GLM-5.3-Flash 无法关闭思考（API 仅接受 `enabled`），提供 轻量/标准/深度 三档推理强度；GLM-5.4 提供同样的 轻量/标准/深度 三档；GLM-4.6V-Flash 保持 停用/标准/深度。GLM-5.4 已上线 GLM Coding Plan 与标准 API，默认直接接收图片；定价暂按 GLM-5.3 计算，官方数据公布后再更新。GLM-5.3-Flash 已全量上线 GLM Coding Plan，同时提供按量付费标准 API；GLM-4.6V-Flash、GLM-5.3-Flash 和 GLM-5.4 默认直接接收图片。Coding Plan 连接下，自动视觉代理会从 GLM-4.6V-Flash 切换为 GLM-5.3-Flash 来描述图片。
 
 ## 模型管理
 

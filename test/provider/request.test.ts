@@ -381,6 +381,62 @@ describe('request preparation', () => {
 		expect(prepared.request.reasoning_effort).toBe('low');
 	});
 
+	it('sends glm-5.4 on the GLM-5.3 output budget and thinking ladder', async () => {
+		const prepare = (reasoningEffort?: string) =>
+			prepareChatRequest({
+				authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
+				globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
+				modelInfo: { id: 'glm-5.4' } as vscode.LanguageModelChatInformation,
+				segment,
+				messages: [userMessage([new vscode.LanguageModelTextPart('Hello')])],
+				options: {
+					modelConfiguration: reasoningEffort ? { reasoningEffort } : undefined,
+				} as vscode.ProvideLanguageModelChatResponseOptions,
+				token,
+				cacheDiagnostics: createCacheDiagnosticsRecorder(),
+				getVisionDescriber: async () => undefined,
+			});
+
+		const defaulted = await prepare();
+		expect(defaulted.request.model).toBe('glm-5.4');
+		expect(defaulted.request.max_tokens).toBe(131_072);
+		expect(defaulted.request.thinking).toEqual({ type: 'enabled', clear_thinking: false });
+		expect(defaulted.request.reasoning_effort).toBe('max');
+		expect(defaulted.visionMode).toBe('native');
+
+		// GLM-5.4 is served with low/high/max levels only, so 'none' degrades to 'low'.
+		const clamped = await prepare('none');
+		expect(clamped.request.thinking).toEqual({ type: 'enabled', clear_thinking: false });
+		expect(clamped.request.reasoning_effort).toBe('low');
+	});
+
+	it('uses native input by default for GLM-5.4 without requesting a Vision Proxy', async () => {
+		const describe = vi.fn();
+		const prepared = await prepareChatRequest({
+			authManager: { getApiKey: async () => 'test-key' } as unknown as AuthManager,
+			globalStorageUri: vscode.Uri.file('/tmp/glm-request-test'),
+			modelInfo: { id: 'glm-5.4' } as vscode.LanguageModelChatInformation,
+			segment,
+			messages: [userMessage([new vscode.LanguageModelTextPart('Look'), imagePart()])],
+			options: {} as vscode.ProvideLanguageModelChatResponseOptions,
+			token,
+			cacheDiagnostics: createCacheDiagnosticsRecorder(),
+			getVisionDescriber: async () => ({ id: 'unused', source: 'auto', describe }),
+		});
+
+		expect(describe).not.toHaveBeenCalled();
+		expect(resizeImage).toHaveBeenCalledOnce();
+		expect(prepared.visionMode).toBe('native');
+		expect(prepared.nativeImageParts).toBe(1);
+		expect(prepared.request.messages[0]).toEqual({
+			role: 'user',
+			content: [
+				{ type: 'text', text: 'Look' },
+				{ type: 'image_url', image_url: { url: 'data:image/png;base64,BwgJ' } },
+			],
+		});
+	});
+
 	it('uses resized native bytes for OpenAI-compatible and Anthropic requests', async () => {
 		const resizedWebp = new Uint8Array([
 			0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4, 0x57, 0x45, 0x42, 0x50, 9,

@@ -20,25 +20,25 @@
   <img src="resources/screenshots/01-picker.png" alt="GLM models in the Copilot Chat model picker, with the per-model Thinking Effort dropdown (None / High / Max)" width="800">
 </p>
 
-Love GLM's price-performance but don't want to give up GitHub Copilot's agent mode, tool calling, and polished UI? This extension drops **GLM-5.3, GLM-4.6V-Flash, and GLM-5.3-Flash** straight into the Copilot Chat model selector — with **vision**, **thinking mode**, and your own API keys.
+Love GLM's price-performance but don't want to give up GitHub Copilot's agent mode, tool calling, and polished UI? This extension drops **GLM-5.4, GLM-5.3, GLM-4.6V-Flash, and GLM-5.3-Flash** straight into the Copilot Chat model selector — with **vision**, **thinking mode**, and your own API keys.
 
 ## Why this extension?
 
 - **Don't replace Copilot — power it up.** No new sidebar, no new chat UI to learn. Just a new model in the picker you already use.
 - **Agent mode, tool calling, instructions, MCP, skills — all of it still works.** Copilot's entire stack, now running on GLM.
-- **Vision where each model needs it.** GLM-4.6V-Flash and GLM-5.3-Flash receive images directly by default. GLM-5.3 uses the transparent Vision Proxy, which describes images with GLM-5.3-Flash on Coding Plan connections (GLM-4.6V-Flash on Standard API) before passing text along. You can also choose `mcp` mode per model to store images locally for a compatible MCP tool to read.
+- **Vision where each model needs it.** GLM-4.6V-Flash, GLM-5.3-Flash, and GLM-5.4 receive images directly by default. GLM-5.3 uses the transparent Vision Proxy, which describes images with GLM-5.3-Flash on Coding Plan connections (GLM-4.6V-Flash on Standard API) before passing text along. You can also choose `mcp` mode per model to store images locally for a compatible MCP tool to read.
 - **Estimated per-turn cost.** When the GLM API returns usage, the extension estimates the official list-price cost, reports it to Copilot usage metadata, writes it to logs, and shows the latest turn in the status bar.
 - **BYOK, pay GLM directly.** Your API key, your bill, your rate limits. Stored in the OS keychain, never on disk.
 
 ## Features
 
-### Three GLM models in the model picker
+### Four GLM models in the model picker
 
-All three models show up alongside GPT-4o, Claude, and friends in Copilot Chat's model selector. Switch models mid-chat without losing history.
+All four models show up alongside GPT-4o, Claude, and friends in Copilot Chat's model selector. Switch models mid-chat without losing history.
 
 ### Transparent Vision Proxy
 
-When a model uses `proxy` mode, the automatic proxy asks a built-in GLM vision model to describe the screenshot before the selected model receives the prompt: **GLM-5.3-Flash on Coding Plan connections** (a notification points out the switch from GLM-4.6V-Flash) and **GLM-4.6V-Flash on Standard API connections**, so pay-as-you-go API callers see no change. If that model is unavailable on its configured endpoint, the extension falls back to another installed Copilot/VS Code vision model. You can also force a VS Code model or a custom API endpoint from **GLM: Open Vision Proxy in Model Manager**. GLM-4.6V-Flash and GLM-5.3-Flash use `native` mode by default and receive resized image data directly.
+When a model uses `proxy` mode, the automatic proxy asks a built-in GLM vision model to describe the screenshot before the selected model receives the prompt: **GLM-5.3-Flash on Coding Plan connections** (a notification points out the switch from GLM-4.6V-Flash) and **GLM-4.6V-Flash on Standard API connections**, so pay-as-you-go API callers see no change. If that model is unavailable on its configured endpoint, the extension falls back to another installed Copilot/VS Code vision model. You can also force a VS Code model or a custom API endpoint from **GLM: Open Vision Proxy in Model Manager**. GLM-4.6V-Flash, GLM-5.3-Flash, and GLM-5.4 use `native` mode by default and receive resized image data directly.
 
 This keeps GLM-5.3 focused on coding/reasoning while the vision model handles multimodal extraction.
 
@@ -105,8 +105,9 @@ Install from the registry used by your editor:
 | **GLM-5.3**        | Latest flagship — agentic coding, long-horizon tasks, deep reasoning |
 | **GLM-4.6V-Flash** | Multimodal questions, screenshots, visual context                    |
 | **GLM-5.3-Flash**  | Natively multimodal GLM-5 model — visual agents, design-to-code      |
+| **GLM-5.4**        | Newest GLM-5 model — natively multimodal, low/high/max effort        |
 
-All three support thinking mode and tool calling. GLM-5.3 and GLM-5.3-Flash cannot disable thinking (the API accepts `enabled` only) and offer low/high/max reasoning effort; GLM-4.6V-Flash keeps none/high/max. GLM-5.3-Flash is fully available on the GLM Coding Plan and also offered through the pay-as-you-go Standard API; GLM-4.6V-Flash and GLM-5.3-Flash receive images natively. On Coding Plan connections the automatic Vision Proxy describes images with GLM-5.3-Flash instead of GLM-4.6V-Flash.
+All four support thinking mode and tool calling. GLM-5.3 and GLM-5.3-Flash cannot disable thinking (the API accepts `enabled` only) and offer low/high/max reasoning effort; GLM-5.4 offers the same low/high/max ladder; GLM-4.6V-Flash keeps none/high/max. GLM-5.4 is available on the GLM Coding Plan and the Standard API; its cost is estimated with GLM-5.3 list prices until Zhipu publishes pricing. GLM-5.3-Flash is fully available on the GLM Coding Plan and also offered through the pay-as-you-go Standard API; GLM-4.6V-Flash, GLM-5.3-Flash, and GLM-5.4 receive images natively. On Coding Plan connections the automatic Vision Proxy describes images with GLM-5.3-Flash instead of GLM-4.6V-Flash.
 
 ## Model Manager
 

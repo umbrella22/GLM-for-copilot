@@ -32,6 +32,8 @@ jobs:
       cancel-in-progress: false
     permissions:
       contents: write
+      # Required for OIDC trusted publishing to the VS Code Marketplace.
+      id-token: write
     steps:
       - uses: actions/checkout@v5
         with:
@@ -84,9 +86,10 @@ jobs:
 
       - name: Publish to VS Code Marketplace
         if: inputs.publish_vscode_marketplace == true
-        run: pnpm exec vsce publish --packagePath "${{ steps.vsix.outputs.path }}" --skip-duplicate
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        # Pinned vsce 4.1.1 because older tags predate OIDC trusted publishing.
+        # Needs the Marketplace policy for this repo, workflow (rescue.yml),
+        # and the production environment.
+        run: pnpm dlx @vscode/vsce@4.1.1 publish --oidc --packagePath "${{ steps.vsix.outputs.path }}" --skip-duplicate
 
       - name: Publish to Open VSX
         if: inputs.publish_open_vsx == true

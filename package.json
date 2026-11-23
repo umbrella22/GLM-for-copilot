@@ -628,7 +628,7 @@
   "devDependencies": {
     "@types/node": "^25.6.0",
     "@types/vscode": "^1.116.0",
-    "@vscode/vsce": "^3.9.2",
+    "@vscode/vsce": "^4.1.1",
     "ovsx": "1.0.2",
     "typescript": "^7.0.2",
     "vite-plus": "^0.2.9",

@@ -12,11 +12,6 @@ on:
         required: false
         type: boolean
         default: true
-      publish_open_vsx:
-        description: Publish this tag to Open VSX.
-        required: false
-        type: boolean
-        default: false
       attach_github_release:
         description: Attach the VSIX to the existing GitHub Release.
         required: false
@@ -90,12 +85,6 @@ jobs:
         # Needs the Marketplace policy for this repo, workflow (rescue.yml),
         # and the production environment.
         run: pnpm dlx @vscode/vsce@4.1.1 publish --oidc --packagePath "${{ steps.vsix.outputs.path }}" --skip-duplicate
-
-      - name: Publish to Open VSX
-        if: inputs.publish_open_vsx == true
-        run: pnpm exec ovsx publish --skip-duplicate "${{ steps.vsix.outputs.path }}"
-        env:
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
 
       - name: Attach VSIX to GitHub Release
         if: inputs.attach_github_release == true

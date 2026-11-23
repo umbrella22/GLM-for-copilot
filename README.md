@@ -85,10 +85,7 @@ The core extension uses only the VS Code API and Node.js built-ins: no Python, D
 
 ### Installation
 
-Install from the registry used by your editor:
-
-1. **Microsoft VS Code** — install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ikaros.glm-for-vscode-copilot).
-2. **Editors that use Open VSX** — install from [Open VSX](https://open-vsx.org/extension/ikaros/glm-for-vscode-copilot).
+Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ikaros.glm-for-vscode-copilot).
 
 ### Usage
 

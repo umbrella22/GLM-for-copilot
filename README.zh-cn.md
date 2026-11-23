@@ -85,10 +85,7 @@
 
 ### 安装方式
 
-根据你所使用的编辑器选择对应的注册表安装：
-
-1. **Microsoft VS Code** — 从 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ikaros.glm-for-vscode-copilot) 安装。
-2. **使用 Open VSX 的编辑器** — 从 [Open VSX](https://open-vsx.org/extension/ikaros/glm-for-vscode-copilot) 安装。
+从 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ikaros.glm-for-vscode-copilot) 安装。
 
 ### 使用步骤
 

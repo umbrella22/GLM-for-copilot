@@ -337,6 +337,14 @@
           ],
           "markdownDescription": "%glm-copilot.config.requestHeaders.description%"
         },
+        "glm-copilot.toolStream": {
+          "type": "boolean",
+          "default": true,
+          "tags": [
+            "advanced"
+          ],
+          "markdownDescription": "%glm-copilot.config.toolStream.description%"
+        },
         "glm-copilot.experimental.stabilizeToolList": {
           "type": "boolean",
           "default": false,

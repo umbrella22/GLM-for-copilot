@@ -13,6 +13,7 @@ import {
 	getModelVisionMode,
 	getModelEndpointRoute,
 	getVisionProxyTimeoutMs,
+	getToolStreamEnabled,
 	inspectEffectiveModelManagementConfiguration,
 	inspectModelManagementConfiguration,
 	listProviderModels,
@@ -1229,5 +1230,11 @@ describe('migrateLegacyEndpointSettings', () => {
 		expect(getVisionProxyTimeoutMs()).toBe(45_000);
 		__setConfigurationValue('glm-copilot.visionProxyTimeoutMs', -1);
 		expect(getVisionProxyTimeoutMs()).toBeUndefined();
+	});
+
+	it('enables tool_stream by default and respects the setting', () => {
+		expect(getToolStreamEnabled()).toBe(true);
+		__setConfigurationValue('glm-copilot.toolStream', false);
+		expect(getToolStreamEnabled()).toBe(false);
 	});
 });

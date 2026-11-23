@@ -609,6 +609,18 @@ export function getMaxTokens(): number | undefined {
 }
 
 /**
+ * Whether to send `tool_stream: true` on requests that include tools.
+ * Some third-party gateways reject unknown request fields.
+ */
+export function getToolStreamEnabled(): boolean {
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+	return config.get<boolean>('toolStream', true);
+}
+
+/** RFC 7230 token characters; invalid names would make `new Headers()` throw. */
+const HTTP_HEADER_NAME_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
+/**
  * Extra HTTP headers sent with GLM chat requests. Invalid entries are ignored;
  * the extension always controls Authorization/Content-Type.
  */
@@ -621,7 +633,11 @@ export function getRequestHeaders(): Record<string, string> {
 	const headers: Record<string, string> = {};
 	for (const [name, headerValue] of Object.entries(value)) {
 		const trimmedName = name.trim();
-		if (trimmedName && typeof headerValue === 'string') {
+		if (
+			trimmedName &&
+			HTTP_HEADER_NAME_PATTERN.test(trimmedName) &&
+			typeof headerValue === 'string'
+		) {
 			headers[trimmedName] = headerValue;
 		}
 	}

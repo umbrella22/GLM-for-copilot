@@ -7,6 +7,7 @@ import {
 	getMaxTokens,
 	getModelVisionMode,
 	getRequestHeaders,
+	getToolStreamEnabled,
 	resolveModelConnection,
 } from '../config';
 import { isOfficialGLMBaseUrl } from '../endpoint';
@@ -226,7 +227,7 @@ export async function prepareChatRequest({
 		stream_options: { include_usage: true },
 		tools,
 		tool_choice: tools && tools.length > 0 ? ('auto' as const) : undefined,
-		tool_stream: tools && tools.length > 0 ? true : undefined,
+		tool_stream: tools && tools.length > 0 && getToolStreamEnabled() ? true : undefined,
 		max_tokens: maxTokens,
 	};
 	const requestKind = classifyGLMRequest({

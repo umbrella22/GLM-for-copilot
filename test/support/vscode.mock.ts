@@ -16,7 +16,10 @@ export class LanguageModelTextPart {
 }
 
 export class LanguageModelThinkingPart {
-	constructor(readonly value: string | string[]) {}
+	constructor(
+		readonly value: string | string[],
+		readonly id?: string,
+	) {}
 }
 
 export class LanguageModelPromptTsxPart {

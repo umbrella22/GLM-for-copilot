@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import vscode from 'vscode';
 import { getRequestDumpEnabled } from '../config';
 import { createUserFacingError } from '../client';
@@ -29,6 +30,8 @@ import { formatRequestLogLine, type RequestKind } from './routing';
 
 interface ResponseStreamState {
 	accumulatedReasoning: string;
+	/** Stable id for the current continuous reasoning run, so the host does not split it into fragments. */
+	reasoningRunId: string | undefined;
 	emittedToolCallIds: string[];
 	initialResponseNoticeReported: boolean;
 	replayMarkerReported: boolean;
@@ -72,6 +75,7 @@ export async function streamChatCompletion({
 }: StreamChatCompletionOptions): Promise<void> {
 	const state: ResponseStreamState = {
 		accumulatedReasoning: '',
+		reasoningRunId: undefined,
 		emittedToolCallIds: [],
 		initialResponseNoticeReported: false,
 		replayMarkerReported: false,
@@ -97,6 +101,7 @@ export async function streamChatCompletion({
 			prepared.request,
 			{
 				onContent: (content: string) => {
+					state.reasoningRunId = undefined;
 					state.hasModelOutput = true;
 					state.textChars += content.length;
 					reportInitialResponseNoticeOnce(progress, state, initialResponseNotice);
@@ -109,6 +114,7 @@ export async function streamChatCompletion({
 				},
 
 				onToolCall: (toolCall: GLMToolCall) => {
+					state.reasoningRunId = undefined;
 					state.hasModelOutput = true;
 					reportInitialResponseNoticeOnce(progress, state, initialResponseNotice);
 					handleToolCall(toolCall, state, progress);
@@ -123,6 +129,7 @@ export async function streamChatCompletion({
 				},
 
 				onUsage: (usage) => {
+					state.reasoningRunId = undefined;
 					state.latestProviderUsage = usage;
 					state.providerUsageCallbacks += 1;
 				},
@@ -309,20 +316,28 @@ function handleThinking(
 ): void {
 	state.accumulatedReasoning += text;
 	state.reasoningChars += text.length;
+	// Consecutive thinking deltas belong to one run, even across render updates.
+	state.reasoningRunId ??= randomUUID();
 
-	const thinkingPart = createThinkingPart(text);
+	const thinkingPart = createThinkingPart(text, state.reasoningRunId);
 	if (thinkingPart) {
 		reportResponsePart(progress, state, thinkingPart, 'thinking');
 	}
 }
 
-function createThinkingPart(text: string): vscode.LanguageModelResponsePart | undefined {
+function createThinkingPart(
+	text: string,
+	id: string,
+): vscode.LanguageModelResponsePart | undefined {
 	const ThinkingPart = (
 		vscode as unknown as {
-			LanguageModelThinkingPart?: new (value: string) => vscode.LanguageModelResponsePart;
+			LanguageModelThinkingPart?: new (
+				value: string,
+				id?: string,
+			) => vscode.LanguageModelResponsePart;
 		}
 	).LanguageModelThinkingPart;
-	return typeof ThinkingPart === 'function' ? new ThinkingPart(text) : undefined;
+	return typeof ThinkingPart === 'function' ? new ThinkingPart(text, id) : undefined;
 }
 
 function handleToolCall(

@@ -370,6 +370,37 @@ describe('streamChatCompletion marker reporting', () => {
 		});
 	});
 
+	it('keeps consecutive thinking deltas in one run and resets the id after output', async () => {
+		const prepared = buildPrepared({
+			driver: (cb) => {
+				cb.onThinking('first ');
+				cb.onThinking('second');
+				cb.onContent('answer');
+				cb.onThinking('next run');
+				cb.onDone();
+			},
+		});
+		const parts: vscode.LanguageModelResponsePart[] = [];
+
+		await streamChatCompletion({
+			prepared,
+			progress: { report: (part) => parts.push(part) },
+			token: new MutableCancellationToken(),
+			getCharsPerToken: () => 4,
+			setCharsPerToken: () => {},
+		});
+
+		const thinking = parts.filter(
+			(part): part is vscode.LanguageModelThinkingPart =>
+				part instanceof vscode.LanguageModelThinkingPart,
+		);
+		expect(thinking).toHaveLength(3);
+		expect(thinking[0].id).toBeTruthy();
+		expect(thinking[1].id).toBe(thinking[0].id);
+		expect(thinking[2].id).toBeTruthy();
+		expect(thinking[2].id).not.toBe(thinking[0].id);
+	});
+
 	it('keeps segment continuity through a real two-round tool-call flow', async () => {
 		const toolCall: GLMToolCall = {
 			id: 'call-1',

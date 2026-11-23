@@ -96,4 +96,20 @@ describe('OpenAI-compatible stream parsing', () => {
 			function: { name: 'read_file', arguments: '{"path":"a.md"}' },
 		});
 	});
+
+	it('sends configured headers while protecting auth and content type', async () => {
+		const fetchMock = vi.fn((_url: string, _init: RequestInit) => Promise.resolve(sseResponse([])));
+		vi.stubGlobal('fetch', fetchMock);
+
+		await new GLMClient('https://example.test', 'test-key', 'openai', {
+			'X-Team': 'platform',
+			Authorization: 'Bearer wrong',
+		}).streamChatCompletion({ model: 'glm-test', messages: [], stream: true }, callbacks());
+
+		const init = fetchMock.mock.calls[0]?.[1];
+		const headers = new Headers(init?.headers);
+		expect(headers.get('x-team')).toBe('platform');
+		expect(headers.get('authorization')).toBe('Bearer test-key');
+		expect(headers.get('content-type')).toBe('application/json');
+	});
 });

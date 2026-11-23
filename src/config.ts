@@ -609,6 +609,26 @@ export function getMaxTokens(): number | undefined {
 }
 
 /**
+ * Extra HTTP headers sent with GLM chat requests. Invalid entries are ignored;
+ * the extension always controls Authorization/Content-Type.
+ */
+export function getRequestHeaders(): Record<string, string> {
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+	const value = config.get<unknown>('requestHeaders', {});
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return {};
+	}
+	const headers: Record<string, string> = {};
+	for (const [name, headerValue] of Object.entries(value)) {
+		const trimmedName = name.trim();
+		if (trimmedName && typeof headerValue === 'string') {
+			headers[trimmedName] = headerValue;
+		}
+	}
+	return headers;
+}
+
+/**
  * Diagnostic mode. `verbose` also enables metadata logs.
  *
  * The legacy boolean `debug` setting is still read as a fallback so old

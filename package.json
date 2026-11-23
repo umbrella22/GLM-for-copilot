@@ -326,6 +326,17 @@
           "minimum": 0,
           "description": "%glm-copilot.config.maxTokens.description%"
         },
+        "glm-copilot.requestHeaders": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string"
+          },
+          "tags": [
+            "advanced"
+          ],
+          "markdownDescription": "%glm-copilot.config.requestHeaders.description%"
+        },
         "glm-copilot.experimental.stabilizeToolList": {
           "type": "boolean",
           "default": false,

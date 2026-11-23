@@ -6,6 +6,7 @@ import {
 	getApiModelId,
 	getMaxTokens,
 	getModelVisionMode,
+	getRequestHeaders,
 	resolveModelConnection,
 } from '../config';
 import { isOfficialGLMBaseUrl } from '../endpoint';
@@ -27,6 +28,7 @@ import {
 	type RequestDumpRun,
 } from './debug';
 import { getConfiguredThinkingEffort, type ModelConfigurationOptions } from './models';
+import { resolveRequestHeaders } from './headers';
 import { getPricingCurrencyForBaseUrl } from './pricing/currency';
 import type { ReplayMarkerMetadata } from './replay';
 import { classifyGLMRequest, shouldForceThinkingNone, type RequestKind } from './routing';
@@ -97,7 +99,12 @@ export async function prepareChatRequest({
 	}
 
 	const { baseUrl, protocol: apiProtocol } = connection;
-	const client = new GLMClient(baseUrl, apiKey, apiProtocol);
+	const client = new GLMClient(
+		baseUrl,
+		apiKey,
+		apiProtocol,
+		resolveRequestHeaders(getRequestHeaders(), options),
+	);
 	const modelDef = findModelDefinition(modelInfo.id, configurationResource);
 	const isThinkingModel = modelDef?.capabilities.thinking ?? false;
 	// "No limit" (0/unset) pins the output budget to the model's maximum

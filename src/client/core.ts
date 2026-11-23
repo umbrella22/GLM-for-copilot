@@ -25,7 +25,16 @@ export class GLMClient {
 		private readonly baseUrl: string,
 		private readonly apiKey: string,
 		private readonly protocol: ApiProtocol = 'openai',
+		private readonly extraHeaders: Readonly<Record<string, string>> = {},
 	) {}
+
+	private buildHeaders(required: Readonly<Record<string, string>>): Headers {
+		const headers = new Headers(this.extraHeaders);
+		for (const [name, value] of Object.entries(required)) {
+			headers.set(name, value);
+		}
+		return headers;
+	}
 
 	/**
 	 * Stream a chat completion from the GLM API.
@@ -73,10 +82,10 @@ export class GLMClient {
 		try {
 			const response = await fetch(`${this.baseUrl}/chat/completions`, {
 				method: 'POST',
-				headers: {
+				headers: this.buildHeaders({
 					'Content-Type': 'application/json',
 					Authorization: `Bearer ${this.apiKey}`,
-				},
+				}),
 				body: safeStringify(request),
 				signal: controller.signal,
 			});
@@ -309,11 +318,11 @@ export class GLMClient {
 
 			const response = await fetch(`${this.baseUrl}/v1/messages`, {
 				method: 'POST',
-				headers: {
+				headers: this.buildHeaders({
 					'Content-Type': 'application/json',
 					'x-api-key': this.apiKey,
 					'anthropic-version': '2023-06-01',
-				},
+				}),
 				body: safeStringify(anthropicRequest),
 				signal: controller.signal,
 			});

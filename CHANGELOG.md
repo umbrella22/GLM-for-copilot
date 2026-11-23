@@ -5,7 +5,6 @@
 
 ### Features
 
-* add GLM-5.4 and switch the Coding Plan preset to it ([507f6ff](https://github.com/umbrella22/GLM-for-copilot/commit/507f6ff5f265bc0522e082a354b5c64c30898444))
 * add GLM-5.4 and switch the Coding Plan preset to it ([a31e9cb](https://github.com/umbrella22/GLM-for-copilot/commit/a31e9cb7230d7f1f4b09c085b95120ab2b05eb9d))
 
 

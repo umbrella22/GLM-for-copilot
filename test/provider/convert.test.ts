@@ -166,6 +166,14 @@ describe('message and tool conversion', () => {
 		).toThrow('Native image input is only supported in user messages.');
 	});
 
+	it('adds an empty object schema for parameterless tools', () => {
+		const tools = convertTools([
+			{ name: 'ping', description: 'Ping the server' },
+		] as vscode.LanguageModelChatTool[]);
+
+		expect(tools?.[0]?.function.parameters).toEqual({ type: 'object', properties: {} });
+	});
+
 	it('converts tool definitions and counts request characters', () => {
 		const tools = convertTools([
 			{

@@ -48,7 +48,7 @@ This keeps GLM-5.3 focused on coding/reasoning while the vision model handles mu
 
 ### Thinking Mode with Reasoning Effort Control
 
-Full support for GLM's `reasoning_content`. Use Copilot Chat's native model picker menu to choose `none` (off), `high` (balanced), or `max` (default deep reasoning for hard agent tasks).
+Full support for GLM's `reasoning_content`. The Copilot Chat model picker exposes the levels each model actually accepts: GLM-4.6V-Flash offers `none` (off), `high` (balanced), and `max`; the GLM-5.x models always keep thinking on (the API accepts `enabled` only) and offer `low`, `high`, and `max`. `max` remains the default deep-reasoning level for hard agent tasks.
 
 ### Inherits Every Copilot Capability
 
@@ -69,7 +69,7 @@ New and updated API keys live in VS Code's `SecretStorage` (OS keychain on macOS
 
 ### Cost Visibility
 
-After each completed GLM response, the extension reports usage to Copilot metadata and writes it to logs. The status bar headline follows the active resource's default channel; hover it to inspect Coding Plan subscription details, token and monthly MCP quotas, reset countdowns, and Standard API session costs. Click the status item or its hover action to refresh Coding Plan usage. Estimates use CNY for domestic BigModel endpoints and USD for Z.ai endpoints.
+After each completed GLM response, the extension reports usage to Copilot metadata and writes it to logs. The status bar headline follows the active resource's default channel; hover it to inspect Coding Plan subscription details, 5-hour and weekly quota usage, the monthly MCP quota, reset countdowns, and Standard API session costs. Click the status item or its hover action to refresh Coding Plan usage. Estimates use CNY for domestic BigModel endpoints and USD for Z.ai endpoints.
 
 ### Runtime Footprint
 
@@ -87,8 +87,8 @@ The core extension uses only the VS Code API and Node.js built-ins: no Python, D
 
 Install from the registry used by your editor:
 
-1. **Microsoft VS Code** — install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=umbrella22.glm-for-copilot).
-2. **Editors that use Open VSX** — install from [Open VSX](https://open-vsx.org/extension/umbrella22/glm-for-copilot).
+1. **Microsoft VS Code** — install from [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ikaros.glm-for-vscode-copilot).
+2. **Editors that use Open VSX** — install from [Open VSX](https://open-vsx.org/extension/ikaros/glm-for-vscode-copilot).
 
 ### Usage
 
@@ -100,12 +100,12 @@ Install from the registry used by your editor:
 
 ## Models
 
-| Model              | Best For                                                             |
-| ------------------ | -------------------------------------------------------------------- |
-| **GLM-5.3**        | Latest flagship — agentic coding, long-horizon tasks, deep reasoning |
-| **GLM-4.6V-Flash** | Multimodal questions, screenshots, visual context                    |
-| **GLM-5.3-Flash**  | Natively multimodal GLM-5 model — visual agents, design-to-code      |
-| **GLM-5.4**        | Newest GLM-5 model — natively multimodal, low/high/max effort        |
+| Model              | Best For                                                                   |
+| ------------------ | -------------------------------------------------------------------------- |
+| **GLM-5.4**        | Latest flagship — natively multimodal, agentic coding, low/high/max effort |
+| **GLM-5.3**        | Flagship base model — long-horizon tasks, deep reasoning                   |
+| **GLM-5.3-Flash**  | Natively multimodal GLM-5 model — visual agents, design-to-code            |
+| **GLM-4.6V-Flash** | Multimodal questions, screenshots, visual context                          |
 
 All four support thinking mode and tool calling. GLM-5.3 and GLM-5.3-Flash cannot disable thinking (the API accepts `enabled` only) and offer low/high/max reasoning effort; GLM-5.4 offers the same low/high/max ladder; GLM-4.6V-Flash keeps none/high/max. GLM-5.4 is available on the GLM Coding Plan and the Standard API; its cost is estimated with GLM-5.3 list prices until Zhipu publishes pricing. GLM-5.3-Flash is fully available on the GLM Coding Plan and also offered through the pay-as-you-go Standard API; GLM-4.6V-Flash, GLM-5.3-Flash, and GLM-5.4 receive images natively. On Coding Plan connections the automatic Vision Proxy describes images with GLM-5.3-Flash instead of GLM-4.6V-Flash.
 

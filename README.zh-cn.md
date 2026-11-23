@@ -48,7 +48,7 @@
 
 ### 思考模式与推理深度控制
 
-完整支持 GLM 的 `reasoning_content`。通过 Copilot Chat 模型选择器的菜单选择 `停用`、`标准`（均衡，默认）或 `深度`（适用于复杂 Agent 任务）。
+完整支持 GLM 的 `reasoning_content`。Copilot Chat 的模型选择器会按模型给出实际支持的档位：GLM-4.6V-Flash 提供 `停用`/`标准`/`深度`；GLM-5.x 模型无法关闭思考（API 仅接受 `enabled`），提供 `轻量`/`标准`/`深度`。`深度` 仍是复杂 Agent 任务的默认档位。
 
 ### 继承全部 Copilot 能力
 
@@ -69,7 +69,7 @@
 
 ### 费用可见
 
-每次 GLM 响应完成后，扩展会将用量上报到 Copilot 元数据并写入日志。状态栏主文案跟随当前资源的默认通道；鼠标悬停后可集中查看 Coding Plan 套餐信息、token 与 MCP 每月额度、重置倒计时，以及标准 API 会话费用。点击状态栏或悬浮窗中的操作即可刷新 Coding Plan 用量。国内 BigModel endpoint 使用 CNY，Z.ai endpoint 使用 USD。
+每次 GLM 响应完成后，扩展会将用量上报到 Copilot 元数据并写入日志。状态栏主文案跟随当前资源的默认通道；鼠标悬停后可集中查看 Coding Plan 套餐信息、5 小时与每周额度、MCP 每月额度、重置倒计时，以及标准 API 会话费用。点击状态栏或悬浮窗中的操作即可刷新 Coding Plan 用量。国内 BigModel endpoint 使用 CNY，Z.ai endpoint 使用 USD。
 
 ### 运行时组成
 
@@ -87,8 +87,8 @@
 
 根据你所使用的编辑器选择对应的注册表安装：
 
-1. **Microsoft VS Code** — 从 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ikaros.glm-for-copilot) 安装。
-2. **使用 Open VSX 的编辑器** — 从 [Open VSX](https://open-vsx.org/extension/umbrella22/glm-for-copilot) 安装。
+1. **Microsoft VS Code** — 从 [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=ikaros.glm-for-vscode-copilot) 安装。
+2. **使用 Open VSX 的编辑器** — 从 [Open VSX](https://open-vsx.org/extension/ikaros/glm-for-vscode-copilot) 安装。
 
 ### 使用步骤
 
@@ -100,12 +100,12 @@
 
 ## 模型
 
-| 模型               | 适用场景                                      |
-| ------------------ | --------------------------------------------- |
-| **GLM-5.3**        | 最新旗舰模型 — Agent 编程、长期任务、深度推理 |
-| **GLM-4.6V-Flash** | 多模态问答、截图理解、视觉上下文              |
-| **GLM-5.3-Flash**  | GLM-5 系列首个原生多模态模型 — 视觉 Agent、设计稿还原 |
-| **GLM-5.4**        | GLM-5 系列最新模型 — 原生多模态，提供 轻量/标准/深度 三档推理强度 |
+| 模型               | 适用场景                                                                 |
+| ------------------ | ------------------------------------------------------------------------ |
+| **GLM-5.4**        | 最新旗舰模型 — 原生多模态，Agent 编程，提供 轻量/标准/深度 三档推理强度 |
+| **GLM-5.3**        | 旗舰基座模型 — 长期任务、深度推理                                        |
+| **GLM-5.3-Flash**  | GLM-5 系列原生多模态模型 — 视觉 Agent、设计稿还原                        |
+| **GLM-4.6V-Flash** | 多模态问答、截图理解、视觉上下文                                         |
 
 四者均支持思考模式和工具调用。GLM-5.3 与 GLM-5.3-Flash 无法关闭思考（API 仅接受 `enabled`），提供 轻量/标准/深度 三档推理强度；GLM-5.4 提供同样的 轻量/标准/深度 三档；GLM-4.6V-Flash 保持 停用/标准/深度。GLM-5.4 已上线 GLM Coding Plan 与标准 API，默认直接接收图片；定价暂按 GLM-5.3 计算，官方数据公布后再更新。GLM-5.3-Flash 已全量上线 GLM Coding Plan，同时提供按量付费标准 API；GLM-4.6V-Flash、GLM-5.3-Flash 和 GLM-5.4 默认直接接收图片。Coding Plan 连接下，自动视觉代理会从 GLM-4.6V-Flash 切换为 GLM-5.3-Flash 来描述图片。
 

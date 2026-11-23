@@ -146,7 +146,9 @@ export class GLMClient {
 						return false;
 					}
 
-					const reasoning = choice.delta.reasoning_content;
+					// vLLM and some other OpenAI-compatible gateways stream the
+					// reasoning text as `delta.reasoning` instead of `reasoning_content`.
+					const reasoning = choice.delta.reasoning_content ?? choice.delta.reasoning;
 					if (reasoning) {
 						callbacks.onThinking(reasoning);
 					}

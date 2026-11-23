@@ -83,6 +83,8 @@ export interface GLMStreamChunk {
 			role?: string;
 			content?: string;
 			reasoning_content?: string;
+			/** Some OpenAI-compatible gateways (e.g. vLLM) stream reasoning as `delta.reasoning`. */
+			reasoning?: string;
 			tool_calls?: Array<{
 				index: number;
 				id?: string;

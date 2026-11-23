@@ -353,6 +353,16 @@
           ],
           "markdownDescription": "%glm-copilot.config.visionModel.description%"
         },
+        "glm-copilot.visionProxyTimeoutMs": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 2147483647,
+          "tags": [
+            "advanced"
+          ],
+          "markdownDescription": "%glm-copilot.config.visionProxyTimeoutMs.description%"
+        },
         "glm-copilot.visionPrompt": {
           "type": "string",
           "editPresentation": "multilineText",

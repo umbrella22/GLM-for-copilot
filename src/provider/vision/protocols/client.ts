@@ -1,4 +1,5 @@
 import type { CancellationToken } from 'vscode';
+import { getVisionProxyTimeoutMs } from '../../../config';
 import {
 	getNetworkErrorCategory,
 	getNetworkErrorCauseInfo,
@@ -46,7 +47,7 @@ export class VisionProxyClient {
 			context,
 			headers,
 			body,
-			timeoutMs: DEFAULT_TIMEOUT_MS,
+			timeoutMs: getVisionProxyTimeoutMs() ?? DEFAULT_TIMEOUT_MS,
 			token: request.token,
 		});
 

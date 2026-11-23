@@ -12,6 +12,7 @@ import {
 	getModelManagementConfiguration,
 	getModelVisionMode,
 	getModelEndpointRoute,
+	getVisionProxyTimeoutMs,
 	inspectEffectiveModelManagementConfiguration,
 	inspectModelManagementConfiguration,
 	listProviderModels,
@@ -1219,5 +1220,14 @@ describe('migrateLegacyEndpointSettings', () => {
 
 		expect(getEndpoint()).toBe(afterFirstRun);
 		expect(getEndpoint()).toBe('international-standard');
+	});
+
+	it('normalizes the vision proxy timeout', () => {
+		__setConfigurationValue('glm-copilot.visionProxyTimeoutMs', 0);
+		expect(getVisionProxyTimeoutMs()).toBeUndefined();
+		__setConfigurationValue('glm-copilot.visionProxyTimeoutMs', 45_000);
+		expect(getVisionProxyTimeoutMs()).toBe(45_000);
+		__setConfigurationValue('glm-copilot.visionProxyTimeoutMs', -1);
+		expect(getVisionProxyTimeoutMs()).toBeUndefined();
 	});
 });

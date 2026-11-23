@@ -629,6 +629,20 @@ export function getRequestHeaders(): Record<string, string> {
 }
 
 /**
+ * Vision Proxy request timeout in milliseconds. Returns `undefined` for the
+ * built-in default (30s). Capped because Node's setTimeout overflows above
+ * 2^31-1 ms and would fire almost immediately.
+ */
+export function getVisionProxyTimeoutMs(): number | undefined {
+	const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
+	const value = config.get<number>('visionProxyTimeoutMs', 0);
+	if (!Number.isFinite(value) || value <= 0) {
+		return undefined;
+	}
+	return Math.min(Math.floor(value), 2_147_483_647);
+}
+
+/**
  * Diagnostic mode. `verbose` also enables metadata logs.
  *
  * The legacy boolean `debug` setting is still read as a fallback so old
